@@ -199,7 +199,10 @@ function stageRepository(rootPath, stagingRoot, limits = {}) {
 
   fs.mkdirSync(destinationRoot, { recursive: true });
 
-  function walk(sourceDirectory, destinationDirectory) {
+  const maxDepth = limits.maxDepth || 25;
+  const maxFiles = limits.maxFiles || 10000;
+
+  function walk(sourceDirectory, destinationDirectory, depth) {
     const entries = fs.readdirSync(sourceDirectory, { withFileTypes: true })
       .sort((left, right) => compareStrings(left.name, right.name));
 
@@ -215,8 +218,11 @@ function stageRepository(rootPath, stagingRoot, limits = {}) {
       }
       if (stat.isDirectory()) {
         if (SKIPPED_DIRECTORY_NAMES.has(entry.name)) continue;
+        if (depth + 1 > maxDepth) {
+          throw new Error(`staging depth limit exceeded at ${relative}`);
+        }
         fs.mkdirSync(destinationPath, { recursive: true, mode: 0o755 });
-        walk(sourcePath, destinationPath);
+        walk(sourcePath, destinationPath, depth + 1);
         continue;
       }
       if (!stat.isFile()) continue;
@@ -225,6 +231,9 @@ function stageRepository(rootPath, stagingRoot, limits = {}) {
         continue;
       }
 
+      if (fileCount >= maxFiles) {
+        throw new Error(`staging file-count limit exceeded at ${relative}`);
+      }
       const maxFileBytes = limits.maxFileBytes || 1024 * 1024;
       const maxTotalBytes = limits.maxTotalBytes || 10 * 1024 * 1024;
       if (stat.size > maxFileBytes || totalBytes + stat.size > maxTotalBytes) {
@@ -243,7 +252,7 @@ function stageRepository(rootPath, stagingRoot, limits = {}) {
     }
   }
 
-  walk(sourceRoot, destinationRoot);
+  walk(sourceRoot, destinationRoot, 0);
   return { destinationRoot, symlinkPaths, skippedSensitivePaths, fileCount, totalBytes };
 }
 
