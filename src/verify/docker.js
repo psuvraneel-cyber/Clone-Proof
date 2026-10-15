@@ -32,9 +32,13 @@ function resolveDockerExecutable() {
   if (process.platform === 'win32') {
     const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
     const programW6432 = process.env.ProgramW6432 || programFiles;
+    const localAppData = process.env.LOCALAPPDATA;
     candidates.push(
       path.join(programFiles, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'),
-      path.join(programW6432, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe')
+      path.join(programW6432, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'),
+      ...(localAppData
+        ? [path.join(localAppData, 'Programs', 'DockerDesktop', 'resources', 'bin', 'docker.exe')]
+        : [])
     );
   } else {
     candidates.push('/usr/bin/docker', '/usr/local/bin/docker', '/opt/homebrew/bin/docker', '/snap/bin/docker');
@@ -301,7 +305,6 @@ function dockerRunArguments(stagingRoot, allowNetwork, containerName = 'clonepro
     '--entrypoint',
     '/bin/sh',
     DEFAULT_VERIFY_IMAGE,
-    'sh',
     '-c',
     controlledScript
   ];
