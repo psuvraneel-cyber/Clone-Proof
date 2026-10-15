@@ -24,6 +24,33 @@ test('check emits machine-readable JSON for a local repository', () => {
   assert.equal(report.scan.complete, true);
 });
 
+test('broken fixture exits nonzero and missing paths exit incomplete', () => {
+  const broken = spawnSync(process.execPath, [cliPath, 'check', path.join(projectRoot, 'examples', 'broken-node')], {
+    cwd: projectRoot,
+    encoding: 'utf8'
+  });
+  const missing = spawnSync(process.execPath, [cliPath, 'check', path.join(projectRoot, 'does-not-exist')], {
+    cwd: projectRoot,
+    encoding: 'utf8'
+  });
+
+  assert.equal(broken.status, 1);
+  assert.match(broken.stdout, /TEST_SCRIPT_MISSING/);
+  assert.equal(missing.status, 2);
+  assert.match(missing.stdout, /Status: incomplete/);
+});
+
+test('JSON output is byte-for-byte stable across CLI runs', () => {
+  const args = [cliPath, 'check', path.join(projectRoot, 'examples', 'healthy-node'), '--format', 'json'];
+  const first = spawnSync(process.execPath, args, { cwd: projectRoot, encoding: 'buffer' });
+  const second = spawnSync(process.execPath, args, { cwd: projectRoot, encoding: 'buffer' });
+
+  assert.equal(first.status, 0);
+  assert.equal(second.status, 0);
+  assert.deepEqual(second.stdout, first.stdout);
+  assert.equal(JSON.parse(first.stdout.toString('utf8')).scan.complete, true);
+});
+
 test('verify refuses to run repository code without explicit authorization flags', () => {
   const result = spawnSync(process.execPath, [cliPath, 'verify', projectRoot], {
     cwd: projectRoot,
