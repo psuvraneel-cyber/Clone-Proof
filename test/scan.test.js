@@ -211,6 +211,22 @@ test('returns an incomplete report for a missing repository path', () => {
   assert.equal(finding(report, 'SCAN_ROOT_UNAVAILABLE').status, 'failed');
 });
 
+test('static inspection never executes package scripts, README commands, or Dockerfile instructions', () => withRepository((root) => {
+  const marker = path.join(root, 'should-not-exist.marker');
+  const markerCommand = `node -e "require('fs').writeFileSync('${marker.replace(/\\/g, '\\\\')}', 'executed')"`;
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'untrusted-fixture',
+    scripts: { test: markerCommand, postinstall: markerCommand }
+  }, null, 2));
+  writeFile(root, 'README.md', `Run \`${markerCommand}\`\n`);
+  writeFile(root, 'Dockerfile', `FROM node:22.19.0-bookworm-slim\nRUN ${markerCommand}\n`);
+
+  const report = scanRepository(root);
+
+  assert.equal(fs.existsSync(marker), false);
+  assert.equal(report.mode, 'check');
+}));
+
 test('skips symlinks without following them', (t) => withRepository((root) => {
   writeHealthyRepository(root);
   const outside = path.join(path.dirname(root), `${path.basename(root)}-outside.js`);
