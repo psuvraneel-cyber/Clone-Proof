@@ -23,10 +23,10 @@ Source checked on 2026-10-15: <https://omnirush.ai/buildathon>
 - [ ] `npm test` (and the Linux-friendly `make test` wrapper) runs without internet access.
 - [ ] `.env.example` contains placeholders only.
 - [ ] No absolute paths, credentials, or private session data are committed.
-- [ ] Docker rebuild and test run are verified on a Docker-capable Linux environment before submission.
+- [x] Docker rebuild and test run verified using Docker Desktop's Linux engine; repeat on a clean Linux host if available.
 
 ## Current environment gaps
 
-- Docker Desktop 4.95.0 is installed per-user, but its Linux engine cannot start until WSL 2 is enabled. The elevated WSL installation was canceled, so local Docker execution cannot yet be claimed as tested.
+- Docker Desktop 4.95.0, WSL 2.7.13, and Docker Linux engine 29.8.2 are now working after enabling the Windows optional features and restarting.
 - The workspace started empty; Git was initialized for this project on 2026-10-15.
 - `make` is not installed on the current Windows host; `npm test` is the portable test command and the Makefile wrapper is intended for Linux judges.

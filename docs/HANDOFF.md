@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-15 at revision `739e135` on branch `main`.
+Updated 2026-10-16 at revision `d5b1c58` on branch `main`.
 
 ## Goal
 
@@ -17,13 +17,13 @@ Deliver a credible, secure-by-design CLI for Node.js/TypeScript repository setup
 - Healthy and deliberately broken demo repositories are checked in under `examples/`.
 - Buildathon rules, security assumptions, decisions, demo steps, and session references are documented.
 
-### Blocked or unproven
+### Remaining gaps
 
-- Docker Desktop 4.95.0 and its 29.8.2 CLI are now installed per-user. The Docker engine is still unavailable because WSL 2 is not installed; the required elevated `wsl --install --no-distribution` action was canceled by Windows. Real Docker image build and real container verification have not been observed here.
+- The Docker image is pinned to `node:22.19.0-bookworm-slim` with `--pull=never`, but not yet to a recorded cryptographic digest in CloneProof's verifier policy.
 - The symlink test is skipped on this Windows host because symlink creation returned `EPERM`; run the suite on Linux to exercise that branch.
-- The verifier image is pinned to `node:22.19.0-bookworm-slim` with `--pull=never`, but not yet to a recorded cryptographic digest.
 - `--allow-network` enables the network for both `npm ci` and `npm test`; it is intentionally broad and should only be used for trusted repositories.
-- No public GitHub repository has been created or pushed, and no Buildathon dashboard submission has been made.
+- The static report intentionally reports warnings for environment references inside the checked-in demo fixtures and verifier source; these do not block verification.
+- No Buildathon dashboard submission has been made yet.
 
 ## Important files
 
@@ -58,8 +58,13 @@ Working directory: `C:\Users\Sauvraneel Paul\OneDrive\Desktop\Clone-Proof`
 - `node src/cli.js check examples/healthy-node` — observed `passed`, exit `0`.
 - `node src/cli.js check examples/broken-node` — observed `failed`, exit `1`.
 - Missing repository path — observed `incomplete`, exit `2`.
-- `node src/cli.js verify examples/healthy-node --docker --execute --format json` — observed `blocked`, exit `2`, because Docker executable resolution failed before any host process was started.
-- `docker build` and real Docker verification — not run; Docker Desktop is installed but its Linux engine is blocked by the missing WSL 2 prerequisite.
+- `docker version` — passed after enabling WSL 2: Docker Desktop Linux engine 29.8.2, Linux `x86_64`.
+- `docker pull node:22.19.0-bookworm-slim` — passed; resolved digest `sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`.
+- `docker build -t cloneproof .` — passed on Docker Desktop's Linux engine.
+- `docker run --rm --network none cloneproof npm test` — passed: 37 passed, 0 skipped.
+- `node src/cli.js verify examples/healthy-node --docker --execute --format json` — passed: status `passed`, container exit `0`, network `none`, cleanup confirmed. The first real attempt exposed and led to fixing the redundant `/bin/sh` argument in `5de4d11`; the rerun passed.
+- A depth-1 clone of `https://github.com/psuvraneel-cyber/Clone-Proof` at `d5b1c58` — static check returned `passed_with_warnings`, 0 failures, 7 warnings, 39 files.
+- The same GitHub clone — Docker verify returned `passed_with_warnings`, verification outcome `passed`, container exit `0`, cleanup confirmed.
 - `make test` — not run; `make` is unavailable on this host.
 
 ## OmniRush sessions for submission
@@ -76,7 +81,7 @@ Use the main session in the Buildathon dashboard and confirm any associated sub-
 
 ## Next step
 
-On a Docker-capable Linux machine, run:
+Before submission, optionally repeat the clean rebuild on a separate Linux host. The real Windows Docker Desktop Linux-engine validation already passed with:
 
 ```bash
 npm ci --offline
@@ -88,10 +93,4 @@ node src/cli.js verify examples/healthy-node --docker --execute
 node src/cli.js verify examples/broken-node --docker --execute
 ```
 
-On this Windows device, first run the WSL prerequisite from an elevated PowerShell and restart if Windows requests it:
-
-```powershell
-wsl --install --no-distribution
-```
-
-Then record the real Docker results, update the checklist, create a public GitHub repository on the connected account, push the committed history, submit the repository and sessions through the OmniRush dashboard, and copy the Submission ID into Unstop.
+Then submit the public GitHub repository and recorded sessions through the OmniRush dashboard, select the track, and copy the Submission ID into Unstop.
