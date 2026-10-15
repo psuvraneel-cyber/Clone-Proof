@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-16 at revision `d5b1c58` on branch `main`.
+Updated 2026-10-16; use the latest Git commit as the authoritative revision.
 
 ## Goal
 
@@ -24,6 +24,9 @@ Deliver a credible, secure-by-design CLI for Node.js/TypeScript repository setup
 - `--allow-network` enables the network for both `npm ci` and `npm test`; it is intentionally broad and should only be used for trusted repositories.
 - The static report intentionally reports warnings for environment references inside the checked-in demo fixtures and verifier source; these do not block verification.
 - No Buildathon dashboard submission has been made yet.
+- The CLI still accepts local paths only; direct GitHub URL input is not implemented.
+- HTML report generation and `--output` file support are not implemented.
+- Dynamic verification intentionally supports only the root npm/Node workflow. “Almost all GitHub repositories” should mean broad, safe static inspection with explicit `unsupported`/`blocked` results—not blind execution of arbitrary projects.
 
 ## Important files
 
@@ -45,6 +48,81 @@ Deliver a credible, secure-by-design CLI for Node.js/TypeScript repository setup
 - The first dynamic profile is npm-only and runs `npm ci --ignore-scripts` followed by the declared `npm test` script.
 - Treat empty/unsupported repositories as `blocked`, malformed or failed checks as `failed`, and incomplete bounded scans as `incomplete`.
 - Do not trust a target Dockerfile, accept arbitrary Docker flags, mount the Docker socket, pass host secrets, or silently enable network access.
+
+## Four-day delivery scope
+
+The realistic submission target is:
+
+1. **Static mode:** accept a local path or public GitHub URL, inspect any repository safely, and return useful `passed`, `warning`, `failed`, `blocked`, or `incomplete` findings without executing target code.
+2. **Dynamic mode:** verify a clearly documented supported profile—root Node.js/TypeScript repositories using npm, a checked-in lockfile, and `scripts.test`—inside the controlled Docker runner.
+3. **Reports:** emit readable terminal output, stable JSON, and a self-contained HTML report that can be opened locally without a server.
+
+Do not promise that every arbitrary GitHub project can be installed and tested. Projects using unsupported languages, package managers, private registries, external services, monorepos, or special infrastructure should receive an explicit blocked/unsupported result with a recommendation.
+
+## Prioritized remaining tasks
+
+### P0 — Required before the final demo
+
+- [ ] Add safe public GitHub URL input, for example `check https://github.com/owner/repo`.
+  - Validate only HTTPS GitHub repository URLs in the first version.
+  - Clone into a bounded temporary directory with `--depth 1 --no-tags` or a pinned commit when supplied.
+  - Never pass the URL through a shell string; use an argument array.
+  - Apply clone timeout/size limits, clean up in `finally`, and report clone failures as `incomplete` or `blocked`.
+  - Do not request credentials or silently access private repositories.
+- [ ] Add a self-contained HTML renderer and `--output <file>`.
+  - Reuse the existing report schema so text, JSON, and HTML cannot disagree.
+  - Include status counts, finding codes, evidence paths/lines, recommendations, verification outcome, network policy, and cleanup state.
+  - Escape untrusted repository text and do not load external scripts, fonts, or styles.
+- [ ] Add end-to-end tests for URL cloning using a local fake Git remote or a controlled public repository fixture; keep the canonical offline suite network-free.
+- [ ] Re-run the real Docker build, healthy fixture verification, broken fixture block, and a fresh GitHub clone after the URL/HTML changes.
+- [ ] Update README usage and the demo script with the actual URL and HTML commands.
+
+### P1 — Required for trustworthy repository coverage
+
+- [ ] Improve static-analysis precision.
+  - Ignore conventional host/process variables such as `PATH`, `ProgramFiles`, and `NODE_ENV` when they are not application configuration.
+  - Avoid treating the tool's own verifier code and demo fixtures as the target application's required environment configuration, or label nested fixtures separately.
+  - Add tests for dynamic `process.env[name]` access, literal access, test fixtures, docs, examples, and monorepo-like layouts.
+- [ ] Add a compatibility matrix with explicit profiles for npm, pnpm, and Yarn.
+  - Static detection can cover all three.
+  - Dynamic execution should remain blocked until a package-manager-specific safe profile is implemented and tested; never silently fall back to host execution.
+- [ ] Add representative fixtures and smoke checks for valid npm projects, missing lockfiles, malformed manifests, missing test scripts, failing tests, hanging tests, non-Node repositories, monorepos, and repositories requiring network access.
+- [ ] Pin or verify the Docker verifier image by digest instead of relying only on `node:22.19.0-bookworm-slim` as a mutable tag. Record the resolved digest in the security documentation.
+- [ ] Test CLI exit codes and HTML/JSON output for `passed`, `passed_with_warnings`, `failed`, `blocked`, and `incomplete` outcomes.
+- [ ] Review cleanup, sensitive-file omission, output redaction, Docker executable discovery, and remote Docker-context protection after URL support is added.
+
+### P2 — Only if the P0/P1 work is complete
+
+- [ ] Add optional GitHub metadata such as default branch and commit SHA without requiring GitHub authentication.
+- [ ] Add a build-command check as a separate opt-in profile; do not run arbitrary README commands.
+- [ ] Add a compact HTML summary suitable for attaching to a GitHub issue or pull request, without implementing a hosted backend.
+- [ ] Consider a small Python/Go static-only detector only if it does not destabilize the Node/npm core.
+
+## Four-day execution plan
+
+### Day 1 — URL and report surface
+
+- Implement URL validation, shallow clone staging, cleanup, and clone error reporting.
+- Implement the shared HTML renderer and output-file handling.
+- Add offline fake-remote tests and one real public-repository smoke test.
+
+### Day 2 — Static coverage and compatibility boundaries
+
+- Fix environment-reference false positives and nested fixture handling.
+- Add the compatibility matrix and explicit unsupported/blocked messages.
+- Add failing, hanging, malformed, monorepo, pnpm/Yarn, and non-Node fixtures.
+
+### Day 3 — Docker/security regression pass
+
+- Pin/verify the verifier image digest.
+- Test URL-to-Docker verification, network-disabled behavior, explicit network consent, timeout cleanup, sensitive-file omission, and report escaping.
+- Rebuild the project image from a clean Docker cache if possible.
+
+### Day 4 — Freeze and submit
+
+- Freeze features and run `npm ci --offline`, `npm test`, `docker build`, container tests, URL checks, and HTML report checks.
+- Review README, `docs/SECURITY.md`, `docs/BUILDATHON_CHECKLIST.md`, and `docs/DEMO.md` against actual behavior.
+- Push the final public repository, record the final commit and OmniRush sessions, submit through the Buildathon dashboard, and save the Submission ID for Unstop.
 
 ## Checks observed
 
@@ -81,7 +159,7 @@ Use the main session in the Buildathon dashboard and confirm any associated sub-
 
 ## Next step
 
-Before submission, optionally repeat the clean rebuild on a separate Linux host. The real Windows Docker Desktop Linux-engine validation already passed with:
+Tomorrow's first implementation step is P0 GitHub URL input plus the self-contained HTML report. The real Windows Docker Desktop Linux-engine validation already passed with:
 
 ```bash
 npm ci --offline
