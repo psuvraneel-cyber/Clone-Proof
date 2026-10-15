@@ -13,6 +13,13 @@
 - **Why:** README commands, npm scripts, lifecycle hooks, and Dockerfiles are untrusted input. A safe default is more important than automatically making a test pass.
 - **Trade-off:** Some projects will be reported as blocked instead of being run automatically.
 
+## 2026-10-15 — Use a narrow, opt-in Docker profile
+
+- **Decision:** Support only the npm install/test workflow in a CloneProof-controlled Node 22.19.0 container. Require `--docker --execute`; require a separate `--allow-network` flag for network access.
+- **Why:** Running arbitrary README commands, package-manager choices, or target Dockerfiles would turn a helpful checker into a host execution risk. A narrow profile is testable within the Buildathon deadline.
+- **Trade-off:** pnpm/Yarn projects, repositories needing external services, and projects requiring custom setup are reported as unsupported or blocked.
+- **Known limitation:** The image is pinned by version tag and `--pull=never`, not yet by a recorded digest.
+
 ## 2026-10-15 — Official Buildathon source
 
 - **Source:** https://omnirush.ai/buildathon

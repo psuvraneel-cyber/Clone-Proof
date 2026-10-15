@@ -410,6 +410,35 @@ function renderFinding(finding, enabled) {
   return lines;
 }
 
+function verificationLines(report) {
+  if (!report || !report.verification || typeof report.verification !== 'object') {
+    return [];
+  }
+
+  const verification = report.verification;
+  const lines = [
+    '',
+    'Docker verification:',
+    `  Outcome: ${escapeControlCharacters(verification.outcome || 'unknown')}`,
+    `  Image: ${escapeControlCharacters(verification.image || 'unknown')}`,
+    `  Network: ${escapeControlCharacters(verification.networkMode || 'unknown')}${verification.networkConsent ? ' (explicitly allowed)' : ' (disabled by default)'}`,
+    `  Exit code: ${escapeControlCharacters(verification.exitCode === null || verification.exitCode === undefined ? 'n/a' : verification.exitCode)}`,
+    `  Cleanup complete: ${verification.cleanup && verification.cleanup.completed ? 'yes' : 'no'}`
+  ];
+
+  if (verification.timedOut) lines.push('  Timed out: yes');
+  if (verification.outputTruncated) lines.push('  Output truncated: yes');
+
+  for (const [label, value] of [['stdout', verification.stdout], ['stderr', verification.stderr]]) {
+    if (!value) continue;
+    const text = String(value);
+    const preview = text.length > 2000 ? `…${text.slice(-2000)}` : text;
+    lines.push(`  ${label}: ${escapeControlCharacters(preview)}`);
+  }
+
+  return lines;
+}
+
 /**
  * Render a report for a terminal. Color is opt-in through the terminal's TTY
  * state and is always disabled for NO_COLOR, non-TTY output, or color:false.
@@ -449,6 +478,8 @@ function renderText(report, options = {}) {
       lines.push(...renderFinding(finding, enabled));
     });
   }
+
+  lines.push(...verificationLines(safeReport));
 
   return `${lines.join('\n')}\n`;
 }

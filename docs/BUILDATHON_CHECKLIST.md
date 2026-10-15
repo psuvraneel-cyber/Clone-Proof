@@ -19,6 +19,7 @@ Source checked on 2026-10-15: <https://omnirush.ai/buildathon>
 - [ ] Runtime is pinned in `.nvmrc`.
 - [ ] `package-lock.json` is committed.
 - [ ] `Dockerfile` installs, builds, and runs the project.
+- [ ] `.dockerignore` excludes local secrets, dependencies, and generated files from the Docker build context.
 - [ ] `npm test` (and the Linux-friendly `make test` wrapper) runs without internet access.
 - [ ] `.env.example` contains placeholders only.
 - [ ] No absolute paths, credentials, or private session data are committed.
@@ -28,3 +29,4 @@ Source checked on 2026-10-15: <https://omnirush.ai/buildathon>
 
 - Docker is not installed on the current Windows host, so local Docker execution cannot yet be claimed as tested.
 - The workspace started empty; Git was initialized for this project on 2026-10-15.
+- `make` is not installed on the current Windows host; `npm test` is the portable test command and the Makefile wrapper is intended for Linux judges.

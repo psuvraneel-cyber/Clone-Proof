@@ -143,6 +143,19 @@ test('warns when a Node package has no lockfile', () => withRepository((root) =>
   assert.equal(finding(report, 'LOCKFILE_MISSING').status, 'warning');
 }));
 
+test('fails when package-lock.json is malformed', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'bad-lock',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"lockfileVersion":');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.status, 'failed');
+  assert.equal(finding(report, 'LOCKFILE_INVALID').status, 'failed');
+}));
+
 test('fails when packageManager disagrees with the root lockfile', () => withRepository((root) => {
   writeFile(root, 'package.json', JSON.stringify({
     name: 'mismatch',
@@ -172,6 +185,31 @@ test('warns when exact Node runtime declarations disagree', () => withRepository
   assert.equal(report.status, 'passed_with_warnings');
   assert.equal(finding(report, 'RUNTIME_VERSION_MISMATCH').status, 'warning');
 }));
+
+test('blocks an empty repository instead of reporting a false pass', () => withRepository((root) => {
+  const report = scanRepository(root);
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(finding(report, 'EMPTY_REPOSITORY').status, 'warning');
+}));
+
+test('blocks an unsupported repository type with a clear finding', () => withRepository((root) => {
+  writeFile(root, 'README.md', '# Python project\n');
+  writeFile(root, 'main.py', 'print("hello")\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(finding(report, 'UNSUPPORTED_ROOT').status, 'warning');
+}));
+
+test('returns an incomplete report for a missing repository path', () => {
+  const missing = path.join(os.tmpdir(), `cloneproof-does-not-exist-${Date.now()}`);
+  const report = scanRepository(missing);
+
+  assert.equal(report.status, 'incomplete');
+  assert.equal(finding(report, 'SCAN_ROOT_UNAVAILABLE').status, 'failed');
+});
 
 test('skips symlinks without following them', (t) => withRepository((root) => {
   writeHealthyRepository(root);

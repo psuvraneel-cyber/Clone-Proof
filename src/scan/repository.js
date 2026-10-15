@@ -728,6 +728,35 @@ function scanRepository(rootPath, options) {
           'Keep only the lockfile for the package manager used by this project.'
         );
       }
+
+      for (const lockfile of lockfiles.filter((candidate) => candidate.packageManager === 'npm')) {
+        if (!scanned.files.has(lockfile.name)) continue;
+        let lockfileValid = false;
+        try {
+          const parsedLockfile = JSON.parse(decodeText(scanned.files.get(lockfile.name)));
+          lockfileValid = Boolean(
+            parsedLockfile
+            && typeof parsedLockfile === 'object'
+            && !Array.isArray(parsedLockfile)
+            && Number.isInteger(parsedLockfile.lockfileVersion)
+          );
+        } catch {
+          lockfileValid = false;
+        }
+
+        if (!lockfileValid) {
+          addFinding(
+            findings,
+            'LOCKFILE_INVALID',
+            'failed',
+            'error',
+            'The npm lockfile is malformed',
+            `${lockfile.name} is present but could not be parsed as a valid npm lockfile metadata object.`,
+            [makeEvidence(lockfile.name, 'The npm lockfile did not contain valid JSON lockfile metadata.')],
+            'Regenerate the lockfile with the project package manager and commit the corrected file.'
+          );
+        }
+      }
     }
   }
 
@@ -1172,6 +1201,7 @@ function scanRepository(rootPath, options) {
 
   let status = 'passed';
   if (!scanned.complete) status = 'incomplete';
+  else if (projectType === 'unsupported') status = 'blocked';
   else if (summary.failed > 0) status = 'failed';
   else if (summary.warnings > 0) status = 'passed_with_warnings';
 

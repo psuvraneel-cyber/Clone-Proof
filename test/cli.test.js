@@ -24,12 +24,12 @@ test('check emits machine-readable JSON for a local repository', () => {
   assert.equal(report.scan.complete, true);
 });
 
-test('verify refuses to run repository code until Docker execution is explicitly implemented', () => {
+test('verify refuses to run repository code without explicit authorization flags', () => {
   const result = spawnSync(process.execPath, [cliPath, 'verify', projectRoot], {
     cwd: projectRoot,
     encoding: 'utf8'
   });
 
   assert.equal(result.status, 2);
-  assert.match(result.stderr, /Docker verification is not enabled/);
+  assert.match(result.stderr, /requires both --docker and --execute/);
 });

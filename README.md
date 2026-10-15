@@ -42,7 +42,25 @@ The intended installed command is also available after `npm link`:
 cloneproof check ./path/to/repository
 ```
 
-Docker verification will require both `--docker` and `--execute`. CloneProof will never silently fall back to running repository commands on the host.
+Verify the supported npm workflow in Docker. Both flags are required; without them CloneProof never executes repository code:
+
+```bash
+node src/cli.js verify ./path/to/repository --docker --execute
+```
+
+The default container network is disabled. If dependency installation genuinely needs registry access, make that decision explicit. This enables the network for both dependency installation and the declared test workflow, so only use it for repositories you trust:
+
+```bash
+node src/cli.js verify ./path/to/repository --docker --execute --allow-network
+```
+
+Use `--timeout-ms N` to override the bounded verification timeout when a trusted project needs more time. The value is capped internally at ten minutes.
+
+CloneProof uses a fixed Node 22.19.0 image, refuses to pull it implicitly, ignores npm lifecycle scripts during `npm ci`, runs the declared `npm test` script only after explicit authorization, and never falls back to host execution. On a Docker-capable machine, make the image available first:
+
+```bash
+docker pull node:22.19.0-bookworm-slim
+```
 
 ## Test and build
 
@@ -64,6 +82,8 @@ Build syntax-checks the source files:
 npm run build
 ```
 
+This CLI has no hosted deployment target. For submission, publish the repository publicly on the connected GitHub account; for local use, run it from the checkout or build the included Docker image.
+
 ## Docker build
 
 On a Docker-capable machine:
@@ -73,7 +93,7 @@ docker build -t cloneproof .
 docker run --rm --network none cloneproof
 ```
 
-The container runs CloneProof's static inspection against the project copy. The target-repository execution profile is intentionally separate and will document its network, filesystem, resource, and consent controls before it is enabled.
+The container runs CloneProof's static inspection against the project copy. Target-repository verification is intentionally separate and uses a temporary, read-only source snapshot with bounded CPU, memory, process count, output, and wall-clock time. CloneProof does not run a target Dockerfile or accept arbitrary Docker flags.
 
 ## Architecture
 
@@ -83,7 +103,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 
 - Static inspection does not execute repository-defined scripts, README commands, lifecycle hooks, Dockerfiles, or shell commands.
 - Target repositories are untrusted input. Symlinks, malformed files, large files, and incomplete scans are handled explicitly.
-- Docker is not a complete security boundary. Execution verification will be opt-in, bounded, and documented as a reproducibility experiment rather than a safety certification.
+- Docker is not a complete security boundary. Execution verification is opt-in, bounded, and a reproducibility experiment rather than a safety certification.
+- Real `.env` files, npm configuration files, and other sensitive environment configuration are excluded from the staged container snapshot. The host environment and Docker socket are not mounted.
+- The current image is pinned to a version tag rather than a digest. A future release should record and verify a trusted digest for stronger supply-chain guarantees.
 - The first release focuses on the root package of Node.js/TypeScript repositories. Monorepos, pnpm/Yarn execution, private repositories, and external services may be reported as unsupported or blocked.
 
 ## Buildathon
