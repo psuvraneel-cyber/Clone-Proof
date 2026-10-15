@@ -1,0 +1,12 @@
+{
+  "name": "cloneproof-healthy-fixture",
+  "version": "1.0.0",
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "test": "node --test",
+    "start": "node src/index.js"
+  }
+}

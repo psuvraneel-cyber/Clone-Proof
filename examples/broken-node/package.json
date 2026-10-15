@@ -1,0 +1,10 @@
+{
+  "name": "cloneproof-broken-fixture",
+  "version": "1.0.0",
+  "engines": {
+    "node": "20.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  }
+}
