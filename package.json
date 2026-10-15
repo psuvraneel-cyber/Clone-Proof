@@ -1,0 +1,21 @@
+{
+  "name": "cloneproof",
+  "version": "0.1.0",
+  "description": "Evidence-based setup verification for Node.js repositories.",
+  "type": "commonjs",
+  "main": "src/cli.js",
+  "bin": {
+    "cloneproof": "src/cli.js"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.js",
+    "check": "node src/cli.js check",
+    "start": "node src/cli.js check .",
+    "test": "npm run build && node --test",
+    "verify": "node src/cli.js verify"
+  },
+  "license": "MIT"
+}
