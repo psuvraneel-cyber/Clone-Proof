@@ -19,7 +19,7 @@ Deliver a credible, secure-by-design CLI for Node.js/TypeScript repository setup
 
 ### Blocked or unproven
 
-- Docker is not installed on the current Windows host. Real Docker image build and real container verification have not been observed here.
+- Docker Desktop 4.95.0 and its 29.8.2 CLI are now installed per-user. The Docker engine is still unavailable because WSL 2 is not installed; the required elevated `wsl --install --no-distribution` action was canceled by Windows. Real Docker image build and real container verification have not been observed here.
 - The symlink test is skipped on this Windows host because symlink creation returned `EPERM`; run the suite on Linux to exercise that branch.
 - The verifier image is pinned to `node:22.19.0-bookworm-slim` with `--pull=never`, but not yet to a recorded cryptographic digest.
 - `--allow-network` enables the network for both `npm ci` and `npm test`; it is intentionally broad and should only be used for trusted repositories.
@@ -59,7 +59,8 @@ Working directory: `C:\Users\Sauvraneel Paul\OneDrive\Desktop\Clone-Proof`
 - `node src/cli.js check examples/broken-node` — observed `failed`, exit `1`.
 - Missing repository path — observed `incomplete`, exit `2`.
 - `node src/cli.js verify examples/healthy-node --docker --execute --format json` — observed `blocked`, exit `2`, because Docker executable resolution failed before any host process was started.
-- `docker build`, real Docker verification, and `make test` — not run; Docker and `make` are unavailable on this host.
+- `docker build` and real Docker verification — not run; Docker Desktop is installed but its Linux engine is blocked by the missing WSL 2 prerequisite.
+- `make test` — not run; `make` is unavailable on this host.
 
 ## OmniRush sessions for submission
 
@@ -85,6 +86,12 @@ docker build -t cloneproof .
 docker run --rm --network none cloneproof
 node src/cli.js verify examples/healthy-node --docker --execute
 node src/cli.js verify examples/broken-node --docker --execute
+```
+
+On this Windows device, first run the WSL prerequisite from an elevated PowerShell and restart if Windows requests it:
+
+```powershell
+wsl --install --no-distribution
 ```
 
 Then record the real Docker results, update the checklist, create a public GitHub repository on the connected account, push the committed history, submit the repository and sessions through the OmniRush dashboard, and copy the Submission ID into Unstop.

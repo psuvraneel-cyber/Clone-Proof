@@ -27,6 +27,6 @@ Source checked on 2026-10-15: <https://omnirush.ai/buildathon>
 
 ## Current environment gaps
 
-- Docker is not installed on the current Windows host, so local Docker execution cannot yet be claimed as tested.
+- Docker Desktop 4.95.0 is installed per-user, but its Linux engine cannot start until WSL 2 is enabled. The elevated WSL installation was canceled, so local Docker execution cannot yet be claimed as tested.
 - The workspace started empty; Git was initialized for this project on 2026-10-15.
 - `make` is not installed on the current Windows host; `npm test` is the portable test command and the Makefile wrapper is intended for Linux judges.
