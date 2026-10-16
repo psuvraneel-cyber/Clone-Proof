@@ -326,6 +326,16 @@ test('supports gitignore negation for environment templates', () => withReposito
   assert.ok(!report.scan.skippedPaths.includes('.env.example'));
 }));
 
+test('documents environment keys with an optional export prefix', () => withRepository((root) => {
+  writeEnvironmentFixture(root, 'const value = process.env.API_URL;\n');
+  writeFile(root, '.env.example', 'export API_URL=https://example.invalid\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENV_KEY_DOCUMENTED').status, 'passed');
+  assert.equal(finding(report, 'ENV_KEY_DOCUMENTED').evidence[1].line, 1);
+}));
+
 test('skips ignored directories without reporting nested packages', () => withRepository((root) => {
   writeFile(root, 'package.json', JSON.stringify({ name: 'ignored-directory', scripts: { test: 'node --test' } }));
   writeFile(root, 'package-lock.json', '{"name":"ignored-directory","lockfileVersion":3,"packages":{"":{"name":"ignored-directory"}}}\n');

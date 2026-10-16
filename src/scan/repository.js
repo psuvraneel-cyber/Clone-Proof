@@ -242,7 +242,7 @@ function parseEnvTemplate(text) {
   const keys = new Map();
   const lines = text.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
-    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:=|$)/.exec(lines[index]);
+    const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:=|$)/.exec(lines[index]);
     if (match && !keys.has(match[1])) {
       keys.set(match[1], index + 1);
     }
