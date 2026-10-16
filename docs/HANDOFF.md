@@ -16,9 +16,11 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Environment destructuring uses a bounded brace scanner that handles aliases, defaults, quoted keys, nested patterns, multiline assignments, and direct `process.env`/`import.meta.env` access.
 - Project classification checks a root package manifest first, then other-ecosystem markers, then supported root/application source locations.
 - Partial `.nvmrc`, `.node-version`, and Docker Node pins use prefix/existential engine-range semantics; full versions retain exact comparison.
+- Partial `>` engine ranges follow npm release semantics: `>X` is treated as `>=X+1.0.0` and `>X.Y` as `>=X.Y+1.0`.
 - GitHub input performs a ten-second unauthenticated public visibility/size preflight. Repositories over `MAX_REPOSITORY_BYTES` (1 GiB), private repositories, and missing repositories are blocked before cloning; unavailable/rate-limited preflight continues with bounded clone limits and records `target.preflight: "unavailable"`.
-- GitHub cloning resolves a trusted absolute Git executable, uses an allow-listed environment and empty Git config, disables credential helpers/LFS smudging, uses no shell, and cleans its parent directory on success and failure.
+- GitHub cloning resolves a trusted absolute Git executable, uses an allow-listed environment and empty Git config, disables credential helpers/LFS smudging, uses no shell, records `100755` paths with `git ls-files -s` before deleting `.git`, and cleans its parent directory on success and failure.
 - Docker verification uses the pinned image `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`, `--pull=never`, a read-only source mount, non-root UID/GID 1000, dropped capabilities, no-new-privileges, no network by default, and bounded CPU/memory/PID/tmpfs/output/time policies.
+- Docker staging honors the root `.gitignore` and root `.git/info/exclude` for local targets, keeps ignored core files, reports skipped ignored paths, and does not read nested `.gitignore` files. Local Windows scans cannot detect repository execute bits.
 - Every verification return is finalized through summary/cleanup normalization. `report.summary` matches `findings` on consent, prerequisite, network, Docker/image, symlink, staging-limit, source-change, execution, timeout, and cleanup paths.
 - Text and HTML verification output explain omitted lines and character shortening; HTML badges are static and contain no `role="status"`.
 
@@ -29,7 +31,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - The API preflight is intentionally unauthenticated and may be unavailable under GitHub rate limits; bounded clone limits remain the fallback.
 - Docker verification remains an opt-in reproducibility experiment, not a complete hostile-code sandbox. `--allow-network` enables network for both install and test and should be used only for trusted repositories.
 - Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn, private registries, external services, monorepos, and custom setup remain blocked or unsupported.
-- No Buildathon dashboard submission, merge, push, or PR has been performed.
+- No Buildathon dashboard submission or PR has been performed. The branch is ready for the approved merge/push sequence after the final checks below.
 
 ## Important files
 
@@ -58,8 +60,14 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Checks observed
 
-- `npm test` — passed: 109 tests, 108 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
+- `npm test` — passed: 112 tests, 111 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
 - `git diff --check` — passed.
+- `docker image inspect node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` — passed after confirming/pulling the recorded digest.
+- `docker build -t cloneproof .` — passed.
+- `docker run --rm --network none cloneproof` — passed, exit `0`.
+- `docker run --rm --network none cloneproof npm test` — passed, exit `0`, 112 tests passed in the Linux container.
+- `node src/cli.js verify examples/healthy-node --docker --execute` — passed, exit `0`, network `none`, cleanup confirmed.
+- `node src/cli.js verify examples/broken-node --docker --execute` — blocked as intended, exit `2`, no target container started.
 - `node src/cli.js check examples/healthy-node` — passed, exit `0`.
 - `node src/cli.js check examples/broken-node` — failed as intended, exit `1`.
 - `node src/cli.js check . --format json` — passed; nested-package evidence contains only the two demo packages, not `.claude/worktrees` or `.opencode`.
@@ -69,18 +77,13 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Reproduction D — fixed: `findings=11`, `summary.total=11`, `skipped findings=1`, `summary.skipped=1`.
 - Reproduction E — fixed: isolated Git config listing showed only `command line:` entries for credential/filter policy; no host credential helper, LFS filter, sentinel, or askpass variable.
 - Reproduction F — fixed: local scan retained `LOCKFILE_PRESENT` and added `CORE_FILE_GITIGNORED` for `package-lock.json`.
-- `docker image inspect node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` — passed after confirming/pulling the recorded digest.
-- `docker build -t cloneproof .` — passed.
-- `docker run --rm --network none cloneproof` — passed, exit `0`.
-- `docker run --rm --network none cloneproof npm test` — passed, exit `0`, 109 tests passed in the Linux container.
-- `node src/cli.js verify examples/healthy-node --docker --execute` — passed, exit `0`, network `none`, cleanup confirmed.
-- `node src/cli.js verify examples/broken-node --docker --execute` — blocked, exit `2`, no target container started.
 - Real Express fixture with `npm install --package-lock-only --ignore-scripts` — no-network verify blocked with `DOCKER_NETWORK_REQUIRED`, exit `2`; `--allow-network` passed, exit `0`.
 - Real Jest fixture using package.json `"test": "jest"` — passed with `--allow-network`, exit `0` after the workspace tmpfs was changed to `exec`; no resource-limit adjustment was needed.
 - Failing test fixture — failed with `failedPhase: test`; explicit stderr was visible as separate lines in text and HTML renderers.
 - Hanging test fixture with `--timeout-ms 15000` — failed and timed out, cleanup confirmed; `docker ps -a --filter name=cloneproof-verify` showed no containers.
 - `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` — passed, exit `0`, preflight `checked`, repository size `59 KiB`, clone cleaned.
 - `node src/cli.js verify https://github.com/psuvraneel-cyber/Clone-Proof --docker --execute --format json` — passed, exit `0`, preflight `checked`, container exit `0`, cleanup confirmed.
+- Final GitHub verification with `--allow-network` — passed, exit `0`; preflight `checked`, container exit `0`, `verification.ignoredPaths: []`, and cleanup confirmed.
 - A random nonexistent public GitHub URL — blocked with `GITHUB_REPOSITORY_UNAVAILABLE`, exit `2`, no sign-in prompt.
 - Two JSON checks of the same fixture with `--output` — byte-identical.
 - Temporary-folder audit after GitHub checks — no `cloneproof-github-*` folders remained.
@@ -105,6 +108,11 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `f0048dc docs: align static and GitHub modes`
 - `d4221e6 docs: keep demo reports ignored`
 - `dceb3dc fix: pin verifier image by digest`
+- `dae16ec fix: allow executable workspace tools`
+- `e353364 fix: honor gitignore during Docker staging`
+- `596430a fix: preserve Git executable modes`
+- `6d1c787 fix: normalize partial greater-than engine ranges`
+- `f821456 docs: clarify gitignore source limits`
 
 ## OmniRush sessions for submission
 
@@ -115,7 +123,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Next step
 
-Review the final diff and checklist. Do not merge into `main`, push, open a PR, or submit until the user approves. The planned post-approval commands are:
+The final diff and checks are complete. The user approved the merge/push sequence; run these commands from the clean branch, then perform the post-push GitHub check:
 
 ```bash
 git status
