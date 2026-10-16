@@ -148,6 +148,7 @@ Working directory: `C:\Users\Sauvraneel Paul\OneDrive\Desktop\Clone-Proof`
 - The same GitHub clone — Docker verify returned `passed_with_warnings`, verification outcome `passed`, container exit `0`, cleanup confirmed.
 - `make test` — not run; `make` is unavailable on this host.
 - `node src/cli.js check examples/healthy-node --format json` — passed on the current branch; schema version 2, 10 passed findings, 0 warnings.
+- `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` — passed on the current branch; bounded shallow clone cleaned up, target `psuvraneel-cyber/Clone-Proof`, 10 passed findings, 1 skipped nested-package finding, 0 failures.
 - `docker version` — latest branch validation attempt was blocked because the Docker Desktop Linux engine named pipe was unavailable; no real container was started by that attempt.
 
 Latest local commits for the accuracy/verification work:
