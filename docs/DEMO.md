@@ -58,7 +58,7 @@ node src/cli.js verify examples/healthy-node
 This must refuse to execute because `--docker --execute` is missing. On a Docker-capable machine, first make the fixed image available and then run:
 
 ```bash
-docker pull node:22.19.0-bookworm-slim
+docker pull node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90
 node src/cli.js verify examples/healthy-node --docker --execute
 ```
 

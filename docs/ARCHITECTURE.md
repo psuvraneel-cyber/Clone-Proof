@@ -35,7 +35,7 @@ For a GitHub URL, `input/github.js` validates the exact public HTTPS origin, che
 
 ## Docker verification profile
 
-The execution mode does not trust a target Dockerfile or arbitrary Docker flags. It uses the fixed `node:22.19.0-bookworm-slim` image, requires the image to be present locally, stages regular files into a temporary snapshot, and mounts that snapshot read-only at `/source`. The container has a writable temporary workspace, no host environment or Docker socket, a non-root user, dropped capabilities, `no-new-privileges`, CPU/memory/process/file/output/time limits, and an explicit network policy. Staging has independent file, byte, count, and depth limits so scan limits cannot accidentally become Docker limits.
+The execution mode does not trust a target Dockerfile or arbitrary Docker flags. It uses the pinned `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` image with `--pull=never`, requires the image to be present locally, stages regular files into a temporary snapshot, and mounts that snapshot read-only at `/source`. The container has a writable temporary workspace, no host environment or Docker socket, a non-root user, dropped capabilities, `no-new-privileges`, CPU/memory/process/file/output/time limits, and an explicit network policy. Staging has independent file, byte, count, and depth limits so scan limits cannot accidentally become Docker limits.
 
 The supported command sequence is controlled by CloneProof:
 

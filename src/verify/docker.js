@@ -8,7 +8,7 @@ const { spawn } = require('node:child_process');
 const { scanRepository } = require('../scan/repository');
 const { resolveDockerExecutable } = require('../util/executable');
 
-const DEFAULT_VERIFY_IMAGE = 'node:22.19.0-bookworm-slim';
+const DEFAULT_VERIFY_IMAGE = 'node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90';
 const DEFAULT_TIMEOUT_MS = 300000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
 const DEFAULT_CONTAINER_MEMORY = '2g';

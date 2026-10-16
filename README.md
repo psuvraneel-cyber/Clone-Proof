@@ -71,7 +71,7 @@ Use `--timeout-ms N` to override the bounded verification timeout when a trusted
 CloneProof uses a fixed Node 22.19.0 image, refuses to pull it implicitly, ignores npm lifecycle scripts during `npm ci`, runs the declared `npm test` script only after explicit authorization, and never falls back to host execution. The controlled container defaults to one CPU, 2 GiB memory/swap, 512 PIDs, a 512 MiB `/tmp`, and a 1 GiB `/workspace`. Make the image available first:
 
 ```bash
-docker pull node:22.19.0-bookworm-slim
+docker pull node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90
 ```
 
 ## Test and build
@@ -120,7 +120,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 - Docker is not a complete security boundary. Execution verification is opt-in, bounded, and a reproducibility experiment rather than a safety certification.
 - Real `.env` files, npm configuration files, and other sensitive environment configuration are excluded from the staged container snapshot. The host environment and Docker socket are not mounted.
 - Scan reports use schema version 2 and record bounded-scan completeness, discovered/read file counts, skipped paths, and npm lockfile package metadata.
-- The current image is pinned to a version tag rather than a digest. A future release should record and verify a trusted digest for stronger supply-chain guarantees.
+- The verifier image is pinned to `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`; `--pull=never` refuses implicit image changes.
 - GitHub input is limited to public `https://github.com/OWNER/REPOSITORY` URLs. Clone failures and checkout-limit failures are reported as `incomplete` or `blocked`; CloneProof does not request credentials.
 - The first release focuses on the root package of Node.js/TypeScript repositories. Monorepos, pnpm/Yarn execution, private repositories, and external services may be reported as unsupported or blocked.
 

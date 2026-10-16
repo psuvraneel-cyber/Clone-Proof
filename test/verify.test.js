@@ -7,6 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  DEFAULT_VERIFY_IMAGE,
   dockerRunArguments,
   runProcess,
   stageRepository,
@@ -63,6 +64,8 @@ test('Docker arguments use a controlled, non-privileged profile', () => {
   assert.ok(args.includes('/workspace:rw,nosuid,nodev,size=1g,uid=1000,gid=1000'));
   assert.ok(args.includes('--user'));
   assert.ok(args.includes('1000:1000'));
+  assert.ok(args.includes(DEFAULT_VERIFY_IMAGE));
+  assert.match(DEFAULT_VERIFY_IMAGE, /@sha256:[a-f0-9]{64}$/);
   assert.ok(!args.includes('--privileged'));
   assert.ok(!args.includes('--network=host'));
   assert.ok(!args.includes('/var/run/docker.sock'));

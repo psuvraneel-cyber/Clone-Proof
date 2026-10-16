@@ -24,7 +24,7 @@ When the target is a URL, CloneProof accepts only an exact public `https://githu
 `cloneproof verify` requires both `--docker` and `--execute`. The Docker profile:
 
 - Supports the root npm workflow only.
-- Uses a fixed Node 22.19.0 image and `--pull=never`; it never builds or runs the target repository's Dockerfile.
+- Uses the pinned `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` image and `--pull=never`; it never builds or runs the target repository's Dockerfile.
 - Stages a regular-file snapshot and excludes `.env`, npm configuration, and other sensitive configuration files.
 - Mounts the source snapshot read-only and gives the container a separate temporary workspace.
 - Drops all Linux capabilities, enables `no-new-privileges`, runs as UID/GID 1000, and sets CPU, memory, PID, file-descriptor, output, and wall-clock limits.
@@ -41,7 +41,7 @@ Docker is not a complete security boundary. A malicious repository could still e
 
 The verifier intentionally uses the local default Docker endpoint. Remote Docker contexts, arbitrary `DOCKER_HOST` values, and context configuration are outside the supported trust model for this release.
 
-The current image is pinned by a version tag rather than a cryptographic digest. Before treating dynamic verification as a high-assurance service, record a trusted image digest and verify it before each run.
+The verifier image is pinned by the recorded digest `sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` for `node:22.19.0-bookworm-slim`. The `--pull=never` policy requires that exact reference to be available locally and prevents implicit replacement.
 
 ## Report output
 
