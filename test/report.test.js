@@ -206,6 +206,7 @@ test('renderHtml is self-contained and includes the accessible report sections',
   assert.doesNotMatch(output, /\b(?:src|href)\s*=/i);
   assert.doesNotMatch(output, /\burl\s*\(/i);
   assert.doesNotMatch(output, /https?:\/\//i);
+  assert.doesNotMatch(output, /role="status"/);
 });
 
 test('renderHtml bounds multiline verification output like renderText', () => {
