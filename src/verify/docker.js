@@ -320,6 +320,18 @@ function recomputeSummary(report) {
   };
 }
 
+function finalizeVerificationReport(report) {
+  recomputeSummary(report);
+  const cleanup = report.verification && report.verification.cleanup;
+  if (cleanup && typeof cleanup === 'object') {
+    cleanup.attempted = Boolean(cleanup.attempted);
+    cleanup.completed = Boolean(cleanup.completed);
+    cleanup.stagingRemoved = Boolean(cleanup.stagingRemoved);
+    cleanup.clientConfigRemoved = Boolean(cleanup.clientConfigRemoved);
+  }
+  return report;
+}
+
 function cloneReport(report) {
   return JSON.parse(JSON.stringify(report));
 }
@@ -468,7 +480,7 @@ async function verifyRepository(rootPath, options = {}) {
     stdout: '',
     stderr: '',
     omittedPaths: [],
-    cleanup: { attempted: false, completed: true }
+    cleanup: { attempted: false, completed: true, stagingRemoved: false, clientConfigRemoved: false }
   };
 
   if (!execute) {
@@ -483,8 +495,7 @@ async function verifyRepository(rootPath, options = {}) {
       recommendation: 'Review the repository and run verify with --docker --execute when you are ready.'
     });
     report.status = 'blocked';
-    recomputeSummary(report);
-    return report;
+    return finalizeVerificationReport(report);
   }
 
   const prerequisiteFailure = staticPrerequisiteFailure(report);
@@ -500,8 +511,7 @@ async function verifyRepository(rootPath, options = {}) {
       recommendation: 'Fix the blocking static findings or use the supported npm/Node project shape, then rerun verification.'
     });
     report.status = 'blocked';
-    recomputeSummary(report);
-    return report;
+    return finalizeVerificationReport(report);
   }
 
   const externalPackageCount = report.project.lockfile && report.project.lockfile.externalPackageCount;
@@ -519,8 +529,7 @@ async function verifyRepository(rootPath, options = {}) {
       recommendation: 'Review the repository, then rerun with --allow-network if you trust it.'
     });
     report.status = 'blocked';
-    recomputeSummary(report);
-    return report;
+    return finalizeVerificationReport(report);
   }
 
   if (!dockerCommand) {
@@ -535,8 +544,7 @@ async function verifyRepository(rootPath, options = {}) {
       recommendation: 'Install Docker, ensure its executable is on a trusted absolute PATH entry, and rerun verification.'
     });
     report.status = 'blocked';
-    recomputeSummary(report);
-    return report;
+    return finalizeVerificationReport(report);
   }
 
   const dockerConfigRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-docker-config-'));
@@ -560,9 +568,9 @@ async function verifyRepository(rootPath, options = {}) {
     });
     report.status = 'blocked';
     report.verification.cleanup.completed = true;
+    report.verification.cleanup.clientConfigRemoved = true;
     fs.rmSync(dockerConfigRoot, { recursive: true, force: true });
-    recomputeSummary(report);
-    return report;
+    return finalizeVerificationReport(report);
   }
 
   const imageProbe = await runner(
@@ -585,9 +593,9 @@ async function verifyRepository(rootPath, options = {}) {
     });
     report.status = 'blocked';
     report.verification.cleanup.completed = true;
+    report.verification.cleanup.clientConfigRemoved = true;
     fs.rmSync(dockerConfigRoot, { recursive: true, force: true });
-    recomputeSummary(report);
-    return report;
+    return finalizeVerificationReport(report);
   }
 
   let temporaryRoot = null;
@@ -619,8 +627,7 @@ async function verifyRepository(rootPath, options = {}) {
         recommendation: 'Replace or remove symlinks before running the Docker workflow.'
       });
       report.status = 'blocked';
-      recomputeSummary(report);
-      return report;
+      return finalizeVerificationReport(report);
     }
 
     const args = dockerRunArguments(staged.destinationRoot, allowNetwork, containerName);
@@ -689,7 +696,7 @@ async function verifyRepository(rootPath, options = {}) {
         recommendation: 'Reduce the repository snapshot or review the documented CloneProof staging limits before rerunning.'
       });
       report.status = 'blocked';
-      return report;
+      return finalizeVerificationReport(report);
     }
     if (error && error.code === 'STAGING_SOURCE_CHANGED') {
       report.verification.outcome = 'blocked';
@@ -704,7 +711,7 @@ async function verifyRepository(rootPath, options = {}) {
         recommendation: 'Run CloneProof against a stable checkout and rerun verification.'
       });
       report.status = 'blocked';
-      return report;
+      return finalizeVerificationReport(report);
     }
     report.verification.outcome = 'failed';
     report.verification.stderr = error.message;
@@ -728,8 +735,7 @@ async function verifyRepository(rootPath, options = {}) {
     report.verification.cleanup.completed = Boolean(report.verification.cleanup.completed);
   }
 
-  recomputeSummary(report);
-  return report;
+  return finalizeVerificationReport(report);
 }
 
 module.exports = {

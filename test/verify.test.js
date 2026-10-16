@@ -37,6 +37,16 @@ function makeRunner({ docker = true, image = true, run = true } = {}) {
   return { calls, runner };
 }
 
+function assertSummaryMatchesFindings(report) {
+  assert.deepEqual(report.summary, {
+    total: report.findings.length,
+    passed: report.findings.filter((finding) => finding.status === 'passed').length,
+    failed: report.findings.filter((finding) => finding.status === 'failed').length,
+    warnings: report.findings.filter((finding) => finding.status === 'warning').length,
+    skipped: report.findings.filter((finding) => finding.status === 'skipped').length
+  });
+}
+
 test('Docker arguments use a controlled, non-privileged profile', () => {
   const args = dockerRunArguments('C:/temporary/source', false);
 
@@ -63,6 +73,7 @@ test('Docker arguments use a controlled, non-privileged profile', () => {
 test('successful Docker verification records evidence and cleans staging', async () => {
   const { calls, runner } = makeRunner();
   const report = await verifyRepository(healthyFixture, { execute: true, runner });
+  assertSummaryMatchesFindings(report);
 
   assert.equal(report.status, 'passed');
   assert.equal(report.verification.outcome, 'passed');
@@ -83,6 +94,7 @@ test('successful Docker verification records evidence and cleans staging', async
 test('network access is visible and opt-in', async () => {
   const { calls, runner } = makeRunner();
   const report = await verifyRepository(healthyFixture, { execute: true, allowNetwork: true, runner });
+  assertSummaryMatchesFindings(report);
 
   assert.equal(report.status, 'passed');
   assert.equal(report.verification.networkMode, 'bridge');
@@ -94,6 +106,7 @@ test('network access is visible and opt-in', async () => {
 test('Docker absence blocks execution without staging or running target code', async () => {
   const { calls, runner } = makeRunner({ docker: false });
   const report = await verifyRepository(healthyFixture, { execute: true, runner });
+  assertSummaryMatchesFindings(report);
 
   assert.equal(report.status, 'blocked');
   assert.equal(report.verification.outcome, 'blocked');
@@ -105,6 +118,7 @@ test('Docker absence blocks execution without staging or running target code', a
 test('missing verifier image blocks execution without pulling implicitly', async () => {
   const { calls, runner } = makeRunner({ image: false });
   const report = await verifyRepository(healthyFixture, { execute: true, runner });
+  assertSummaryMatchesFindings(report);
 
   assert.equal(report.status, 'blocked');
   assert.equal(report.findings.find((finding) => finding.code === 'DOCKER_IMAGE_UNAVAILABLE').status, 'skipped');
@@ -115,6 +129,7 @@ test('missing verifier image blocks execution without pulling implicitly', async
 test('container failures preserve bounded diagnostics and return a failed report', async () => {
   const { calls, runner } = makeRunner({ run: false });
   const report = await verifyRepository(healthyFixture, { execute: true, runner });
+  assertSummaryMatchesFindings(report);
 
   assert.equal(report.status, 'failed');
   assert.equal(report.verification.outcome, 'failed');
@@ -141,6 +156,7 @@ test('timed-out container cleanup is explicitly attempted', async () => {
   };
 
   const report = await verifyRepository(healthyFixture, { execute: true, runner });
+  assertSummaryMatchesFindings(report);
 
   assert.equal(report.status, 'failed');
   assert.equal(report.verification.timedOut, true);
@@ -152,6 +168,7 @@ test('timed-out container cleanup is explicitly attempted', async () => {
 test('static failures block Docker execution', async () => {
   const { calls, runner } = makeRunner();
   const report = await verifyRepository(brokenFixture, { execute: true, runner });
+  assertSummaryMatchesFindings(report);
 
   assert.equal(report.status, 'blocked');
   assert.equal(report.findings.find((finding) => finding.code === 'DOCKER_PREREQUISITES_FAILED').status, 'skipped');
@@ -172,6 +189,7 @@ test('placeholder npm test scripts block Docker execution', async () => {
     }));
     const { calls, runner } = makeRunner();
     const report = await verifyRepository(root, { execute: true, runner });
+    assertSummaryMatchesFindings(report);
 
     assert.equal(report.status, 'blocked');
     assert.equal(report.findings.find((item) => item.code === 'DOCKER_PREREQUISITES_FAILED').status, 'skipped');
@@ -205,6 +223,7 @@ test('dependency installs without network are blocked before Docker starts', asy
   try {
     const { calls, runner } = makeRunner();
     const report = await verifyRepository(root, { execute: true, runner });
+    assertSummaryMatchesFindings(report);
 
     assert.equal(report.status, 'blocked');
     assert.equal(report.findings.find((item) => item.code === 'DOCKER_NETWORK_REQUIRED').status, 'skipped');
@@ -219,6 +238,7 @@ test('dependency installs with explicit network consent reach the container', as
   try {
     const { calls, runner } = makeRunner();
     const report = await verifyRepository(root, { execute: true, allowNetwork: true, runner });
+    assertSummaryMatchesFindings(report);
 
     assert.equal(report.status, 'passed');
     assert.equal(calls.some((call) => call.args[0] === 'run'), true);
@@ -242,6 +262,7 @@ test('Docker install and test failures report the failed phase', async () => {
       return { exitCode: 1, signal: null, stdout: expected.stdout, stderr: expected.stderr, timedOut: false, outputTruncated: false, error: null };
     };
     const report = await verifyRepository(root, { execute: true, runner });
+    assertSummaryMatchesFindings(report);
     assert.equal(report.status, 'failed');
     assert.equal(report.verification.failedPhase, expected.phase);
     assert.match(report.findings.find((item) => item.code === 'DOCKER_VERIFICATION_FAILED').title, new RegExp(expected.phase, 'i'));
@@ -258,6 +279,7 @@ test('network install errors are blocked when network is disabled', async () => 
       return { exitCode: 1, signal: null, stdout: 'CLONEPROOF_PHASE=install\n', stderr: 'getaddrinfo ENOTFOUND registry.npmjs.org', timedOut: false, outputTruncated: false, error: null };
     };
     const report = await verifyRepository(root, { execute: true, runner });
+    assertSummaryMatchesFindings(report);
     assert.equal(report.status, 'blocked');
     assert.equal(report.findings.find((item) => item.code === 'DOCKER_NETWORK_REQUIRED').status, 'skipped');
   } finally {
@@ -273,6 +295,7 @@ test('exit code 137 explains the likely memory limit', async () => {
     return { exitCode: 137, signal: null, stdout: 'CLONEPROOF_PHASE=test\n', stderr: '', timedOut: false, outputTruncated: false, error: null };
   };
   const report = await verifyRepository(healthyFixture, { execute: true, runner });
+  assertSummaryMatchesFindings(report);
   const failure = report.findings.find((item) => item.code === 'DOCKER_VERIFICATION_FAILED');
   assert.match(failure.message, /memory/i);
 });
@@ -288,6 +311,7 @@ test('staging per-file limits block verification before a container starts', asy
       runner,
       stagingLimits: { maxFileBytes: 4 }
     });
+    assertSummaryMatchesFindings(report);
 
     assert.equal(report.status, 'blocked');
     assert.equal(report.findings.find((item) => item.code === 'DOCKER_STAGING_LIMIT_EXCEEDED').status, 'skipped');
@@ -309,6 +333,7 @@ test('staging total limits block verification before a container starts', async 
       runner,
       stagingLimits: { maxTotalBytes: 5 }
     });
+    assertSummaryMatchesFindings(report);
 
     assert.equal(report.status, 'blocked');
     assert.equal(report.findings.find((item) => item.code === 'DOCKER_STAGING_LIMIT_EXCEEDED').status, 'skipped');
