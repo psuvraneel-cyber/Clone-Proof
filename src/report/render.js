@@ -10,25 +10,6 @@ const ANSI = Object.freeze({
   gray: '\u001b[90m'
 });
 
-const STATUS_ALIASES = Object.freeze({
-  pass: 'passed',
-  passed: 'passed',
-  ok: 'passed',
-  success: 'passed',
-  fail: 'failed',
-  failed: 'failed',
-  error: 'failed',
-  warn: 'warning',
-  warning: 'warning',
-  warnings: 'warning',
-  skip: 'skipped',
-  skipped: 'skipped',
-  not_applicable: 'skipped',
-  not_applicable_: 'skipped',
-  blocked: 'blocked',
-  incomplete: 'incomplete'
-});
-
 const STATUS_MARKERS = Object.freeze({
   passed: { label: 'PASS', color: ANSI.green },
   failed: { label: 'FAIL', color: ANSI.red },
@@ -37,14 +18,6 @@ const STATUS_MARKERS = Object.freeze({
   blocked: { label: 'BLOCKED', color: ANSI.yellow },
   incomplete: { label: 'INCOMPLETE', color: ANSI.yellow },
   unknown: { label: 'UNKNOWN', color: ANSI.gray }
-});
-
-const COUNT_ALIASES = Object.freeze({
-  total: ['total', 'totalFindings', 'findings'],
-  passed: ['passed', 'pass', 'passedFindings'],
-  failed: ['failed', 'fail', 'failedFindings'],
-  warnings: ['warnings', 'warning', 'warn', 'warningFindings'],
-  skipped: ['skipped', 'skip', 'skippedFindings']
 });
 
 /**
@@ -91,8 +64,8 @@ function normalizeStatus(value) {
     return 'unknown';
   }
 
-  const normalized = String(value).trim().toLowerCase().replace(/[\s-]+/g, '_');
-  return STATUS_ALIASES[normalized] || normalized || 'unknown';
+  const normalized = String(value).trim().toLowerCase();
+  return normalized || 'unknown';
 }
 
 function reportStatus(report) {
@@ -100,10 +73,7 @@ function reportStatus(report) {
     return 'unknown';
   }
 
-  return report.status
-    ?? report.overallStatus
-    ?? (report.overall && report.overall.status)
-    ?? 'unknown';
+  return report.status ?? 'unknown';
 }
 
 function findingsFor(report) {
@@ -111,15 +81,7 @@ function findingsFor(report) {
     return [];
   }
 
-  if (Array.isArray(report.findings)) {
-    return report.findings;
-  }
-
-  if (Array.isArray(report.results)) {
-    return report.results;
-  }
-
-  return [];
+  return Array.isArray(report.findings) ? report.findings : [];
 }
 
 function statusValueForFinding(finding) {
@@ -127,11 +89,7 @@ function statusValueForFinding(finding) {
     return 'unknown';
   }
 
-  return finding.status
-    ?? finding.result
-    ?? finding.outcome
-    ?? finding.severity
-    ?? 'unknown';
+  return finding.status ?? 'unknown';
 }
 
 function derivedCounts(findings) {
@@ -165,45 +123,18 @@ function derivedCounts(findings) {
   return counts;
 }
 
-function countSource(report) {
-  if (!report || typeof report !== 'object') {
-    return {};
-  }
-
-  if (report.counts && typeof report.counts === 'object' && !Array.isArray(report.counts)) {
-    return report.counts;
-  }
-
-  if (report.summary && typeof report.summary === 'object' && !Array.isArray(report.summary)) {
-    return report.summary;
-  }
-
-  return report;
-}
-
-function firstDefined(source, keys) {
-  for (const key of keys) {
-    if (source[key] !== undefined && source[key] !== null) {
-      return source[key];
-    }
-  }
-
-  return undefined;
-}
-
 function reportCounts(report, findings) {
-  const source = countSource(report);
   const derived = derivedCounts(findings);
-  const counts = {};
-
-  for (const name of Object.keys(COUNT_ALIASES)) {
-    counts[name] = firstDefined(source, COUNT_ALIASES[name]);
-    if (counts[name] === undefined) {
-      counts[name] = derived[name];
-    }
-  }
-
-  return counts;
+  const summary = report && report.summary && typeof report.summary === 'object'
+    ? report.summary
+    : {};
+  return {
+    total: summary.total ?? derived.total,
+    passed: summary.passed ?? derived.passed,
+    failed: summary.failed ?? derived.failed,
+    warnings: summary.warnings ?? derived.warnings,
+    skipped: summary.skipped ?? derived.skipped
+  };
 }
 
 function textValue(value, fallback = '') {
@@ -281,31 +212,18 @@ function targetName(report) {
 
   const target = report.target;
   if (target && typeof target === 'object' && !Array.isArray(target)) {
-    return textValue(
-      target.name
-        ?? target.repositoryName
-        ?? target.path
-        ?? target.repository
-        ?? target.id,
-      'unknown'
-    );
+    return textValue(target.name, 'unknown');
   }
 
-  return textValue(
-    target
-      ?? report.targetName
-      ?? report.repositoryName
-      ?? (report.repository && report.repository.name),
-    'unknown'
-  );
+  return 'unknown';
 }
 
-function findingText(finding, keys, fallback = '') {
+function findingText(finding, key, fallback = '') {
   if (!finding || typeof finding !== 'object') {
     return fallback;
   }
 
-  return textValue(firstDefined(finding, keys), fallback);
+  return textValue(finding[key], fallback);
 }
 
 function evidenceItems(finding) {
@@ -313,11 +231,7 @@ function evidenceItems(finding) {
     return [];
   }
 
-  let evidence = finding.evidence
-    ?? finding.locations
-    ?? finding.location
-    ?? finding.references
-    ?? [];
+  let evidence = finding.evidence ?? [];
 
   if (!Array.isArray(evidence)) {
     evidence = [evidence];
@@ -331,27 +245,7 @@ function lineValue(item) {
     return undefined;
   }
 
-  const directLine = firstDefined(item, ['line', 'lineNumber', 'startLine']);
-  if (directLine !== undefined) {
-    const endLine = firstDefined(item, ['endLine', 'lineEnd']);
-    return endLine !== undefined && String(endLine) !== String(directLine)
-      ? `${textValue(directLine)}-${textValue(endLine)}`
-      : textValue(directLine);
-  }
-
-  if (item.start && typeof item.start === 'object' && item.start.line !== undefined) {
-    const start = item.start.line;
-    const end = item.end && typeof item.end === 'object' ? item.end.line : undefined;
-    return end !== undefined && String(end) !== String(start)
-      ? `${textValue(start)}-${textValue(end)}`
-      : textValue(start);
-  }
-
-  if (Array.isArray(item.lines) && item.lines.length > 0) {
-    return item.lines.map((line) => textValue(line)).join('-');
-  }
-
-  return undefined;
+  return item.line === undefined ? undefined : textValue(item.line);
 }
 
 function evidenceText(item) {
@@ -363,33 +257,29 @@ function evidenceText(item) {
     return '';
   }
 
-  const pathValue = firstDefined(item, ['path', 'relativePath', 'file', 'filePath', 'source']);
-  const nestedPath = item.file && typeof item.file === 'object'
-    ? firstDefined(item.file, ['path', 'relativePath', 'name'])
-    : undefined;
-  const path = pathValue ?? nestedPath;
+  const path = item.path;
   const line = lineValue(item);
+  const detail = escapeControlCharacters(item.detail || '');
 
   if (path === undefined && line === undefined) {
-    return escapeControlCharacters(item.description ?? item.detail ?? '');
+    return detail;
   }
 
   const renderedPath = path === undefined ? 'unknown path' : escapeControlCharacters(path);
-  return line === undefined
-    ? renderedPath
-    : `${renderedPath}:${escapeControlCharacters(line)}`;
+  const location = line === undefined ? renderedPath : `${renderedPath}:${escapeControlCharacters(line)}`;
+  return detail ? `${location} — ${detail}` : location;
 }
 
 function renderFinding(finding, enabled) {
   const normalizedStatus = normalizeStatus(statusValueForFinding(finding));
   const marker = STATUS_MARKERS[normalizedStatus] || STATUS_MARKERS.unknown;
-  const code = escapeControlCharacters(findingText(finding, ['code', 'id'], 'UNKNOWN'));
-  const title = escapeControlCharacters(findingText(finding, ['title', 'name'], 'Untitled finding'));
+  const code = escapeControlCharacters(findingText(finding, 'code', 'UNKNOWN'));
+  const title = escapeControlCharacters(findingText(finding, 'title', 'Untitled finding'));
   const message = escapeControlCharacters(
-    findingText(finding, ['message', 'description', 'detail'], 'No message provided')
+    findingText(finding, 'message', 'No message provided')
   );
   const recommendation = escapeControlCharacters(
-    findingText(finding, ['recommendation', 'remediation', 'fix'], 'No recommendation provided')
+    findingText(finding, 'recommendation', 'No recommendation provided')
   );
   const lines = [
     `${paint(`[${marker.label}]`, marker.color, enabled)} ${code} — ${title}`,
@@ -410,6 +300,20 @@ function renderFinding(finding, enabled) {
   return lines;
 }
 
+const MAX_VERIFICATION_OUTPUT_LINES = 60;
+const MAX_VERIFICATION_OUTPUT_CHARS = 4000;
+
+function boundedOutputLines(value) {
+  const rawLines = String(value).split(/\r?\n/);
+  if (rawLines.at(-1) === '') rawLines.pop();
+  const selected = rawLines.slice(-MAX_VERIFICATION_OUTPUT_LINES).map(escapeControlCharacters);
+  let output = selected.join('\n');
+  if (output.length > MAX_VERIFICATION_OUTPUT_CHARS) {
+    output = `…${output.slice(-(MAX_VERIFICATION_OUTPUT_CHARS - 1))}`;
+  }
+  return output ? output.split('\n') : [];
+}
+
 function verificationLines(report) {
   if (!report || !report.verification || typeof report.verification !== 'object') {
     return [];
@@ -426,14 +330,16 @@ function verificationLines(report) {
     `  Cleanup complete: ${verification.cleanup && verification.cleanup.completed ? 'yes' : 'no'}`
   ];
 
+  if (verification.failedPhase) lines.push(`  Failed phase: ${escapeControlCharacters(verification.failedPhase)}`);
   if (verification.timedOut) lines.push('  Timed out: yes');
   if (verification.outputTruncated) lines.push('  Output truncated: yes');
 
   for (const [label, value] of [['stdout', verification.stdout], ['stderr', verification.stderr]]) {
     if (!value) continue;
-    const text = String(value);
-    const preview = text.length > 2000 ? `…${text.slice(-2000)}` : text;
-    lines.push(`  ${label}: ${escapeControlCharacters(preview)}`);
+    lines.push(`  ${label}:`);
+    for (const line of boundedOutputLines(value)) {
+      lines.push(`    ${line}`);
+    }
   }
 
   return lines;

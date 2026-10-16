@@ -4,17 +4,17 @@ const { exitCodeForReport, renderJson, renderText } = require('../src/report/ren
 
 function reportFixture() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     target: { name: 'sample-repository' },
     status: 'passed_with_warnings',
-    counts: { total: 4, passed: 1, failed: 1, warnings: 1, skipped: 1 },
+    summary: { total: 4, passed: 1, failed: 1, warnings: 1, skipped: 1 },
     findings: [
       {
         status: 'passed',
         code: 'PKG-001',
         title: 'Package metadata is present',
         message: 'package.json was found.',
-        evidence: [{ path: 'package.json', line: 1 }],
+         evidence: [{ path: 'package.json', line: 1, detail: 'Root package manifest.' }],
         recommendation: 'Keep the package metadata committed.'
       },
       {
@@ -22,7 +22,7 @@ function reportFixture() {
         code: 'LOCK-001',
         title: 'Lockfile is missing',
         message: 'No npm lockfile was found.',
-        evidence: [{ path: 'package.json', line: 12 }],
+         evidence: [{ path: 'package.json', line: 12, detail: 'The required lockfile is absent.' }],
         recommendation: 'Commit package-lock.json.'
       },
       {
@@ -30,7 +30,7 @@ function reportFixture() {
         code: 'ENV-001',
         title: 'Environment configuration needs review',
         message: 'An environment variable is referenced.',
-        evidence: [{ path: 'src/config.js', line: 7, endLine: 8 }],
+         evidence: [{ path: 'src/config.js', line: 7, detail: 'Application code reads the setting.' }],
         recommendation: 'Document the required variable.'
       },
       {
@@ -72,7 +72,8 @@ test('renderText includes the report summary and every finding status', () => {
   assert.match(output, /\[WARN\] ENV-001 — Environment configuration needs review/);
   assert.match(output, /\[SKIP\] DOCKER-001 — Docker verification was skipped/);
   assert.match(output, /package\.json:1/);
-  assert.match(output, /src\/config\.js:7-8/);
+  assert.match(output, /src\/config\.js:7 — Application code reads the setting\./);
+  assert.match(output, /package\.json:1 — Root package manifest\./);
   assert.match(output, /Recommendation: Commit package-lock\.json\./);
   assert.doesNotMatch(output, /\u001b/);
 });
@@ -104,7 +105,12 @@ test('renderText never emits terminal controls from report metadata', () => {
 });
 
 test('renderText suppresses ANSI color when output is captured or color is disabled', () => {
-  const report = { target: 'demo', status: 'passed', findings: [] };
+  const report = {
+    target: { name: 'demo' },
+    status: 'passed',
+    summary: { total: 0, passed: 0, failed: 0, warnings: 0, skipped: 0 },
+    findings: []
+  };
 
   assert.doesNotMatch(renderText(report, { color: true, isTTY: false }), /\u001b\[/);
   assert.doesNotMatch(renderText(report, { color: false, isTTY: true }), /\u001b\[/);
@@ -120,6 +126,48 @@ test('renderText suppresses ANSI color when output is captured or color is disab
       process.env.NO_COLOR = previous;
     }
   }
+});
+
+test('renderText renders bounded multiline verification output and evidence details', () => {
+  const stdout = Array.from({ length: 65 }, (_, index) => `stdout-${index + 1}`).join('\n');
+  const stderr = `first\n${'x'.repeat(5000)}\nlast`;
+  const report = {
+    schemaVersion: 2,
+    target: { kind: 'local', name: 'sample-repository' },
+    status: 'failed',
+    summary: { total: 1, passed: 0, failed: 1, warnings: 0, skipped: 0 },
+    findings: [{
+      status: 'failed',
+      code: 'DOCKER_VERIFICATION_FAILED',
+      title: 'The test script failed',
+      message: 'The test workflow failed.',
+      evidence: [{ path: 'verification.stderr', detail: 'Captured standard error.' }],
+      recommendation: 'Review the output.'
+    }],
+    verification: {
+      outcome: 'failed',
+      image: 'node:22.19.0-bookworm-slim',
+      networkMode: 'none',
+      networkConsent: false,
+      exitCode: 1,
+      cleanup: { completed: true },
+      stdout,
+      stderr,
+      timedOut: false,
+      outputTruncated: false
+    }
+  };
+
+  const output = renderText(report, { color: false, isTTY: false });
+
+  assert.match(output, /verification\.stderr — Captured standard error\./);
+  assert.doesNotMatch(output, /    stdout-1\n/);
+  assert.match(output, /stdout-6/);
+  assert.match(output, /stdout-65/);
+  assert.doesNotMatch(output, /first/);
+  assert.match(output, /last/);
+  const stderrLine = output.split('  stderr:\n')[1].split('\n')[0];
+  assert.ok(stderrLine.length <= 4004);
 });
 
 test('exitCodeForReport maps report statuses to the documented codes', () => {
