@@ -17,6 +17,73 @@ const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
 const MAX_CLONE_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 
+function copyEnvironmentValue(environment, hostEnvironment, names) {
+  for (const name of names) {
+    if (Object.prototype.hasOwnProperty.call(hostEnvironment, name) && hostEnvironment[name] !== undefined) {
+      environment[name] = String(hostEnvironment[name]);
+    }
+  }
+}
+
+/**
+ * Build the complete, allow-listed git invocation for a public clone.
+ *
+ * The caller owns parentPath and creates empty-gitconfig before starting git.
+ * hostEnvironment is injectable for deterministic tests; no other host
+ * environment variables are copied into the returned environment.
+ */
+function buildGitCloneInvocation({
+  url,
+  checkoutPath,
+  parentPath,
+  platform = process.platform,
+  hostEnvironment = process.env,
+  useGlobalConfig = true
+}) {
+  const environment = {};
+  copyEnvironmentValue(environment, hostEnvironment, ['PATH', 'Path']);
+  if (platform === 'win32') {
+    copyEnvironmentValue(environment, hostEnvironment, ['SystemRoot', 'WINDIR', 'TEMP', 'TMP']);
+  }
+  for (const name of ['HTTP_PROXY', 'http_proxy', 'HTTPS_PROXY', 'https_proxy', 'NO_PROXY', 'no_proxy']) {
+    copyEnvironmentValue(environment, hostEnvironment, [name]);
+  }
+
+  environment.HOME = parentPath;
+  environment.XDG_CONFIG_HOME = parentPath;
+  environment.GIT_CONFIG_NOSYSTEM = '1';
+  if (useGlobalConfig) {
+    environment.GIT_CONFIG_GLOBAL = path.join(parentPath, 'empty-gitconfig');
+  }
+  environment.GIT_TERMINAL_PROMPT = '0';
+  environment.GCM_INTERACTIVE = 'never';
+  environment.GIT_LFS_SKIP_SMUDGE = '1';
+
+  const configArgs = [
+    ['credential.helper', ''],
+    ['core.askPass', ''],
+    ['protocol.allow', 'never'],
+    ['protocol.https.allow', 'always'],
+    ['filter.lfs.smudge', ''],
+    ['filter.lfs.process', ''],
+    ['filter.lfs.required', 'false']
+  ];
+  if (platform === 'win32') configArgs.push(['core.longpaths', 'true']);
+
+  return {
+    args: [
+      ...configArgs.flatMap(([key, value]) => ['-c', `${key}=${value}`]),
+      'clone',
+      '--depth',
+      '1',
+      '--no-tags',
+      url,
+      checkoutPath
+    ],
+    env: environment
+  };
+}
+
 class GithubSourceError extends Error {
   constructor(message, code = 'GITHUB_SOURCE_ERROR') {
     super(message);
@@ -401,6 +468,15 @@ function cloneSucceeded(result, maxOutputBytes) {
     && outputBytes <= maxOutputBytes;
 }
 
+function gitVersionSupportsGlobalConfig(result) {
+  const output = `${result && result.stdout ? result.stdout : ''}\n${result && result.stderr ? result.stderr : ''}`;
+  const match = /git version (\d+)\.(\d+)(?:\.(\d+))?/i.exec(output);
+  if (!match) return false;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  return major > 2 || (major === 2 && minor >= 32);
+}
+
 async function removeTemporaryDirectory(directory) {
   await fs.promises.rm(directory, {
     recursive: true,
@@ -427,13 +503,46 @@ async function cloneGithubRepository(value, options = {}) {
   const timeoutMs = normalizePositiveInteger(config.timeoutMs, DEFAULT_CLONE_TIMEOUT_MS, MAX_CLONE_TIMEOUT_MS);
   const maxOutputBytes = normalizePositiveInteger(config.maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES);
   let temporaryRoot;
+  let temporaryParent;
 
   try {
-    temporaryRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'cloneproof-github-'));
-    const args = ['clone', '--depth', '1', '--no-tags', source.url, temporaryRoot];
-    const result = await runner('git', args, {
-      cwd: path.dirname(temporaryRoot),
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    temporaryParent = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'cloneproof-github-'));
+    temporaryRoot = path.join(temporaryParent, 'checkout');
+    await fs.promises.mkdir(temporaryRoot);
+    const emptyGitConfig = path.join(temporaryParent, 'empty-gitconfig');
+    await fs.promises.writeFile(emptyGitConfig, '', 'utf8');
+
+    const versionInvocation = buildGitCloneInvocation({
+      url: source.url,
+      checkoutPath: temporaryRoot,
+      parentPath: temporaryParent,
+      platform: config.platform || process.platform,
+      hostEnvironment: config.hostEnvironment || process.env,
+      useGlobalConfig: false
+    });
+    const versionResult = await runner('git', ['--version'], {
+      cwd: temporaryParent,
+      env: versionInvocation.env,
+      shell: false,
+      windowsHide: true,
+      timeoutMs,
+      maxOutputBytes
+    });
+    if (!cloneSucceeded(versionResult, maxOutputBytes)) {
+      throw new GithubSourceError('Git could not be queried for its version.', 'GITHUB_GIT_UNAVAILABLE');
+    }
+
+    const invocation = buildGitCloneInvocation({
+      url: source.url,
+      checkoutPath: temporaryRoot,
+      parentPath: temporaryParent,
+      platform: config.platform || process.platform,
+      hostEnvironment: config.hostEnvironment || process.env,
+      useGlobalConfig: gitVersionSupportsGlobalConfig(versionResult)
+    });
+    const result = await runner('git', invocation.args, {
+      cwd: temporaryParent,
+      env: invocation.env,
       shell: false,
       windowsHide: true,
       timeoutMs,
@@ -452,7 +561,7 @@ async function cloneGithubRepository(value, options = {}) {
     let cleaned = false;
     const cleanup = async () => {
       if (cleaned) return;
-      await removeTemporaryDirectory(temporaryRoot);
+      await removeTemporaryDirectory(temporaryParent);
       cleaned = true;
     };
 
@@ -474,9 +583,9 @@ async function cloneGithubRepository(value, options = {}) {
       cleanup
     });
   } catch (error) {
-    if (temporaryRoot) {
+    if (temporaryParent) {
       try {
-        await removeTemporaryDirectory(temporaryRoot);
+        await removeTemporaryDirectory(temporaryParent);
       } catch (cleanupError) {
         error.cleanupError = cleanupError;
       }
@@ -487,6 +596,7 @@ async function cloneGithubRepository(value, options = {}) {
 
 module.exports = {
   DEFAULT_CLONE_LIMITS,
+  buildGitCloneInvocation,
   cloneGithubRepository,
   inspectCheckout,
   isGithubRepositoryUrl,

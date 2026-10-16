@@ -30,7 +30,7 @@ Inspect a repository without executing its code:
 node src/cli.js check ./path/to/repository
 ```
 
-The first remote-input profile accepts only a public HTTPS GitHub repository URL and performs a shallow, bounded clone without requesting credentials:
+The first remote-input profile accepts only a public HTTPS GitHub repository URL and performs a shallow, bounded clone without requesting credentials. Git runs from a CloneProof-owned temporary parent with an empty Git config, an allow-listed environment, credential helpers disabled, and Git LFS smudging disabled:
 
 ```bash
 node src/cli.js check https://github.com/owner/repository

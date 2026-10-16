@@ -17,7 +17,7 @@ Static findings identify high-confidence setup inconsistencies. They are not a s
 
 ## GitHub source mode
 
-When the target is a URL, CloneProof accepts only an exact public `https://github.com/OWNER/REPOSITORY` form. It rejects credentials, query strings, fragments, subdirectories, alternate hosts, and non-HTTPS schemes. The clone uses `git` with an argument array and `shell: false`, `--depth 1 --no-tags`, bounded output/time, independent checkout limits, and cleanup on every failure path. Git metadata is removed before scanning.
+When the target is a URL, CloneProof accepts only an exact public `https://github.com/OWNER/REPOSITORY` form. It rejects credentials, query strings, fragments, subdirectories, alternate hosts, and non-HTTPS schemes. The clone uses `git` with an argument array and `shell: false`, `--depth 1 --no-tags`, bounded output/time, independent checkout limits, and cleanup on every failure path. Git runs from a CloneProof-owned temporary parent with a fresh HOME/XDG configuration area, an empty global config, an allow-listed environment, disabled credential helpers, disabled LFS smudging, and no host Git credentials or config. Git metadata is removed before scanning.
 
 ## Docker mode
 
