@@ -25,3 +25,20 @@
 - **Source:** https://omnirush.ai/buildathon
 - **Relevant requirements:** public GitHub repository, README, Git history, lockfile, pinned runtime, Dockerfile, offline test command, `.env.example`, no machine-specific paths, and OmniRush sessions included with the submission.
 - **Current OmniRush session:** `ses_ebf503317ffe255TeXPMMfCKMW`.
+
+## 2026-10-16 — Bound scan and staging independently
+
+- **Decision:** Keep static scan limits and Docker staging limits as separate policies. The scanner may inspect source files in stat-only mode or skip generated assets, while Docker staging uses 25 MiB per file, 200 MiB total, 20,000 files, and depth 25.
+- **Why:** A bounded static report must distinguish incomplete core metadata from safely skipped source content, and a later Docker copy must not inherit limits intended only for inspection.
+- **Trade-off:** Very large repositories may produce `incomplete`, omitted-path, or blocked staging findings instead of attempting an unbounded copy.
+
+## 2026-10-16 — Network consent is a verification prerequisite
+
+- **Decision:** Use npm lockfile metadata to detect external packages and report `DOCKER_NETWORK_REQUIRED` before starting Docker when `--allow-network` is absent. Classify a network error during `npm ci` as `blocked` rather than as a failed test.
+- **Why:** The default remains offline and deterministic; network use is a user-authorized trust decision, not an implicit dependency-install detail.
+- **Trade-off:** Projects using private registries, external services, or unusual dependency resolution may be blocked even when a broader environment could run them.
+
+## 2026-10-16 — Keep reports on the CloneProof schema
+
+- **Decision:** Render only schema version 2 fields and render verification output as bounded, multiline text: the last 60 lines and at most 4,000 characters per stream.
+- **Why:** Compatibility aliases hid schema drift and could make reports disagree with the actual scanner. Bounded lines preserve useful diagnostics without allowing terminal output to grow without limit.

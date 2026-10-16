@@ -10,9 +10,9 @@ Deliver a credible, secure-by-design CLI for Node.js/TypeScript repository setup
 
 ### Working
 
-- `cloneproof check <path>` produces readable terminal output and stable JSON.
-- Static checks cover package metadata, npm/pnpm/Yarn lockfiles, malformed npm lockfiles, npm scripts, README npm commands, environment-example coverage, runtime declarations, Dockerfile Node versions, bounded traversal, symlink non-following, and deterministic SHA-256 snapshots.
-- `cloneproof verify <path> --docker --execute` requires explicit consent, defaults to `--network=none`, uses a CloneProof-controlled Node image, stages regular files, excludes sensitive configuration, applies container limits, captures bounded output, and reports blocked Docker/image/static-prerequisite states.
+- `cloneproof check <path>` produces readable terminal output and stable schema-version-2 JSON.
+- Static checks cover package metadata, npm/pnpm/Yarn lockfiles, malformed npm lockfiles, npm scripts, README npm commands, environment-example coverage, runtime declarations, Dockerfile Node versions, bounded traversal, source/stat-only scan roles, nested-package boundaries, symlink non-following, and deterministic SHA-256 snapshots.
+- `cloneproof verify <path> --docker --execute` requires explicit consent, defaults to `--network=none`, uses a CloneProof-controlled Node image, stages regular files with independent limits, excludes sensitive configuration, applies container limits, captures bounded multiline output, and reports blocked Docker/image/static-prerequisite/network-required states.
 - Docker timeout/output-interruption cleanup is explicitly attempted with a named container. The verifier never falls back to host execution.
 - Healthy and deliberately broken demo repositories are checked in under `examples/`.
 - Buildathon rules, security assumptions, decisions, demo steps, and session references are documented.
@@ -21,7 +21,7 @@ Deliver a credible, secure-by-design CLI for Node.js/TypeScript repository setup
 
 - The Docker image is pinned to `node:22.19.0-bookworm-slim` with `--pull=never`, but not yet to a recorded cryptographic digest in CloneProof's verifier policy.
 - The symlink test is skipped on this Windows host because symlink creation returned `EPERM`; run the suite on Linux to exercise that branch.
-- `--allow-network` enables the network for both `npm ci` and `npm test`; it is intentionally broad and should only be used for trusted repositories.
+- `--allow-network` enables the network for both `npm ci` and `npm test`; it is intentionally broad and should only be used for trusted repositories. Without it, known external npm packages block before Docker starts.
 - The static report intentionally reports warnings for environment references inside the checked-in demo fixtures and verifier source; these do not block verification.
 - No Buildathon dashboard submission has been made yet.
 - The CLI still accepts local paths only; direct GitHub URL input is not implemented.
@@ -48,6 +48,7 @@ Deliver a credible, secure-by-design CLI for Node.js/TypeScript repository setup
 - The first dynamic profile is npm-only and runs `npm ci --ignore-scripts` followed by the declared `npm test` script.
 - Treat empty/unsupported repositories as `blocked`, malformed or failed checks as `failed`, and incomplete bounded scans as `incomplete`.
 - Do not trust a target Dockerfile, accept arbitrary Docker flags, mount the Docker socket, pass host secrets, or silently enable network access.
+- Use an isolated temporary Docker CLI configuration and the local default endpoint; do not inherit a selected remote Docker context.
 
 ## Four-day delivery scope
 
@@ -129,7 +130,7 @@ Do not promise that every arbitrary GitHub project can be installed and tested. 
 Working directory: `C:\Users\Sauvraneel Paul\OneDrive\Desktop\Clone-Proof`
 
 - `npm ci --offline --ignore-scripts --no-audit --no-fund` — passed.
-- `npm test` — passed: 36 passed, 1 skipped; the skip is Windows `EPERM` symlink creation.
+- `npm test` — passed: 69 passed, 1 skipped; the skip is Windows `EPERM` symlink creation.
 - `npm_config_offline=true npm test` — passed with the same result.
 - `npm run build` — passed; four source files syntax-checked.
 - `git diff --check` — passed.
@@ -145,6 +146,11 @@ Working directory: `C:\Users\Sauvraneel Paul\OneDrive\Desktop\Clone-Proof`
 - The same GitHub clone — Docker verify returned `passed_with_warnings`, verification outcome `passed`, container exit `0`, cleanup confirmed.
 - `make test` — not run; `make` is unavailable on this host.
 
+Latest local commits for the accuracy/verification work:
+
+- `14eb5bb fix: harden Docker verification defaults` — lockfile package metadata, network-required blocking, failed-phase diagnostics, exit-code-137 messaging, and Docker resource defaults.
+- `6103d97 fix: simplify report rendering` — schema-version-2 renderer, evidence details, and bounded multiline output.
+
 ## OmniRush sessions for submission
 
 Use the main session in the Buildathon dashboard and confirm any associated sub-agent sessions are included:
@@ -159,7 +165,7 @@ Use the main session in the Buildathon dashboard and confirm any associated sub-
 
 ## Next step
 
-Tomorrow's first implementation step is P0 GitHub URL input plus the self-contained HTML report. The real Windows Docker Desktop Linux-engine validation already passed with:
+Run the real Windows Docker Desktop Linux-engine validation again against the current branch, then implement the remaining P0 GitHub URL input and self-contained HTML report. The prior validation passed with:
 
 ```bash
 npm ci --offline

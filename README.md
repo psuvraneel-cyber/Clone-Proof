@@ -6,7 +6,7 @@ CloneProof does not claim to prove that code is safe or that a repository is uni
 
 ## Current status
 
-The project is being built as an OmniRush Frontier Buildathon submission. The first vertical slice is the deterministic static inspector. Docker-based execution verification is a separate, explicitly enabled mode and depends on a Docker-capable environment.
+The project is being built as an OmniRush Frontier Buildathon submission. The current vertical slice is a deterministic static inspector plus an explicitly enabled, bounded Docker verification profile. Docker verification depends on a Docker-capable environment and never falls back to host execution.
 
 ## Requirements
 
@@ -48,15 +48,15 @@ Verify the supported npm workflow in Docker. Both flags are required; without th
 node src/cli.js verify ./path/to/repository --docker --execute
 ```
 
-The default container network is disabled. If dependency installation genuinely needs registry access, make that decision explicit. This enables the network for both dependency installation and the declared test workflow, so only use it for repositories you trust:
+The default container network is disabled. If a recognized npm lockfile says that dependency installation needs external packages, CloneProof reports `DOCKER_NETWORK_REQUIRED` before starting Docker. Make the network decision explicit to proceed. This enables the network for both dependency installation and the declared test workflow, so only use it for repositories you trust:
 
 ```bash
 node src/cli.js verify ./path/to/repository --docker --execute --allow-network
 ```
 
-Use `--timeout-ms N` to override the bounded verification timeout when a trusted project needs more time. The value is capped internally at ten minutes.
+Use `--timeout-ms N` to override the bounded verification timeout when a trusted project needs more time. The default is five minutes and the value is capped internally at ten minutes.
 
-CloneProof uses a fixed Node 22.19.0 image, refuses to pull it implicitly, ignores npm lifecycle scripts during `npm ci`, runs the declared `npm test` script only after explicit authorization, and never falls back to host execution. On a Docker-capable machine, make the image available first:
+CloneProof uses a fixed Node 22.19.0 image, refuses to pull it implicitly, ignores npm lifecycle scripts during `npm ci`, runs the declared `npm test` script only after explicit authorization, and never falls back to host execution. The controlled container defaults to one CPU, 2 GiB memory/swap, 512 PIDs, a 512 MiB `/tmp`, and a 1 GiB `/workspace`. Make the image available first:
 
 ```bash
 docker pull node:22.19.0-bookworm-slim
@@ -95,6 +95,8 @@ docker run --rm --network none cloneproof
 
 The container runs CloneProof's static inspection against the project copy. Target-repository verification is intentionally separate and uses a temporary, read-only source snapshot with bounded CPU, memory, process count, output, and wall-clock time. CloneProof does not run a target Dockerfile or accept arbitrary Docker flags.
 
+Docker commands use the local default Docker endpoint. CloneProof creates an isolated temporary Docker CLI configuration and does not inherit the user's Docker context selection or silently honor a remote context.
+
 ## Architecture
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and module plan. See [docs/DECISIONS.md](docs/DECISIONS.md) for important implementation decisions and the current OmniRush session record.
@@ -105,6 +107,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 - Target repositories are untrusted input. Symlinks, malformed files, large files, and incomplete scans are handled explicitly.
 - Docker is not a complete security boundary. Execution verification is opt-in, bounded, and a reproducibility experiment rather than a safety certification.
 - Real `.env` files, npm configuration files, and other sensitive environment configuration are excluded from the staged container snapshot. The host environment and Docker socket are not mounted.
+- Scan reports use schema version 2 and record bounded-scan completeness, discovered/read file counts, skipped paths, and npm lockfile package metadata.
 - The current image is pinned to a version tag rather than a digest. A future release should record and verify a trusted digest for stronger supply-chain guarantees.
 - The first release focuses on the root package of Node.js/TypeScript repositories. Monorepos, pnpm/Yarn execution, private repositories, and external services may be reported as unsupported or blocked.
 

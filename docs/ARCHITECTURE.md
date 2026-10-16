@@ -7,7 +7,7 @@ CloneProof is a local, command-line-first tool. The first release separates two 
 
 ## First vertical slice
 
-The first slice targets the root of a Node.js or TypeScript repository. It reads `README.md`, `package.json`, npm lockfiles, runtime declarations, test files, and environment-variable references. It emits one versioned report schema in either readable text or JSON.
+The first slice targets the root of a Node.js or TypeScript repository. It reads `README.md`, `package.json`, npm lockfiles, runtime declarations, test files, and environment-variable references. It emits report schema version 2 in either readable text or JSON. The scan records which files were discovered, read, skipped, or unavailable so bounded inspection is not mistaken for a complete repository proof.
 
 ## Module boundaries
 
@@ -32,7 +32,7 @@ The scanner returns data. Rules turn that data into evidence-backed findings. Re
 
 ## Docker verification profile
 
-The execution mode does not trust a target Dockerfile or arbitrary Docker flags. It uses the fixed `node:22.19.0-bookworm-slim` image, requires the image to be present locally, stages regular files into a temporary snapshot, and mounts that snapshot read-only at `/source`. The container has a writable temporary workspace, no host environment or Docker socket, a non-root user, dropped capabilities, `no-new-privileges`, CPU/memory/process/file/output/time limits, and an explicit network policy.
+The execution mode does not trust a target Dockerfile or arbitrary Docker flags. It uses the fixed `node:22.19.0-bookworm-slim` image, requires the image to be present locally, stages regular files into a temporary snapshot, and mounts that snapshot read-only at `/source`. The container has a writable temporary workspace, no host environment or Docker socket, a non-root user, dropped capabilities, `no-new-privileges`, CPU/memory/process/file/output/time limits, and an explicit network policy. Staging has independent file, byte, count, and depth limits so scan limits cannot accidentally become Docker limits.
 
 The supported command sequence is controlled by CloneProof:
 
@@ -42,4 +42,4 @@ npm ci --ignore-scripts
 npm test
 ```
 
-`--execute` is the execution consent flag. Network is `none` unless `--allow-network` is also provided; that flag applies to both `npm ci` and `npm test`. If Docker is missing, the image is missing, static prerequisites fail, staging encounters symlinks, or a limit is exceeded, CloneProof reports `blocked` and never falls back to the host.
+`--execute` is the execution consent flag. Network is `none` unless `--allow-network` is also provided; that flag applies to both `npm ci` and `npm test`. When the npm lockfile reports external packages, the verifier blocks before the Docker probe unless network consent was provided. If Docker is missing, the image is missing, static prerequisites fail, staging encounters symlinks, or a limit is exceeded, CloneProof reports `blocked` and never falls back to the host. Docker commands use an isolated temporary CLI configuration and the local default endpoint rather than inheriting a user-selected Docker context.

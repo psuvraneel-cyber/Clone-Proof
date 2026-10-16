@@ -23,6 +23,8 @@ Point out the evidence-backed findings:
 - undocumented `APP_TOKEN`;
 - conflicting Node runtime declarations.
 
+If a repository contains nested packages or generated assets, point out that the root scan reports those boundaries explicitly instead of mixing them into the root application findings.
+
 ## 3. Show the machine-readable report
 
 ```bash
@@ -44,4 +46,4 @@ docker pull node:22.19.0-bookworm-slim
 node src/cli.js verify examples/healthy-node --docker --execute
 ```
 
-If Docker is unavailable, CloneProof reports `blocked` and captures the reason instead of falling back to host execution. That behavior is expected and is part of the safety demonstration.
+If Docker is unavailable, CloneProof reports `blocked` and captures the reason instead of falling back to host execution. If the lockfile requires external packages while the network is disabled, the same command reports `DOCKER_NETWORK_REQUIRED` before starting a container. That behavior is expected and is part of the safety demonstration. Use `--allow-network` only for a repository you trust.
