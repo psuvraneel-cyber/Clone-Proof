@@ -234,11 +234,12 @@ test('renderHtml bounds multiline verification output like renderText', () => {
 
   assert.ok(stdoutMatch);
   assert.ok(stderrMatch);
-  assert.equal(stdoutMatch[1].split('\n').length, 60);
-  assert.match(stdoutMatch[1], /^stdout-6\n/);
+  assert.equal(stdoutMatch[1].split('\n').length, 61);
+  assert.match(stdoutMatch[1], /^\.\.\. 5 earlier lines omitted\nstdout-6\n/);
   assert.match(stdoutMatch[1], /stdout-65$/);
   assert.doesNotMatch(stdoutMatch[1], /stdout-[1-5](?:\n|$)/);
-  assert.equal(stderrMatch[1].length, 4000);
+  assert.match(stderrMatch[1], /^\.\.\. shortened to the last 4,000 characters\n/);
+  assert.ok(stderrMatch[1].length > 4000);
   assert.match(stderrMatch[1], /last$/);
   assert.doesNotMatch(stderrMatch[1], /first/);
 });
@@ -277,9 +278,11 @@ test('renderText renders bounded multiline verification output and evidence deta
 
   assert.match(output, /verification\.stderr — Captured standard error\./);
   assert.doesNotMatch(output, /    stdout-1\n/);
+  assert.match(output, /\.\.\. 5 earlier lines omitted/);
   assert.match(output, /stdout-6/);
   assert.match(output, /stdout-65/);
   assert.doesNotMatch(output, /first/);
+  assert.match(output, /\.\.\. shortened to the last 4,000 characters/);
   assert.match(output, /last/);
   const stderrLine = output.split('  stderr:\n')[1].split('\n')[0];
   assert.ok(stderrLine.length <= 4004);

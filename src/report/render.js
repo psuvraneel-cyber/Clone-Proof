@@ -306,12 +306,16 @@ const MAX_VERIFICATION_OUTPUT_CHARS = 4000;
 function boundedOutputLines(value) {
   const rawLines = String(value).split(/\r?\n/);
   if (rawLines.at(-1) === '') rawLines.pop();
+  const omittedLineCount = Math.max(0, rawLines.length - MAX_VERIFICATION_OUTPUT_LINES);
   const selected = rawLines.slice(-MAX_VERIFICATION_OUTPUT_LINES).map(escapeControlCharacters);
   let output = selected.join('\n');
+  const indicators = [];
+  if (omittedLineCount > 0) indicators.push(`... ${omittedLineCount} earlier lines omitted`);
   if (output.length > MAX_VERIFICATION_OUTPUT_CHARS) {
-    output = `…${output.slice(-(MAX_VERIFICATION_OUTPUT_CHARS - 1))}`;
+    indicators.push('... shortened to the last 4,000 characters');
+    output = output.slice(-MAX_VERIFICATION_OUTPUT_CHARS);
   }
-  return output ? output.split('\n') : [];
+  return [...indicators, ...(output ? output.split('\n') : [])];
 }
 
 function verificationLines(report) {
