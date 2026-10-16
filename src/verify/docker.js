@@ -11,6 +11,12 @@ const DEFAULT_VERIFY_IMAGE = 'node:22.19.0-bookworm-slim';
 const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
 const DOCKER_PROBE_TIMEOUT_MS = 5000;
+const STAGING_LIMITS = Object.freeze({
+  maxDepth: 25,
+  maxFiles: 20000,
+  maxFileBytes: 25 * 1024 * 1024,
+  maxTotalBytes: 200 * 1024 * 1024
+});
 const SKIPPED_DIRECTORY_NAMES = new Set(['.git', 'node_modules', 'dist', 'coverage']);
 const SENSITIVE_FILE_NAMES = new Set([
   '.env',
@@ -193,7 +199,7 @@ function isSensitiveFile(relativeFile) {
   return false;
 }
 
-function stageRepository(rootPath, stagingRoot, limits = {}) {
+function stageRepository(rootPath, stagingRoot, overrides = {}) {
   const sourceRoot = path.resolve(rootPath);
   const destinationRoot = path.join(stagingRoot, 'source');
   const symlinkPaths = [];
@@ -203,8 +209,9 @@ function stageRepository(rootPath, stagingRoot, limits = {}) {
 
   fs.mkdirSync(destinationRoot, { recursive: true });
 
-  const maxDepth = limits.maxDepth || 25;
-  const maxFiles = limits.maxFiles || 10000;
+  const limits = { ...STAGING_LIMITS, ...overrides };
+  const maxDepth = limits.maxDepth;
+  const maxFiles = limits.maxFiles;
 
   function walk(sourceDirectory, destinationDirectory, depth) {
     const entries = fs.readdirSync(sourceDirectory, { withFileTypes: true })
@@ -223,7 +230,9 @@ function stageRepository(rootPath, stagingRoot, limits = {}) {
       if (stat.isDirectory()) {
         if (SKIPPED_DIRECTORY_NAMES.has(entry.name)) continue;
         if (depth + 1 > maxDepth) {
-          throw new Error(`staging depth limit exceeded at ${relative}`);
+          const error = new Error(`staging depth limit exceeded at ${relative}`);
+          error.code = 'STAGING_LIMIT_EXCEEDED';
+          throw error;
         }
         fs.mkdirSync(destinationPath, { recursive: true, mode: 0o755 });
         walk(sourcePath, destinationPath, depth + 1);
@@ -236,19 +245,25 @@ function stageRepository(rootPath, stagingRoot, limits = {}) {
       }
 
       if (fileCount >= maxFiles) {
-        throw new Error(`staging file-count limit exceeded at ${relative}`);
+        const error = new Error(`staging file-count limit exceeded at ${relative}`);
+        error.code = 'STAGING_LIMIT_EXCEEDED';
+        throw error;
       }
-      const maxFileBytes = limits.maxFileBytes || 1024 * 1024;
-      const maxTotalBytes = limits.maxTotalBytes || 10 * 1024 * 1024;
+      const maxFileBytes = limits.maxFileBytes;
+      const maxTotalBytes = limits.maxTotalBytes;
       if (stat.size > maxFileBytes || totalBytes + stat.size > maxTotalBytes) {
-        throw new Error(`staging limits exceeded at ${relative}`);
+        const error = new Error(`staging limits exceeded at ${relative}`);
+        error.code = 'STAGING_LIMIT_EXCEEDED';
+        throw error;
       }
 
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true, mode: 0o755 });
       const contents = fs.readFileSync(sourcePath);
       const afterRead = fs.lstatSync(sourcePath);
       if (!afterRead.isFile() || afterRead.size !== stat.size) {
-        throw new Error(`repository file changed while staging: ${relative}`);
+        const error = new Error(`repository file changed while staging: ${relative}`);
+        error.code = 'STAGING_SOURCE_CHANGED';
+        throw error;
       }
       fs.writeFileSync(destinationPath, contents, { mode: stat.mode & 0o111 ? 0o755 : 0o644 });
       fileCount += 1;
@@ -576,7 +591,7 @@ async function verifyRepository(rootPath, options = {}) {
   const containerName = makeContainerName();
   try {
     temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-verify-'));
-    const staged = stageRepository(rootPath, temporaryRoot, report.scan.limits);
+    const staged = stageRepository(rootPath, temporaryRoot, options.stagingLimits);
     report.verification.omittedPaths = staged.skippedSensitivePaths.slice().sort(compareStrings);
     if (report.verification.omittedPaths.length > 0) {
       addFinding(report, {
@@ -638,6 +653,36 @@ async function verifyRepository(rootPath, options = {}) {
       ? (report.summary.warnings > 0 || report.verification.omittedPaths.length > 0 ? 'passed_with_warnings' : 'passed')
       : 'failed';
   } catch (error) {
+    if (error && error.code === 'STAGING_LIMIT_EXCEEDED') {
+      report.verification.outcome = 'blocked';
+      report.verification.stderr = error.message;
+      addFinding(report, {
+        code: 'DOCKER_STAGING_LIMIT_EXCEEDED',
+        status: 'skipped',
+        severity: 'warning',
+        title: 'Docker verification was blocked by staging limits',
+        message: error.message,
+        evidence: makeEvidence('verification', 'No container was started because the repository snapshot exceeded the staging policy.'),
+        recommendation: 'Reduce the repository snapshot or review the documented CloneProof staging limits before rerunning.'
+      });
+      report.status = 'blocked';
+      return report;
+    }
+    if (error && error.code === 'STAGING_SOURCE_CHANGED') {
+      report.verification.outcome = 'blocked';
+      report.verification.stderr = error.message;
+      addFinding(report, {
+        code: 'DOCKER_STAGING_SOURCE_CHANGED',
+        status: 'skipped',
+        severity: 'warning',
+        title: 'Docker verification was blocked because a file changed while staging',
+        message: error.message,
+        evidence: makeEvidence('verification', 'No container was started because the scanned repository changed during staging.'),
+        recommendation: 'Run CloneProof against a stable checkout and rerun verification.'
+      });
+      report.status = 'blocked';
+      return report;
+    }
     report.verification.outcome = 'failed';
     report.verification.stderr = error.message;
     addFinding(report, {

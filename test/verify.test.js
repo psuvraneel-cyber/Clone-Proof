@@ -178,6 +178,47 @@ test('placeholder npm test scripts block Docker execution', async () => {
   }
 });
 
+test('staging per-file limits block verification before a container starts', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-stage-file-limit-'));
+  try {
+    fs.cpSync(healthyFixture, root, { recursive: true });
+    fs.writeFileSync(path.join(root, 'large.bin'), Buffer.alloc(8, 1));
+    const { calls, runner } = makeRunner();
+    const report = await verifyRepository(root, {
+      execute: true,
+      runner,
+      stagingLimits: { maxFileBytes: 4 }
+    });
+
+    assert.equal(report.status, 'blocked');
+    assert.equal(report.findings.find((item) => item.code === 'DOCKER_STAGING_LIMIT_EXCEEDED').status, 'skipped');
+    assert.equal(calls.some((call) => call.args[0] === 'run'), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('staging total limits block verification before a container starts', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-stage-total-limit-'));
+  try {
+    fs.cpSync(healthyFixture, root, { recursive: true });
+    fs.writeFileSync(path.join(root, 'first.bin'), Buffer.alloc(4, 1));
+    fs.writeFileSync(path.join(root, 'second.bin'), Buffer.alloc(4, 2));
+    const { calls, runner } = makeRunner();
+    const report = await verifyRepository(root, {
+      execute: true,
+      runner,
+      stagingLimits: { maxTotalBytes: 5 }
+    });
+
+    assert.equal(report.status, 'blocked');
+    assert.equal(report.findings.find((item) => item.code === 'DOCKER_STAGING_LIMIT_EXCEEDED').status, 'skipped');
+    assert.equal(calls.some((call) => call.args[0] === 'run'), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('staging excludes real environment files but keeps safe examples', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-stage-source-'));
   const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-stage-target-'));
