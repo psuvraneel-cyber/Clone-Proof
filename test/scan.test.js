@@ -508,6 +508,49 @@ test('warns when a pinned runtime does not satisfy engines.node', () => withRepo
   assert.equal(finding(report, 'ENGINES_NODE_UNSATISFIED').status, 'warning');
 }));
 
+function writeEngineFixture(root, pinned, range, dockerfile) {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'engine-range-fixture',
+    engines: { node: range },
+    scripts: { test: 'node --test' }
+  }));
+  writeFile(root, 'package-lock.json', '{"name":"engine-range-fixture","lockfileVersion":3,"packages":{"":{"name":"engine-range-fixture"}}}\n');
+  writeFile(root, '.nvmrc', `${pinned}\n`);
+  if (dockerfile) writeFile(root, 'Dockerfile', dockerfile);
+}
+
+test('treats partial runtime pins as existential version prefixes for engine ranges', () => withRepository((root) => {
+  const cases = [
+    ['22', '>=22.19.0', false],
+    ['22', '>=24', true],
+    ['22', '^20', true],
+    ['22', '^22.5.0', false],
+    ['22', '<22.0.0', true],
+    ['22', '>=20 <23', false],
+    ['22.18', '>=22.19.0', true],
+    ['22.18', '>22.18.0', false],
+    ['22.18', '<22.18.0', true],
+    ['22.18', '<=22.18.0', false],
+    ['22.18', '^22.19.0', true],
+    ['22.18', '~22.18.5', false],
+    ['22.18.0', '>=22.19.0', true]
+  ];
+
+  for (const [pinned, range, warningExpected] of cases) {
+    writeEngineFixture(root, pinned, range);
+    const report = scanRepository(root);
+    assert.equal(Boolean(finding(report, 'ENGINES_NODE_UNSATISFIED')), warningExpected, `${pinned} vs ${range}`);
+  }
+}));
+
+test('applies partial runtime-prefix semantics to Docker Node tags', () => withRepository((root) => {
+  writeEngineFixture(root, '22.19.0', '>=22.19.0', 'FROM node:22-bookworm-slim\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENGINES_NODE_UNSATISFIED'), undefined);
+}));
+
 test('accepts an engines alternative that includes the pinned runtime', () => withRepository((root) => {
   writeFile(root, 'package.json', JSON.stringify({
     name: 'engine-alternatives',

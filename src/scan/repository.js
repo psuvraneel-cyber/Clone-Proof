@@ -667,6 +667,45 @@ function parseRangeVersion(value) {
   };
 }
 
+function comparePinnedPrefixToVersion(pinned, version) {
+  for (const key of ['major', 'minor', 'patch']) {
+    if (pinned[key] === null || pinned[key] === undefined) return 0;
+    const pinnedValue = pinned[key];
+    const versionValue = version[key] ?? 0;
+    if (pinnedValue !== versionValue) return pinnedValue < versionValue ? -1 : 1;
+  }
+  return 0;
+}
+
+function partialPinCanBeAtLeast(pinned, version) {
+  return comparePinnedPrefixToVersion(pinned, version) >= 0;
+}
+
+function partialPinCanBeGreaterThan(pinned, version) {
+  return comparePinnedPrefixToVersion(pinned, version) >= 0;
+}
+
+function partialPinCanBeAtMost(pinned, version) {
+  return comparePinnedPrefixToVersion(pinned, version) <= 0;
+}
+
+function partialPinCanBeLessThan(pinned, version) {
+  const comparison = comparePinnedPrefixToVersion(pinned, version);
+  if (comparison < 0) return true;
+  if (comparison > 0) return false;
+  if (pinned.minor === null || pinned.minor === undefined) {
+    return (version.minor ?? 0) > 0 || (version.patch ?? 0) > 0;
+  }
+  if (pinned.patch === null || pinned.patch === undefined) {
+    return (version.patch ?? 0) > 0;
+  }
+  return false;
+}
+
+function partialPinMatches(pinned, version) {
+  return comparePinnedPrefixToVersion(pinned, version) === 0;
+}
+
 function satisfiesRangeToken(pinned, token) {
   const trimmed = token.trim();
   if (!trimmed) return true;
@@ -680,6 +719,30 @@ function satisfiesRangeToken(pinned, token) {
     minor: pinned.minor ?? 0,
     patch: pinned.patch ?? 0
   };
+
+  if (!pinned.full) {
+    if (operator === '^' && version.major === 0) {
+      const lower = compareVersions(pinnedVersion, version) >= 0;
+      const upper = pinned.major === 0 && pinned.minor === version.minor;
+      return lower && upper;
+    }
+    if (operator === '^') {
+      const upper = { major: version.major + 1, minor: 0, patch: 0 };
+      return partialPinCanBeAtLeast(pinned, version) && partialPinCanBeLessThan(pinned, upper);
+    }
+    if (operator === '~') {
+      const upper = version.minor > 0
+        ? { major: version.major, minor: version.minor + 1, patch: 0 }
+        : { major: version.major + 1, minor: 0, patch: 0 };
+      return partialPinCanBeAtLeast(pinned, version) && partialPinCanBeLessThan(pinned, upper);
+    }
+    if (operator === '>=') return partialPinCanBeAtLeast(pinned, version);
+    if (operator === '>') return partialPinCanBeGreaterThan(pinned, version);
+    if (operator === '<=') return partialPinCanBeAtMost(pinned, version);
+    if (operator === '<') return partialPinCanBeLessThan(pinned, version);
+    return partialPinMatches(pinned, version);
+  }
+
   if (operator === '^') {
     const lower = compareVersions(pinnedVersion, version) >= 0;
     const upper = version.major > 0
