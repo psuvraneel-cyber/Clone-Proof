@@ -663,7 +663,9 @@ function parseRangeVersion(value) {
     major: parsed.major,
     minor: parsed.minor ?? 0,
     patch: parsed.patch ?? 0,
-    full: parsed.full
+    full: parsed.full,
+    minorSpecified: parsed.minor !== null,
+    patchSpecified: parsed.patch !== null
   };
 }
 
@@ -719,6 +721,15 @@ function satisfiesRangeToken(pinned, token) {
     minor: pinned.minor ?? 0,
     patch: pinned.patch ?? 0
   };
+
+  if (operator === '>' && !version.full) {
+    const nextRelease = version.minorSpecified
+      ? { major: version.major, minor: version.minor + 1, patch: 0 }
+      : { major: version.major + 1, minor: 0, patch: 0 };
+    return pinned.full
+      ? compareVersions(pinnedVersion, nextRelease) >= 0
+      : partialPinCanBeAtLeast(pinned, nextRelease);
+  }
 
   if (!pinned.full) {
     if (operator === '^' && version.major === 0) {

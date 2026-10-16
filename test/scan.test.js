@@ -676,6 +676,21 @@ test('applies partial runtime-prefix semantics to Docker Node tags', () => withR
   assert.equal(finding(report, 'ENGINES_NODE_UNSATISFIED'), undefined);
 }));
 
+test('treats npm greater-than engine ranges as the next complete release', () => withRepository((root) => {
+  const cases = [
+    ['22', '>22', true],
+    ['23', '>22', false],
+    ['22.18', '>22.18', true],
+    ['22.19', '>22.18', false]
+  ];
+
+  for (const [pinned, range, warningExpected] of cases) {
+    writeEngineFixture(root, pinned, range);
+    const report = scanRepository(root);
+    assert.equal(Boolean(finding(report, 'ENGINES_NODE_UNSATISFIED')), warningExpected, `${pinned} vs ${range}`);
+  }
+}));
+
 test('accepts an engines alternative that includes the pinned runtime', () => withRepository((root) => {
   writeFile(root, 'package.json', JSON.stringify({
     name: 'engine-alternatives',
