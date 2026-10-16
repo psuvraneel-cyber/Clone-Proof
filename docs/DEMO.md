@@ -39,7 +39,7 @@ Explain that the JSON report is suitable for CI or future GitHub comments and co
 node src/cli.js check examples/healthy-node --format html --output reports/cloneproof-report.html
 ```
 
-Open `reports/cloneproof-report.html` directly. It contains the summary, escaped findings, evidence details, recommendations, and any bounded Docker output without loading a server or external assets. The same `--output` option also accepts text and JSON.
+Open `reports/cloneproof-report.html` directly. The `reports/` directory is gitignored so generated reports do not dirty the checkout. The file contains the summary, escaped findings, evidence details, recommendations, and any bounded Docker output without loading a server or external assets. The same `--output` option also accepts text and JSON.
 
 For the optional remote-input demonstration, use a public repository URL:
 
