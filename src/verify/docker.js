@@ -182,6 +182,7 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
   const maxDepth = limits.maxDepth;
   const maxFiles = limits.maxFiles;
   const ignoreMatcher = loadGitignoreMatcher(sourceRoot, overrides.freshClone === true);
+  const executablePaths = new Set((overrides.executablePaths || []).map((relative) => String(relative).split('\\').join('/')));
 
   function walk(sourceDirectory, destinationDirectory, depth) {
     const entries = fs.readdirSync(sourceDirectory, { withFileTypes: true })
@@ -243,7 +244,8 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
         error.code = 'STAGING_SOURCE_CHANGED';
         throw error;
       }
-      fs.writeFileSync(destinationPath, contents, { mode: stat.mode & 0o111 ? 0o755 : 0o644 });
+      const executable = executablePaths.has(relative) || Boolean(stat.mode & 0o111);
+      fs.writeFileSync(destinationPath, contents, { mode: executable ? 0o755 : 0o644 });
       fileCount += 1;
       totalBytes += contents.length;
     }
@@ -615,7 +617,8 @@ async function verifyRepository(rootPath, options = {}) {
     temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-verify-'));
     const staged = stageRepository(rootPath, temporaryRoot, {
       ...(options.stagingLimits || {}),
-      freshClone: options.freshClone === true
+      freshClone: options.freshClone === true,
+      executablePaths: options.executablePaths || []
     });
     report.verification.omittedPaths = staged.skippedSensitivePaths.slice().sort(compareStrings);
     report.verification.ignoredPaths = staged.skippedIgnoredPaths.slice().sort(compareStrings);

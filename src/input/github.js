@@ -537,6 +537,24 @@ function gitVersionSupportsGlobalConfig(result) {
   return major > 2 || (major === 2 && minor >= 32);
 }
 
+function parseGitExecutableModes(output) {
+  const executablePaths = [];
+  for (const line of String(output || '').split(/\r?\n/)) {
+    const match = /^(\d{6})\s+\S+\s+\d+\t(.+)$/.exec(line);
+    if (!match || match[1] !== '100755') continue;
+    let relativePath = match[2];
+    if (relativePath.startsWith('"') && relativePath.endsWith('"')) {
+      try {
+        relativePath = JSON.parse(relativePath);
+      } catch {
+        continue;
+      }
+    }
+    executablePaths.push(relativePath.split('\\').join('/'));
+  }
+  return [...new Set(executablePaths)].sort((left, right) => left.localeCompare(right));
+}
+
 async function removeTemporaryDirectory(directory) {
   await fs.promises.rm(directory, {
     recursive: true,
@@ -628,6 +646,21 @@ async function cloneGithubRepository(value, options = {}) {
       throw cloneFailure(result, maxOutputBytes);
     }
 
+    const modeArgs = invocation.args.slice(0, invocation.args.indexOf('clone'))
+      .concat(['-C', temporaryRoot, 'ls-files', '-s']);
+    const modeResult = await runner(gitExecutable, modeArgs, {
+      cwd: temporaryParent,
+      env: invocation.env,
+      shell: false,
+      windowsHide: true,
+      timeoutMs,
+      maxOutputBytes
+    });
+    if (!cloneSucceeded(modeResult, maxOutputBytes)) {
+      throw new GithubSourceError('Git could not read checkout file modes.', 'GITHUB_CHECKOUT_UNAVAILABLE');
+    }
+    const executablePaths = parseGitExecutableModes(modeResult.stdout);
+
     // The scanner and verifier do not need Git metadata. Removing it keeps the
     // checkout bounds focused on repository content and prevents object data
     // from being handed to later stages.
@@ -647,6 +680,7 @@ async function cloneGithubRepository(value, options = {}) {
       repository: source.repository,
       preflight: preflight.state,
       ...(preflight.repositorySizeKb === undefined ? {} : { repositorySizeKb: preflight.repositorySizeKb }),
+      executablePaths,
       root: temporaryRoot,
       path: temporaryRoot,
       metadata,
@@ -684,6 +718,7 @@ module.exports = {
   cloneGithubRepository,
   inspectCheckout,
   isGithubRepositoryUrl,
+  parseGitExecutableModes,
   preflightGithubRepository,
   validateGithubUrl
 };

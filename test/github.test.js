@@ -92,6 +92,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
       if (args[0] === '--version') {
         return { ...successfulResult(), stdout: 'git version 2.47.0.windows.1\n' };
       }
+      if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
       const destination = args.at(-1);
       fs.writeFileSync(path.join(destination, 'README.md'), '# fixture\n');
       fs.mkdirSync(path.join(destination, 'src'));
@@ -100,7 +101,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
     }
   });
 
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.equal(calls[0].command, process.execPath);
   assert.deepEqual(calls[0].args, ['--version']);
   assert.equal(calls[1].command, process.execPath);
@@ -123,6 +124,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
   assert.equal(calls[1].options.shell, false);
   assert.equal(calls[1].options.timeoutMs, 4321);
   assert.equal(calls[1].options.maxOutputBytes, 8192);
+  assert.equal(calls[2].args.includes('ls-files'), true);
 
   assert.equal(result.root, calls[1].args.at(-1));
   assert.equal(result.path, result.root);
@@ -147,6 +149,7 @@ test('cleans a temporary checkout when git fails', async () => {
       fetcher: publicFetcher(),
       runner: async (command, args) => {
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
         destination = args.at(-1);
         fs.writeFileSync(path.join(destination, 'partial.txt'), 'partial');
         return {
@@ -171,6 +174,7 @@ test('cleans a temporary checkout when the injected runner throws', async () => 
       fetcher: publicFetcher(),
       runner: async (command, args) => {
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
         destination = args.at(-1);
         fs.writeFileSync(path.join(destination, 'partial.txt'), 'partial');
         throw new Error('runner failed');
@@ -192,6 +196,7 @@ test('rejects a checkout that exceeds a bound and removes it', async () => {
       fetcher: publicFetcher(),
       runner: async (command, args) => {
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
         destination = args.at(-1);
         fs.writeFileSync(path.join(destination, 'one.txt'), '1');
         fs.writeFileSync(path.join(destination, 'two.txt'), '2');
@@ -298,10 +303,11 @@ test('preflights repository visibility and size before cloning', async () => {
         }
       };
     },
-    runner: async (command, args) => {
-      calls.push({ command, args });
-      if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
-      fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
+      runner: async (command, args) => {
+        calls.push({ command, args });
+        if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+        fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
       return successfulResult();
     }
   });
@@ -316,7 +322,7 @@ test('preflights repository visibility and size before cloning', async () => {
   });
   assert.equal(fetchCalls[0].options.headers.Authorization, undefined);
   assert.equal(typeof fetchCalls[0].options.signal.aborted, 'boolean');
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   await result.cleanup();
 });
 
@@ -375,13 +381,42 @@ test('continues cloning when the GitHub preflight is unavailable', async () => {
       runner: async (command, args) => {
         calls.push(args);
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
         fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
         return successfulResult();
       }
     });
 
     assert.equal(result.preflight, 'unavailable');
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
     await result.cleanup();
   }
+});
+
+test('records executable Git modes before removing clone metadata', async () => {
+  const calls = [];
+  const result = await cloneGithubRepository(VALID_URL, {
+    gitExecutable: process.execPath,
+    platform: 'linux',
+    fetcher: publicFetcher(),
+    runner: async (command, args) => {
+      calls.push({ command, args });
+      if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+      if (args.includes('clone')) {
+        const checkout = args.at(-1);
+        fs.mkdirSync(path.join(checkout, 'bin'));
+        fs.writeFileSync(path.join(checkout, 'bin', 'run.js'), '#!/usr/bin/env node\n');
+        fs.writeFileSync(path.join(checkout, 'README.md'), '# fixture\n');
+        return successfulResult();
+      }
+      if (args.includes('ls-files')) {
+        return { ...successfulResult(), stdout: '100755 abc 0\tbin/run.js\n100644 def 0\tREADME.md\n' };
+      }
+      throw new Error(`unexpected git args: ${args.join(' ')}`);
+    }
+  });
+
+  assert.deepEqual(result.executablePaths, ['bin/run.js']);
+  assert.equal(calls.some((call) => call.args.includes('ls-files')), true);
+  await result.cleanup();
 });

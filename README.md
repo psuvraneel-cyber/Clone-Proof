@@ -119,6 +119,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 - Target repositories are untrusted input. Symlinks, malformed files, large files, and incomplete scans are handled explicitly.
 - Docker is not a complete security boundary. Execution verification is opt-in, bounded, and a reproducibility experiment rather than a safety certification.
 - Real `.env` files, npm configuration files, and other sensitive environment configuration are excluded from the staged container snapshot. The host environment and Docker socket are not mounted.
+- For GitHub clones, executable file modes are read from the Git index before `.git` is removed and preserved in the Docker staging snapshot. Local Windows filesystem scans cannot detect repository execute bits and do not infer them.
 - Scan reports use schema version 2 and record bounded-scan completeness, discovered/read file counts, skipped paths, and npm lockfile package metadata.
 - The verifier image is pinned to `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`; `--pull=never` refuses implicit image changes.
 - GitHub input is limited to public `https://github.com/OWNER/REPOSITORY` URLs. Clone failures and checkout-limit failures are reported as `incomplete` or `blocked`; CloneProof does not request credentials.

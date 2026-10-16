@@ -26,6 +26,7 @@ When the target is a URL, CloneProof accepts only an exact public `https://githu
 - Supports the root npm workflow only.
 - Uses the pinned `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` image and `--pull=never`; it never builds or runs the target repository's Dockerfile.
 - Stages a regular-file snapshot and excludes `.env`, npm configuration, and other sensitive configuration files.
+- For GitHub sources, reads `git ls-files -s` before deleting `.git` and preserves mode `100755` files in the staging snapshot. Local Windows paths cannot provide reliable repository execute-bit information, so CloneProof does not infer it for them.
 - Mounts the source snapshot read-only and gives the container a separate temporary workspace.
 - Drops all Linux capabilities, enables `no-new-privileges`, runs as UID/GID 1000, and sets CPU, memory, PID, file-descriptor, output, and wall-clock limits.
 - Uses `--network=none` unless the user explicitly adds `--allow-network`. That flag enables the network for both dependency installation and the declared test workflow; it is not a registry-only permission.

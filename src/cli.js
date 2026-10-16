@@ -303,7 +303,8 @@ async function runVerify(options) {
       execute: true,
       allowNetwork: options.allowNetwork,
       timeoutMs: options.timeoutMs,
-      freshClone: Boolean(resolved.source)
+      freshClone: Boolean(resolved.source),
+      executablePaths: resolved.source ? resolved.source.executablePaths : []
     }), resolved.source);
     writeReport(report, options);
     return exitCodeForReport(report);
