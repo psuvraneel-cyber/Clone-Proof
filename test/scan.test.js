@@ -476,6 +476,51 @@ test('blocks an unsupported repository type with a clear finding', () => withRep
   assert.equal(finding(report, 'UNSUPPORTED_ROOT').status, 'warning');
 }));
 
+test('blocks a Python repository that only contains JavaScript assets', () => withRepository((root) => {
+  writeFile(root, 'pyproject.toml', '[project]\nname = "asset-app"\n');
+  writeFile(root, 'static/js/app.js', 'console.log("asset");\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.project.type, 'unsupported');
+  assert.equal(finding(report, 'PACKAGE_JSON_MISSING'), undefined);
+  assert.equal(finding(report, 'UNSUPPORTED_ROOT').status, 'warning');
+}));
+
+test('blocks a Go repository with JavaScript only in documentation', () => withRepository((root) => {
+  writeFile(root, 'go.mod', 'module example.invalid/app\n\ngo 1.22\n');
+  writeFile(root, 'docs/example.js', 'console.log("documentation");\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.project.type, 'unsupported');
+  assert.equal(finding(report, 'UNSUPPORTED_ROOT').status, 'warning');
+}));
+
+test('keeps a root JavaScript project without package.json in the Node checks', () => withRepository((root) => {
+  writeFile(root, 'index.js', 'console.log("root app");\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.status, 'failed');
+  assert.equal(report.project.type, 'node');
+  assert.equal(finding(report, 'PACKAGE_JSON_MISSING').status, 'failed');
+}));
+
+test('blocks a repository whose Node package is nested under another ecosystem', () => withRepository((root) => {
+  writeFile(root, 'backend/requirements.txt', 'flask==3.0.0\n');
+  writeFile(root, 'frontend/package.json', JSON.stringify({ name: 'frontend' }, null, 2));
+
+  const report = scanRepository(root);
+  const unsupported = finding(report, 'UNSUPPORTED_ROOT');
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.project.type, 'unsupported');
+  assert.match(unsupported.recommendation, /nested package/i);
+}));
+
 test('returns an incomplete report for a missing repository path', () => {
   const missing = path.join(os.tmpdir(), `cloneproof-does-not-exist-${Date.now()}`);
   const report = scanRepository(missing);

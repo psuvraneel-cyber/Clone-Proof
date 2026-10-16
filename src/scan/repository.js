@@ -28,6 +28,16 @@ const LOCKFILES = [
   { name: 'pnpm-lock.yaml', packageManager: 'pnpm' },
   { name: 'yarn.lock', packageManager: 'yarn' }
 ];
+const OTHER_ECOSYSTEM_MARKERS = [
+  { names: ['pyproject.toml', 'requirements.txt', 'setup.py', 'Pipfile'], ecosystem: 'Python' },
+  { names: ['go.mod'], ecosystem: 'Go' },
+  { names: ['Cargo.toml'], ecosystem: 'Rust' },
+  { names: ['pom.xml', 'build.gradle', 'build.gradle.kts'], ecosystem: 'Java' },
+  { names: ['Gemfile'], ecosystem: 'Ruby' },
+  { names: ['composer.json'], ecosystem: 'PHP' },
+  { names: ['mix.exs'], ecosystem: 'Elixir' },
+  { names: ['CMakeLists.txt'], ecosystem: 'C/C++' }
+];
 const CONVENTIONAL_ENV_KEYS = new Set([
   'PATH',
   'Path',
@@ -140,6 +150,24 @@ function isUnderNestedPackage(relativePath, nestedPaths) {
     const directory = packagePath.slice(0, -'/package.json'.length);
     return relativePath === packagePath || relativePath.startsWith(`${directory}/`);
   });
+}
+
+function rootEcosystemMarker(discovered) {
+  const rootFiles = new Set(sortedKnownRootFiles(discovered).map((relativePath) => relativePath.toLowerCase()));
+  for (const marker of OTHER_ECOSYSTEM_MARKERS) {
+    const match = marker.names.find((name) => rootFiles.has(name.toLowerCase()));
+    if (match) return { path: match, ecosystem: marker.ecosystem };
+  }
+  const customMarker = sortedKnownRootFiles(discovered).find((relativePath) => /\.(?:csproj|sln)$/i.test(relativePath));
+  return customMarker ? { path: customMarker, ecosystem: 'C#/.NET' } : null;
+}
+
+function isApplicationSourcePath(relativePath, nestedPaths) {
+  if (!isSourcePath(relativePath) || isTestPath(relativePath) || isUnderNestedPackage(relativePath, nestedPaths)) return false;
+  if (/\.d\.ts$/i.test(relativePath)) return false;
+  if (!relativePath.includes('/')) return true;
+  const firstDirectory = relativePath.split('/')[0].toLowerCase();
+  return new Set(['src', 'lib', 'app', 'server', 'bin']).has(firstDirectory);
 }
 
 function makeEvidence(relativePath, detail, line) {
@@ -810,8 +838,9 @@ function calculateDigest(files) {
 }
 
 function inferProjectType(packageState, discovered, nestedPaths = []) {
-  const knownPaths = [...discovered.keys()].filter((relativePath) => !isUnderNestedPackage(relativePath, nestedPaths));
-  const hasTypeScript = knownPaths.some((relativePath) => /\.(?:ts|cts|mts|tsx)$/i.test(relativePath));
+  const knownPaths = [...discovered.keys()].filter((relativePath) => isApplicationSourcePath(relativePath, nestedPaths));
+  const hasRootTsconfig = discovered.has('tsconfig.json');
+  const hasTypeScript = hasRootTsconfig || knownPaths.some((relativePath) => /\.(?:ts|cts|mts|tsx)$/i.test(relativePath));
   const hasJavaScript = knownPaths.some((relativePath) => /\.(?:js|cjs|mjs|jsx)$/i.test(relativePath));
 
   if (hasTypeScript) return 'typescript';
@@ -832,6 +861,7 @@ function scanRepository(rootPath, options) {
   const findings = [];
   const packageState = stateFor('package.json', scanned.files, scanned.discovered, scanned.skipped);
   const nestedPackageFiles = nestedPackagePaths(scanned.discovered);
+  const ecosystemMarker = rootEcosystemMarker(scanned.discovered);
   const projectType = inferProjectType(packageState, scanned.discovered, nestedPackageFiles);
   const packageText = packageState === 'scanned'
     ? decodeText(scanned.files.get('package.json'))
@@ -1005,17 +1035,26 @@ function scanRepository(rootPath, options) {
   }
 
   if (projectType === 'unsupported' && scanned.rootState === 'ok') {
-    const knownFile = [...scanned.discovered.keys()].sort(compareStrings)[0];
+    const knownFile = ecosystemMarker
+      ? ecosystemMarker.path
+      : [...scanned.discovered.keys()].sort(compareStrings)[0];
     if (knownFile) {
+      const nestedRecommendation = nestedPackageFiles.length > 0
+        ? ' Run CloneProof separately on each nested package directory.'
+        : '';
       addFinding(
         findings,
         'UNSUPPORTED_ROOT',
         'warning',
         'warning',
-        'The root does not look like a Node.js or TypeScript repository.',
-        'No root package.json or recognized Node.js/TypeScript source was found.',
-        [makeEvidence(knownFile, 'The scanned root did not contain a supported project marker.')],
-        'Point CloneProof at a Node.js or TypeScript repository.'
+        'The root project is outside CloneProof’s dynamic Node.js profile.',
+        ecosystemMarker
+          ? `Detected a ${ecosystemMarker.ecosystem} project marker at ${ecosystemMarker.path}.`
+          : 'No supported root Node.js or TypeScript project marker was found.',
+        [makeEvidence(knownFile, ecosystemMarker
+          ? `Detected ${ecosystemMarker.ecosystem} project marker.`
+          : 'The scanned root did not contain a supported project marker.')],
+        `Point CloneProof at a supported Node.js or TypeScript repository.${nestedRecommendation}`
       );
     } else if (scanned.fileCount === 0 && scanned.complete) {
       addFinding(
