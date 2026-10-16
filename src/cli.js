@@ -169,9 +169,18 @@ function cloneFailureStatus(error) {
     : 'incomplete';
 }
 
+function safeCloneTargetName(target) {
+  try {
+    return validateGithubUrl(target).repository;
+  } catch {
+    return isRemoteTarget(target) ? 'github-url' : String(target);
+  }
+}
+
 function cloneFailureReport(target, error, mode) {
   const status = cloneFailureStatus(error);
   const findingStatus = status === 'incomplete' ? 'failed' : 'skipped';
+  const targetName = safeCloneTargetName(target);
   const title = error && error.code === 'GITHUB_URL_INVALID'
     ? 'GitHub repository URL is not supported'
     : 'GitHub repository could not be staged';
@@ -181,14 +190,14 @@ function cloneFailureReport(target, error, mode) {
     tool: 'cloneproof',
     mode,
     status,
-    target: { kind: 'github', name: String(target) },
+    target: { kind: 'github', name: targetName },
     findings: [{
       code: error && error.code ? error.code : 'GITHUB_CLONE_FAILED',
       status: findingStatus,
       severity: findingStatus === 'failed' ? 'error' : 'warning',
       title,
       message,
-      evidence: [{ path: String(target), detail: 'GitHub source input.' }],
+      evidence: [{ path: targetName, detail: 'GitHub source input.' }],
       recommendation: status === 'blocked'
         ? 'Use a public HTTPS GitHub repository URL within the supported checkout limits.'
         : 'Check the public repository URL and Git installation, then rerun the command.'

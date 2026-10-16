@@ -433,6 +433,7 @@ async function cloneGithubRepository(value, options = {}) {
     const args = ['clone', '--depth', '1', '--no-tags', source.url, temporaryRoot];
     const result = await runner('git', args, {
       cwd: path.dirname(temporaryRoot),
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       shell: false,
       windowsHide: true,
       timeoutMs,

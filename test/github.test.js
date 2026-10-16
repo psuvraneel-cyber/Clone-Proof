@@ -87,6 +87,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
   assert.equal(calls[0].args[4], VALID_URL);
   assert.equal(calls[0].args.length, 6);
   assert.equal(path.isAbsolute(calls[0].args[5]), true);
+  assert.equal(calls[0].options.env.GIT_TERMINAL_PROMPT, '0');
   assert.equal(calls[0].options.shell, false);
   assert.equal(calls[0].options.timeoutMs, 4321);
   assert.equal(calls[0].options.maxOutputBytes, 8192);
