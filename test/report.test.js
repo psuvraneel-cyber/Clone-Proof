@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { exitCodeForReport, renderJson, renderText } = require('../src/report/render');
+const { exitCodeForReport, renderHtml, renderJson, renderText } = require('../src/report/render');
 
 function reportFixture() {
   return {
@@ -126,6 +126,121 @@ test('renderText suppresses ANSI color when output is captured or color is disab
       process.env.NO_COLOR = previous;
     }
   }
+});
+
+test('renderHtml escapes untrusted report values', () => {
+  const report = {
+    schemaVersion: 2,
+    target: { kind: 'local', name: '<img src=x onerror="alert(\'target\')"> & target' },
+    status: 'failed<script>alert(\'status\')</script>',
+    summary: { total: 1, passed: 0, failed: 1, warnings: 0, skipped: 0 },
+    findings: [{
+      status: 'failed',
+      code: '<code>&',
+      title: '<script>alert("title")</script>',
+      message: 'Message with </p> and "quotes".',
+      evidence: [{ path: 'src/<unsafe>.js', line: 7, detail: 'Detail & more' }],
+      recommendation: 'Use <strong>safe</strong> output.'
+    }],
+    verification: {
+      outcome: 'failed',
+      networkMode: 'none',
+      networkConsent: false,
+      exitCode: 1,
+      cleanup: { completed: true },
+      stdout: '<script>stdout</script>',
+      stderr: 'stderr & more'
+    }
+  };
+
+  const output = renderHtml(report);
+
+  assert.doesNotMatch(output, /<img\b/i);
+  assert.doesNotMatch(output, /<script\b/i);
+  assert.match(output, /&lt;img src=x onerror=&quot;alert\(&#39;target&#39;\)&quot;&gt; &amp; target/);
+  assert.match(output, /&lt;script&gt;alert\(&quot;title&quot;\)&lt;\/script&gt;/);
+  assert.match(output, /src\/&lt;unsafe&gt;\.js:7/);
+  assert.match(output, /Detail &amp; more/);
+  assert.match(output, /Use &lt;strong&gt;safe&lt;\/strong&gt; output\./);
+  assert.match(output, /&lt;script&gt;stdout&lt;\/script&gt;/);
+});
+
+test('renderHtml is self-contained and includes the accessible report sections', () => {
+  const report = reportFixture();
+  report.verification = {
+    outcome: 'passed',
+    image: 'node:22.19.0-bookworm-slim',
+    networkMode: 'none',
+    networkConsent: false,
+    exitCode: 0,
+    cleanup: { attempted: true, completed: true },
+    stdout: 'verification passed',
+    stderr: ''
+  };
+
+  const output = renderHtml(report);
+
+  assert.match(output, /^<!doctype html>/i);
+  assert.match(output, /<html lang="en">/);
+  assert.match(output, /<main>/);
+  assert.match(output, /Target:.*sample-repository/);
+  assert.match(output, /Summary/);
+  assert.match(output, /Status:.*passed_with_warnings/);
+  assert.match(output, /Counts/);
+  assert.match(output, /Total.*4/);
+  assert.match(output, /Findings/);
+  assert.match(output, /PKG-001/);
+  assert.match(output, /package\.json:1/);
+  assert.match(output, /Root package manifest\./);
+  assert.match(output, /Recommendation/);
+  assert.match(output, /Commit package-lock\.json\./);
+  assert.match(output, /Docker verification/);
+  assert.match(output, /Outcome.*passed/);
+  assert.match(output, /Network.*none/);
+  assert.match(output, /Exit code.*0/);
+  assert.match(output, /Cleanup complete.*yes/);
+  assert.match(output, /stdout/);
+  assert.match(output, /stderr/);
+
+  assert.doesNotMatch(output, /<(?:script|link)\b/i);
+  assert.doesNotMatch(output, /\b(?:src|href)\s*=/i);
+  assert.doesNotMatch(output, /\burl\s*\(/i);
+  assert.doesNotMatch(output, /https?:\/\//i);
+});
+
+test('renderHtml bounds multiline verification output like renderText', () => {
+  const stdout = Array.from({ length: 65 }, (_, index) => `stdout-${index + 1}`).join('\n');
+  const stderr = `first\n${'x'.repeat(5000)}\nlast`;
+  const report = {
+    schemaVersion: 2,
+    target: { kind: 'local', name: 'sample-repository' },
+    status: 'failed',
+    summary: { total: 1, passed: 0, failed: 1, warnings: 0, skipped: 0 },
+    findings: [],
+    verification: {
+      outcome: 'failed',
+      networkMode: 'none',
+      networkConsent: false,
+      exitCode: 1,
+      cleanup: { completed: true },
+      stdout,
+      stderr
+    }
+  };
+
+  const output = renderHtml(report);
+  const stdoutMatch = output.match(/<pre data-stream="stdout"[^>]*><code>([\s\S]*?)<\/code><\/pre>/);
+  const stderrMatch = output.match(/<pre data-stream="stderr"[^>]*><code>([\s\S]*?)<\/code><\/pre>/);
+
+  assert.ok(stdoutMatch);
+  assert.ok(stderrMatch);
+  assert.equal(stdoutMatch[1].split('\n').length, 60);
+  assert.match(stdoutMatch[1], /^stdout-6\n/);
+  assert.match(stdoutMatch[1], /stdout-65$/);
+  assert.doesNotMatch(stdoutMatch[1], /stdout-[1-5](?:\n|$)/);
+  assert.equal(stderrMatch[1].length, 4000);
+  assert.match(stderrMatch[1], /last$/);
+  assert.doesNotMatch(stderrMatch[1], /first/);
 });
 
 test('renderText renders bounded multiline verification output and evidence details', () => {
