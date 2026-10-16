@@ -28,7 +28,41 @@ const LOCKFILES = [
   { name: 'pnpm-lock.yaml', packageManager: 'pnpm' },
   { name: 'yarn.lock', packageManager: 'yarn' }
 ];
-const CONVENTIONAL_ENV_KEYS = new Set(['NODE_ENV', 'NO_COLOR']);
+const CONVENTIONAL_ENV_KEYS = new Set([
+  'PATH',
+  'Path',
+  'HOME',
+  'USER',
+  'USERNAME',
+  'USERPROFILE',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'ProgramFiles',
+  'ProgramW6432',
+  'ProgramData',
+  'SystemRoot',
+  'WINDIR',
+  'TEMP',
+  'TMP',
+  'TMPDIR',
+  'SHELL',
+  'TERM',
+  'LANG',
+  'TZ',
+  'PWD',
+  'CI',
+  'NODE_ENV',
+  'NODE_OPTIONS',
+  'NO_COLOR',
+  'FORCE_COLOR'
+]);
+
+function isConventionalEnvironmentKey(key) {
+  return CONVENTIONAL_ENV_KEYS.has(key)
+    || key.startsWith('npm_')
+    || key.startsWith('GITHUB_')
+    || key.startsWith('RUNNER_');
+}
 
 function compareStrings(left, right) {
   if (left < right) return -1;
@@ -93,6 +127,19 @@ function isTestPath(relativePath) {
 
 function isRootPath(relativePath) {
   return !relativePath.includes('/');
+}
+
+function nestedPackagePaths(discovered) {
+  return [...discovered.keys()]
+    .filter((relativePath) => relativePath !== 'package.json' && /(^|\/)package\.json$/i.test(relativePath))
+    .sort(compareStrings);
+}
+
+function isUnderNestedPackage(relativePath, nestedPaths) {
+  return nestedPaths.some((packagePath) => {
+    const directory = packagePath.slice(0, -'/package.json'.length);
+    return relativePath === packagePath || relativePath.startsWith(`${directory}/`);
+  });
 }
 
 function makeEvidence(relativePath, detail, line) {
@@ -648,8 +695,8 @@ function calculateDigest(files) {
   return hash.digest('hex');
 }
 
-function inferProjectType(packageState, discovered) {
-  const knownPaths = [...discovered.keys()];
+function inferProjectType(packageState, discovered, nestedPaths = []) {
+  const knownPaths = [...discovered.keys()].filter((relativePath) => !isUnderNestedPackage(relativePath, nestedPaths));
   const hasTypeScript = knownPaths.some((relativePath) => /\.(?:ts|cts|mts|tsx)$/i.test(relativePath));
   const hasJavaScript = knownPaths.some((relativePath) => /\.(?:js|cjs|mjs|jsx)$/i.test(relativePath));
 
@@ -670,7 +717,8 @@ function scanRepository(rootPath, options) {
   const scanned = scanFiles(absoluteRoot, limits);
   const findings = [];
   const packageState = stateFor('package.json', scanned.files, scanned.discovered, scanned.skipped);
-  const projectType = inferProjectType(packageState, scanned.discovered);
+  const nestedPackageFiles = nestedPackagePaths(scanned.discovered);
+  const projectType = inferProjectType(packageState, scanned.discovered, nestedPackageFiles);
   const packageText = packageState === 'scanned'
     ? decodeText(scanned.files.get('package.json'))
     : null;
@@ -756,6 +804,21 @@ function scanRepository(rootPath, options) {
     kind: 'local',
     name: rootName(absoluteRoot)
   };
+
+  if (nestedPackageFiles.length > 0) {
+    const visibleNestedPackages = nestedPackageFiles.slice(0, 50);
+    const remainingNestedPackages = nestedPackageFiles.length - visibleNestedPackages.length;
+    addFinding(
+      findings,
+      'NESTED_PACKAGES_SKIPPED',
+      'skipped',
+      'info',
+      'Nested packages were excluded from the root application checks',
+      `Found nested package manifests: ${visibleNestedPackages.join(', ')}${remainingNestedPackages > 0 ? ` (and ${remainingNestedPackages} more)` : ''}.`,
+      visibleNestedPackages.map((relativePath) => makeEvidence(relativePath, 'Nested package boundary.')),
+      'Run CloneProof separately on each nested package directory.'
+    );
+  }
 
   if (scanned.rootState !== 'ok') {
     addFinding(
@@ -1146,7 +1209,9 @@ function scanRepository(rootPath, options) {
   }
 
   const allSourceFiles = [...scanned.discovered.keys()].filter(isSourcePath).sort(compareStrings);
-  const applicationSourceFiles = allSourceFiles.filter((relativePath) => !isTestPath(relativePath));
+  const applicationSourceFiles = allSourceFiles.filter((relativePath) => (
+    !isTestPath(relativePath) && !isUnderNestedPackage(relativePath, nestedPackageFiles)
+  ));
   const scannedSourceFiles = applicationSourceFiles.filter((relativePath) => scanned.files.has(relativePath));
   const unscannedSourceFiles = applicationSourceFiles.filter((relativePath) => !scanned.files.has(relativePath));
   const environmentReferences = new Map();
@@ -1156,7 +1221,7 @@ function scanRepository(rootPath, options) {
       relativePath
     );
     for (const [key, evidence] of references) {
-      if (!CONVENTIONAL_ENV_KEYS.has(key) && !environmentReferences.has(key)) {
+      if (!isConventionalEnvironmentKey(key) && !environmentReferences.has(key)) {
         environmentReferences.set(key, evidence);
       }
     }
@@ -1174,7 +1239,7 @@ function scanRepository(rootPath, options) {
     }
   }
 
-  if (allSourceFiles.length > 0 && (unscannedSourceFiles.length > 0 || unscannedEnvTemplates.length > 0)) {
+  if (applicationSourceFiles.length > 0 && (unscannedSourceFiles.length > 0 || unscannedEnvTemplates.length > 0)) {
     addFinding(
       findings,
       'ENV_CHECK_SKIPPED',

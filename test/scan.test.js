@@ -175,6 +175,26 @@ test('detects destructured, aliased, defaulted, quoted, and optional environment
   assert.equal(report.findings.some((item) => item.title.includes('REST')), false);
 }));
 
+test('ignores host environment variables and isolates nested packages', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'src/index.ts', 'export const path = process.env.PATH;\nexport const app = process.env.APP_SETTING;\n');
+  writeFile(root, 'examples/nested/package.json', JSON.stringify({
+    name: 'nested-fixture',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'examples/nested/src/index.ts', 'export const nested = process.env.NESTED_ONLY;\n');
+
+  const report = scanRepository(root);
+  const nested = finding(report, 'NESTED_PACKAGES_SKIPPED');
+
+  assert.equal(report.status, 'passed_with_warnings');
+  assert.equal(finding(report, 'ENV_KEY_MISSING').title.includes('APP_SETTING'), true);
+  assert.equal(report.findings.some((item) => item.title.includes('PATH')), false);
+  assert.equal(report.findings.some((item) => item.title.includes('NESTED_ONLY')), false);
+  assert.equal(nested.status, 'skipped');
+  assert.equal(nested.evidence[0].path, 'examples/nested/package.json');
+}));
+
 test('handles malformed package.json without executing or throwing', () => withRepository((root) => {
   writeFile(root, 'package.json', '{"name":');
   writeFile(root, 'src/index.js', 'module.exports = process.env.VALUE;\n');
