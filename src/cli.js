@@ -164,6 +164,8 @@ function cloneFailureStatus(error) {
     error.code === 'GITHUB_URL_INVALID'
     || error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
     || error.code === 'GITHUB_CHECKOUT_UNAVAILABLE'
+    || error.code === 'GITHUB_REPOSITORY_TOO_LARGE'
+    || error.code === 'GITHUB_REPOSITORY_UNAVAILABLE'
   )
     ? 'blocked'
     : 'incomplete';
@@ -185,12 +187,15 @@ function cloneFailureReport(target, error, mode) {
     ? 'GitHub repository URL is not supported'
     : 'GitHub repository could not be staged';
   const message = error && error.message ? error.message : 'The GitHub repository could not be cloned.';
+  const reportTarget = { kind: 'github', name: targetName };
+  if (error && error.preflight) reportTarget.preflight = error.preflight;
+  if (error && Number.isFinite(error.repositorySizeKb)) reportTarget.repositorySizeKb = error.repositorySizeKb;
   return {
     schemaVersion: 2,
     tool: 'cloneproof',
     mode,
     status,
-    target: { kind: 'github', name: targetName },
+    target: reportTarget,
     findings: [{
       code: error && error.code ? error.code : 'GITHUB_CLONE_FAILED',
       status: findingStatus,
@@ -228,7 +233,9 @@ function applySourceTarget(report, source) {
   report.target = {
     kind: 'github',
     name: source.repository,
-    url: source.url
+    url: source.url,
+    preflight: source.preflight,
+    ...(source.repositorySizeKb === undefined ? {} : { repositorySizeKb: source.repositorySizeKb })
   };
   return report;
 }

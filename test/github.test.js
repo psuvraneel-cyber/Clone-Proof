@@ -7,6 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  MAX_REPOSITORY_BYTES,
   buildGitCloneInvocation,
   cloneGithubRepository,
   isGithubRepositoryUrl,
@@ -26,6 +27,15 @@ function successfulResult() {
     outputTruncated: false,
     error: null
   };
+}
+
+function publicFetcher(size = 1) {
+  return async () => ({
+    status: 200,
+    async json() {
+      return { private: false, size };
+    }
+  });
 }
 
 test('validates only exact public HTTPS GitHub repository URLs', () => {
@@ -76,6 +86,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
     maxOutputBytes: 8192,
     platform: 'linux',
     gitExecutable: process.execPath,
+    fetcher: publicFetcher(),
     runner: async (command, args, options) => {
       calls.push({ command, args, options });
       if (args[0] === '--version') {
@@ -119,6 +130,8 @@ test('clones with safe git arguments and an injected no-network runner', async (
   assert.equal(result.metadata.fileCount, 2);
   assert.equal(result.metadata.totalBytes, Buffer.byteLength('# fixture\n') + Buffer.byteLength('module.exports = 1;\n'));
   assert.equal(result.metadata.maxDepth, 1);
+  assert.equal(result.preflight, 'checked');
+  assert.equal(result.repositorySizeKb, 1);
   assert.equal(fs.existsSync(result.root), true);
 
   await result.cleanup();
@@ -131,6 +144,7 @@ test('cleans a temporary checkout when git fails', async () => {
   await assert.rejects(
     cloneGithubRepository(VALID_URL, {
       gitExecutable: process.execPath,
+      fetcher: publicFetcher(),
       runner: async (command, args) => {
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
         destination = args.at(-1);
@@ -154,6 +168,7 @@ test('cleans a temporary checkout when the injected runner throws', async () => 
   await assert.rejects(
     cloneGithubRepository(VALID_URL, {
       gitExecutable: process.execPath,
+      fetcher: publicFetcher(),
       runner: async (command, args) => {
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
         destination = args.at(-1);
@@ -174,6 +189,7 @@ test('rejects a checkout that exceeds a bound and removes it', async () => {
     cloneGithubRepository(VALID_URL, {
       maxFiles: 1,
       gitExecutable: process.execPath,
+      fetcher: publicFetcher(),
       runner: async (command, args) => {
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
         destination = args.at(-1);
@@ -254,6 +270,7 @@ test('reports unavailable Git without creating a temporary clone folder', async 
   await assert.rejects(
     cloneGithubRepository(VALID_URL, {
       executableLookup: () => null,
+      fetcher: publicFetcher(),
       runner: async () => {
         runnerCalled = true;
         return successfulResult();
@@ -265,4 +282,106 @@ test('reports unavailable Git without creating a temporary clone folder', async 
   const after = fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith('cloneproof-github-'));
   assert.equal(runnerCalled, false);
   assert.deepEqual(after.filter((name) => !before.has(name)), []);
+});
+
+test('preflights repository visibility and size before cloning', async () => {
+  const fetchCalls = [];
+  const calls = [];
+  const result = await cloneGithubRepository(VALID_URL, {
+    gitExecutable: process.execPath,
+    fetcher: async (url, options) => {
+      fetchCalls.push({ url, options });
+      return {
+        status: 200,
+        async json() {
+          return { private: false, size: 1234 };
+        }
+      };
+    },
+    runner: async (command, args) => {
+      calls.push({ command, args });
+      if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+      fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
+      return successfulResult();
+    }
+  });
+
+  assert.equal(result.preflight, 'checked');
+  assert.equal(result.repositorySizeKb, 1234);
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(fetchCalls[0].url, 'https://api.github.com/repos/example/project');
+  assert.deepEqual(fetchCalls[0].options.headers, {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'cloneproof'
+  });
+  assert.equal(fetchCalls[0].options.headers.Authorization, undefined);
+  assert.equal(typeof fetchCalls[0].options.signal.aborted, 'boolean');
+  assert.equal(calls.length, 2);
+  await result.cleanup();
+});
+
+test('blocks private, missing, and oversized repositories before invoking git', async () => {
+  const cases = [
+    {
+      response: { status: 404 },
+      code: 'GITHUB_REPOSITORY_UNAVAILABLE'
+    },
+    {
+      response: { status: 200, body: { private: true, size: 1 } },
+      code: 'GITHUB_REPOSITORY_UNAVAILABLE'
+    },
+    {
+      response: { status: 200, body: { private: false, size: Math.floor(MAX_REPOSITORY_BYTES / 1024) + 1 } },
+      code: 'GITHUB_REPOSITORY_TOO_LARGE'
+    }
+  ];
+
+  for (const item of cases) {
+    let runnerCalls = 0;
+    await assert.rejects(
+      cloneGithubRepository(VALID_URL, {
+        fetcher: async () => ({
+          status: item.response.status,
+          async json() {
+            return item.response.body;
+          }
+        }),
+        runner: async () => {
+          runnerCalls += 1;
+          return successfulResult();
+        },
+        gitExecutable: process.execPath
+      }),
+      (error) => error && error.code === item.code && error.preflight === 'checked'
+    );
+    assert.equal(runnerCalls, 0);
+  }
+});
+
+test('continues cloning when the GitHub preflight is unavailable', async () => {
+  for (const response of [
+    { status: 403 },
+    { status: 429 },
+    { status: 500 },
+    new Error('network unavailable')
+  ]) {
+    const calls = [];
+    const result = await cloneGithubRepository(VALID_URL, {
+      gitExecutable: process.execPath,
+      fetcher: async () => {
+        if (response instanceof Error) throw response;
+        return { status: response.status };
+      },
+      runner: async (command, args) => {
+        calls.push(args);
+        if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
+        return successfulResult();
+      }
+    });
+
+    assert.equal(result.preflight, 'unavailable');
+    assert.equal(calls.length, 2);
+    await result.cleanup();
+  }
 });
