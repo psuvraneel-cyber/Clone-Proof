@@ -251,7 +251,10 @@ async function runCheck(options) {
   }
 
   try {
-    const report = applySourceTarget(scanRepository(resolved.path), resolved.source);
+    const report = applySourceTarget(
+      scanRepository(resolved.path, { freshClone: Boolean(resolved.source) }),
+      resolved.source
+    );
     writeReport(report, options);
     return exitCodeForReport(report);
   } finally {
@@ -278,7 +281,8 @@ async function runVerify(options) {
     const report = applySourceTarget(await verifyRepository(resolved.path, {
       execute: true,
       allowNetwork: options.allowNetwork,
-      timeoutMs: options.timeoutMs
+      timeoutMs: options.timeoutMs,
+      freshClone: Boolean(resolved.source)
     }), resolved.source);
     writeReport(report, options);
     return exitCodeForReport(report);

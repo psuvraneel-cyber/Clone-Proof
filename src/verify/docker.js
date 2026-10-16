@@ -452,7 +452,7 @@ async function verifyRepository(rootPath, options = {}) {
   const allowNetwork = options.allowNetwork === true;
   const timeoutMs = normalizePositiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS, 10 * 60 * 1000);
   const maxOutputBytes = normalizePositiveInteger(options.maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES, 10 * 1024 * 1024);
-  const staticReport = scanRepository(rootPath);
+  const staticReport = scanRepository(rootPath, { freshClone: options.freshClone === true });
   const report = cloneReport(staticReport);
   report.mode = 'verify';
   report.verification = {

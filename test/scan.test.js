@@ -296,6 +296,121 @@ test('warns when a Node package has no lockfile', () => withRepository((root) =>
   assert.equal(finding(report, 'LOCKFILE_MISSING').status, 'warning');
 }));
 
+test('warns when a core lockfile is ignored by local Git rules', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({ name: 'ignored-lock', scripts: { test: 'node --test' } }));
+  writeFile(root, 'package-lock.json', '{"name":"ignored-lock","lockfileVersion":3,"packages":{"":{"name":"ignored-lock"}}}\n');
+  writeFile(root, '.gitignore', 'package-lock.json\n');
+
+  const report = scanRepository(root);
+  const warning = finding(report, 'CORE_FILE_GITIGNORED');
+
+  assert.equal(report.status, 'passed_with_warnings');
+  assert.equal(warning.status, 'warning');
+  assert.equal(warning.evidence[0].path, 'package-lock.json');
+  assert.match(warning.message, /matches an ignore rule; unless it is already tracked, a fresh clone will not contain it/);
+  assert.match(warning.recommendation, /git ls-files package-lock\.json/);
+  assert.equal(finding(report, 'LOCKFILE_PRESENT').status, 'passed');
+}));
+
+test('supports gitignore negation for environment templates', () => withRepository((root) => {
+  writeEnvironmentFixture(root, 'const value = process.env.API_URL;\n');
+  writeFile(root, '.gitignore', '.env*\n!.env.example\n');
+  writeFile(root, '.env.example', 'API_URL=placeholder\n');
+  writeFile(root, '.env.local', 'API_URL=secret\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'CORE_FILE_GITIGNORED'), undefined);
+  assert.equal(finding(report, 'ENV_KEY_DOCUMENTED').status, 'passed');
+  assert.ok(report.scan.skippedPaths.includes('.env.local'));
+  assert.ok(!report.scan.skippedPaths.includes('.env.example'));
+}));
+
+test('skips ignored directories without reporting nested packages', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({ name: 'ignored-directory', scripts: { test: 'node --test' } }));
+  writeFile(root, 'package-lock.json', '{"name":"ignored-directory","lockfileVersion":3,"packages":{"":{"name":"ignored-directory"}}}\n');
+  writeFile(root, '.gitignore', 'build/\n');
+  writeFile(root, 'build/package.json', '{"name":"ignored-nested"}\n');
+  writeFile(root, 'build/index.js', 'process.env.IGNORED;\n');
+
+  const report = scanRepository(root);
+
+  assert.ok(report.scan.skippedPaths.includes('build'));
+  assert.equal(finding(report, 'NESTED_PACKAGES_SKIPPED'), undefined);
+}));
+
+test('supports anchored and unanchored directory patterns', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({ name: 'ignore-anchor', scripts: { test: 'node --test' } }));
+  writeFile(root, '.gitignore', '/out\n');
+  writeFile(root, 'out/root.txt', 'root\n');
+  writeFile(root, 'nested/out/child.txt', 'child\n');
+
+  const anchored = scanRepository(root);
+  assert.ok(anchored.scan.skippedPaths.includes('out'));
+  assert.ok(!anchored.scan.skippedPaths.includes('nested/out'));
+
+  writeFile(root, '.gitignore', 'out\n');
+  const unanchored = scanRepository(root);
+  assert.ok(unanchored.scan.skippedPaths.includes('out'));
+  assert.ok(unanchored.scan.skippedPaths.includes('nested/out'));
+}));
+
+test('supports double-star directory patterns', () => withRepository((root) => {
+  writeFile(root, '.gitignore', '**/tmp\n');
+  writeFile(root, 'tmp/root.txt', 'root\n');
+  writeFile(root, 'a/b/tmp/nested.txt', 'nested\n');
+
+  const report = scanRepository(root);
+
+  assert.ok(report.scan.skippedPaths.includes('tmp'));
+  assert.ok(report.scan.skippedPaths.includes('a/b/tmp'));
+}));
+
+test('supports comments, escaped prefixes, wildcards, and character classes', () => withRepository((root) => {
+  writeFile(root, '.gitignore', [
+    '# comment',
+    '\\#literal.txt',
+    '\\!literal.txt',
+    '*.log',
+    'file?.txt',
+    '[ab].txt'
+  ].join('\n'));
+  for (const name of ['#literal.txt', '!literal.txt', 'debug.log', 'file1.txt', 'a.txt']) {
+    writeFile(root, name, 'ignored\n');
+  }
+  writeFile(root, 'keep.txt', 'kept\n');
+
+  const report = scanRepository(root);
+
+  for (const name of ['#literal.txt', '!literal.txt', 'debug.log', 'file1.txt', 'a.txt']) {
+    assert.ok(report.scan.skippedPaths.includes(name), name);
+  }
+  assert.ok(!report.scan.skippedPaths.includes('keep.txt'));
+}));
+
+test('reads a bounded regular .git/info/exclude file for local scans', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({ name: 'exclude-fixture', scripts: { test: 'node --test' } }));
+  writeFile(root, '.git/info/exclude', 'excluded/\n');
+  writeFile(root, 'excluded/data.txt', 'ignored\n');
+
+  const report = scanRepository(root);
+
+  assert.ok(report.scan.skippedPaths.includes('excluded'));
+}));
+
+test('freshClone disables local ignore rules and core-file warnings', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({ name: 'fresh-clone', scripts: { test: 'node --test' } }));
+  writeFile(root, 'package-lock.json', '{"name":"fresh-clone","lockfileVersion":3,"packages":{"":{"name":"fresh-clone"}}}\n');
+  writeFile(root, '.gitignore', 'package-lock.json\nbuild/\n');
+  writeFile(root, 'build/package.json', '{"name":"nested-build"}\n');
+
+  const report = scanRepository(root, { freshClone: true });
+
+  assert.equal(finding(report, 'CORE_FILE_GITIGNORED'), undefined);
+  assert.ok(!report.scan.skippedPaths.includes('build'));
+  assert.equal(finding(report, 'NESTED_PACKAGES_SKIPPED').status, 'skipped');
+}));
+
 function writeNpmLockRepository(root, packageJson, lockfile) {
   writeFile(root, 'package.json', JSON.stringify({
     name: 'lock-sync-fixture',

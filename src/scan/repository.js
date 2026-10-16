@@ -838,6 +838,143 @@ function isCoreFile(relativePath) {
     || /^dockerfile(?:\..*)?$/.test(lower);
 }
 
+function escapeRegexCharacter(character) {
+  return /[\\^$.*+?()[\]{}|]/.test(character) ? `\\${character}` : character;
+}
+
+function globSource(pattern) {
+  let source = '';
+  for (let index = 0; index < pattern.length; index += 1) {
+    const character = pattern[index];
+    if (character === '*') {
+      if (pattern[index + 1] === '*') {
+        while (pattern[index + 1] === '*') index += 1;
+        if (pattern[index + 1] === '/') {
+          source += '(?:.*/)?';
+          index += 1;
+        } else {
+          source += '.*';
+        }
+      } else {
+        source += '[^/]*';
+      }
+      continue;
+    }
+    if (character === '?') {
+      source += '[^/]';
+      continue;
+    }
+    if (character === '[') {
+      let end = index + 1;
+      if (pattern[end] === '!' || pattern[end] === '^') end += 1;
+      if (pattern[end] === ']') end += 1;
+      while (end < pattern.length && pattern[end] !== ']') end += 1;
+      if (end < pattern.length) {
+        let body = pattern.slice(index + 1, end);
+        if (body.startsWith('!')) body = `^${body.slice(1)}`;
+        body = body.replace(/\\/g, '\\\\').replace(/\//g, '\\/');
+        source += `[${body}]`;
+        index = end;
+        continue;
+      }
+    }
+    source += escapeRegexCharacter(character);
+  }
+  return source;
+}
+
+function parseGitignorePattern(line) {
+  let value = line.trim();
+  if (!value) return null;
+
+  let escapedCommentOrNegation = false;
+  if (value.startsWith('\\#') || value.startsWith('\\!')) {
+    value = value.slice(1);
+    escapedCommentOrNegation = true;
+  } else if (value.startsWith('#')) {
+    return null;
+  }
+
+  let negated = false;
+  if (!escapedCommentOrNegation && value.startsWith('!')) {
+    negated = true;
+    value = value.slice(1);
+  }
+
+  const anchored = value.startsWith('/');
+  if (anchored) value = value.slice(1);
+  const directoryOnly = value.endsWith('/');
+  if (directoryOnly) value = value.slice(0, -1);
+  if (!value) return null;
+
+  const hasSlash = value.includes('/');
+  const source = globSource(value);
+  const prefix = anchored || hasSlash ? '' : '(?:.*/)?';
+  return {
+    negated,
+    directoryOnly,
+    expression: new RegExp(`^${prefix}${source}$`)
+  };
+}
+
+function createGitignoreMatcher(texts) {
+  const patterns = [];
+  for (const text of texts) {
+    for (const line of String(text).split(/\r?\n/)) {
+      const pattern = parseGitignorePattern(line);
+      if (pattern) patterns.push(pattern);
+    }
+  }
+
+  return {
+    isIgnored(relativePath, isDirectory) {
+      let ignored = false;
+      const normalized = relativePath.split(path.sep).join('/');
+      for (const pattern of patterns) {
+        if (pattern.directoryOnly && !isDirectory) continue;
+        if (pattern.expression.test(normalized)) ignored = !pattern.negated;
+      }
+      return ignored;
+    }
+  };
+}
+
+function readRegularIgnoreFile(filePath, maximumBytes = 1024 * 1024) {
+  let stat;
+  try {
+    stat = fs.lstatSync(filePath);
+  } catch {
+    return null;
+  }
+  if (stat.isSymbolicLink() || !stat.isFile() || stat.size > maximumBytes) return null;
+  try {
+    return decodeText(fs.readFileSync(filePath));
+  } catch {
+    return null;
+  }
+}
+
+function loadGitignoreMatcher(rootPath, freshClone) {
+  if (freshClone) return null;
+  const texts = [];
+  const rootGitignore = readRegularIgnoreFile(path.join(rootPath, '.gitignore'));
+  if (rootGitignore !== null) texts.push(rootGitignore);
+
+  const gitDirectory = path.join(rootPath, '.git');
+  let gitStat;
+  try {
+    gitStat = fs.lstatSync(gitDirectory);
+  } catch {
+    gitStat = null;
+  }
+  if (gitStat && gitStat.isDirectory() && !gitStat.isSymbolicLink()) {
+    const exclude = readRegularIgnoreFile(path.join(gitDirectory, 'info', 'exclude'));
+    if (exclude !== null) texts.push(exclude);
+  }
+
+  return createGitignoreMatcher(texts);
+}
+
 function isLockfilePath(relativePath) {
   const lower = relativePath.toLowerCase();
   return lower === 'package-lock.json'
@@ -852,10 +989,11 @@ function isReadableSourcePath(relativePath) {
   return !lower.endsWith('.min.js') && !lower.endsWith('.bundle.js');
 }
 
-function scanFiles(rootPath, limits) {
+function scanFiles(rootPath, limits, options = {}) {
   const files = new Map();
   const discovered = new Map();
   const skipped = new Set();
+  const ignoredCorePaths = new Set();
   const errors = [];
   let complete = true;
   let fileCount = 0;
@@ -882,6 +1020,7 @@ function scanFiles(rootPath, limits) {
       files,
       discovered,
       skipped,
+      ignoredCorePaths,
       skippedPathsTruncated,
       errors,
       complete,
@@ -912,6 +1051,8 @@ function scanFiles(rootPath, limits) {
     addError('.', 'root');
     return emptyResult();
   }
+
+  const ignoreMatcher = loadGitignoreMatcher(rootPath, options.freshClone === true);
 
   function visitDirectory(absoluteDirectory, relativeDirectory, depth, nestedPackageRoot = null) {
     if (entryLimitExceeded) return;
@@ -953,6 +1094,10 @@ function scanFiles(rootPath, limits) {
       }
 
       if (entryStat.isDirectory()) {
+        if (ignoreMatcher && ignoreMatcher.isIgnored(relativeEntry, true)) {
+          addSkipped(relativeEntry);
+          continue;
+        }
         if (SKIPPED_DIRECTORY_NAMES.has(entry.name)) {
           addSkipped(relativeEntry);
           continue;
@@ -967,6 +1112,15 @@ function scanFiles(rootPath, limits) {
       }
 
       if (!entryStat.isFile()) continue;
+      const nestedFile = Boolean(activeNestedPackageRoot);
+      const coreFile = !nestedFile && isCoreFile(relativeEntry);
+      if (ignoreMatcher && ignoreMatcher.isIgnored(relativeEntry, false) && !coreFile) {
+        addSkipped(relativeEntry);
+        continue;
+      }
+      if (ignoreMatcher && ignoreMatcher.isIgnored(relativeEntry, false) && coreFile) {
+        ignoredCorePaths.add(relativeEntry);
+      }
       discoveredFileCount += 1;
       const metadata = { size: entryStat.size, category: 'stat' };
       discovered.set(relativeEntry, metadata);
@@ -976,8 +1130,6 @@ function scanFiles(rootPath, limits) {
         continue;
       }
 
-      const nestedFile = Boolean(activeNestedPackageRoot);
-      const coreFile = !nestedFile && isCoreFile(relativeEntry);
       const sourceFile = !nestedFile && isReadableSourcePath(relativeEntry);
       if (!coreFile && !sourceFile) continue;
       metadata.category = coreFile ? 'core' : 'source';
@@ -1075,7 +1227,8 @@ function scanRepository(rootPath, options) {
   }
 
   const limits = normalizeLimits(options);
-  const scanned = scanFiles(absoluteRoot, limits);
+  const scanOptions = options && typeof options === 'object' ? options : {};
+  const scanned = scanFiles(absoluteRoot, limits, scanOptions);
   const findings = [];
   const packageState = stateFor('package.json', scanned.files, scanned.discovered, scanned.skipped);
   const nestedPackageFiles = nestedPackagePaths(scanned.discovered);
@@ -1214,6 +1367,19 @@ function scanRepository(rootPath, options) {
         : 'A file could not be read, so the bounded scan is incomplete.',
       [makeEvidence(error.path, isDirectory ? 'Directory read failed.' : 'File read failed.')],
       'Make the repository entry readable and run the scan again.'
+    );
+  }
+
+  for (const relativePath of [...scanned.ignoredCorePaths].sort(compareStrings)) {
+    addFinding(
+      findings,
+      'CORE_FILE_GITIGNORED',
+      'warning',
+      'warning',
+      'A core file matches a gitignore rule',
+      `${relativePath} matches an ignore rule; unless it is already tracked, a fresh clone will not contain it.`,
+      [makeEvidence(relativePath, 'Core file matches a local ignore rule.')],
+      `Confirm with git ls-files ${relativePath}, or check the GitHub URL instead.`
     );
   }
 
