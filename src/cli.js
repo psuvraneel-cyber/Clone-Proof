@@ -159,6 +159,25 @@ function isRemoteTarget(target) {
   return /^https?:\/\//i.test(target);
 }
 
+function looksLikeGithubTargetWithoutScheme(target) {
+  return /^(?:www\.)?github\.com\/[^/\s]+\/[^/\s]+\/?$/i.test(target)
+    || /^git@github\.com:[^/\s]+\/[^/\s]+(?:\.git)?$/i.test(target);
+}
+
+function isExistingDirectory(target) {
+  try {
+    return fs.statSync(target).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function invalidGithubTargetError() {
+  const error = new Error('Invalid GitHub repository URL: use https://github.com/OWNER/REPO');
+  error.code = 'GITHUB_URL_INVALID';
+  return error;
+}
+
 function cloneFailureStatus(error) {
   return error && (
     error.code === 'GITHUB_URL_INVALID'
@@ -219,6 +238,9 @@ function cloneFailureReport(target, error, mode) {
 
 async function resolveTarget(target) {
   if (!isRemoteTarget(target)) {
+    if (looksLikeGithubTargetWithoutScheme(target) && !isExistingDirectory(target)) {
+      throw invalidGithubTargetError();
+    }
     return { path: target, source: null };
   }
 

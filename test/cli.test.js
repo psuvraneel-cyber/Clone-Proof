@@ -83,6 +83,46 @@ test('invalid GitHub URLs return a blocked machine-readable report without invok
   assert.equal(report.findings[0].code, 'GITHUB_URL_INVALID');
 });
 
+test('GitHub-shaped targets without https are rejected with a canonical URL hint', () => {
+  for (const target of [
+    'github.com/example/project',
+    'www.github.com/example/project',
+    'git@github.com:example/project.git'
+  ]) {
+    const result = spawnSync(process.execPath, [cliPath, 'check', target, '--format', 'json'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: { ...process.env, NO_COLOR: '1' }
+    });
+
+    assert.equal(result.status, 2, target);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.status, 'blocked', target);
+    assert.equal(report.findings[0].code, 'GITHUB_URL_INVALID', target);
+    assert.match(report.findings[0].message, /use https:\/\/github\.com\/OWNER\/REPO/);
+  }
+});
+
+test('an existing local folder named like a GitHub target is still scanned as a path', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-github-shaped-path-'));
+  const targetDirectory = path.join(directory, 'github.com', 'example', 'project');
+  fs.mkdirSync(targetDirectory, { recursive: true });
+  try {
+    const result = spawnSync(process.execPath, [cliPath, 'check', targetDirectory, '--format', 'json'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: { ...process.env, NO_COLOR: '1' }
+    });
+
+    assert.equal(result.status, 2);
+    const report = JSON.parse(result.stdout);
+    assert.notEqual(report.findings[0].code, 'GITHUB_URL_INVALID');
+    assert.equal(report.findings.some((finding) => finding.code === 'EMPTY_REPOSITORY'), true);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('HTML reports can be written to an output file', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-cli-report-'));
   const outputPath = path.join(directory, 'report.html');
