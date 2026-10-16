@@ -590,6 +590,58 @@ test('marks a bounded scan incomplete and records skipped files', () => withRepo
     maxDepth: 25,
     maxFiles: 10000,
     maxFileBytes: 1,
-    maxTotalBytes: 10 * 1024 * 1024
+    maxTotalBytes: 10 * 1024 * 1024,
+    maxLockfileBytes: 32 * 1024 * 1024,
+    maxEntries: 200000
   });
+}));
+
+test('ignores oversized generated assets without making the scan incomplete', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'assets/generated.png', Buffer.alloc(1.1 * 1024 * 1024, 7));
+  writeFile(root, 'assets/app.min.js', Buffer.alloc(2 * 1024 * 1024, 8));
+
+  const report = scanRepository(root);
+
+  assert.equal(report.status, 'passed');
+  assert.equal(report.scan.complete, true);
+  assert.equal(report.finding, undefined);
+}));
+
+test('skips an oversized ordinary source file without making the scan incomplete', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'src/large.js', `process.env.OVERSIZED_KEY = "${'x'.repeat(1.1 * 1024 * 1024)}";`);
+
+  const report = scanRepository(root);
+
+  assert.equal(report.scan.complete, true);
+  assert.equal(report.status, 'passed');
+  assert.equal(finding(report, 'ENV_CHECK_SKIPPED').status, 'skipped');
+}));
+
+test('allows a lockfile larger than the ordinary core file limit', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const lockfile = {
+    name: 'fixture-project',
+    lockfileVersion: 3,
+    packages: {},
+    padding: 'x'.repeat(2 * 1024 * 1024)
+  };
+  writeFile(root, 'package-lock.json', `${JSON.stringify(lockfile)}\n`);
+
+  const report = scanRepository(root);
+
+  assert.equal(report.scan.complete, true);
+  assert.equal(report.status, 'passed');
+  assert.equal(finding(report, 'LOCKFILE_INVALID'), undefined);
+}));
+
+test('marks a traversal that exceeds maxEntries incomplete', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  for (let index = 0; index < 8; index += 1) writeFile(root, `misc/file-${index}.txt`, 'x');
+
+  const report = scanRepository(root, { maxEntries: 5 });
+
+  assert.equal(report.status, 'incomplete');
+  assert.equal(report.scan.complete, false);
 }));

@@ -8,10 +8,28 @@ const DEFAULT_LIMITS = Object.freeze({
   maxDepth: 25,
   maxFiles: 10000,
   maxFileBytes: 1024 * 1024,
-  maxTotalBytes: 10 * 1024 * 1024
+  maxTotalBytes: 10 * 1024 * 1024,
+  maxLockfileBytes: 32 * 1024 * 1024,
+  maxEntries: 200000
 });
 
-const SKIPPED_DIRECTORY_NAMES = new Set(['.git', 'node_modules', 'dist', 'coverage']);
+const SKIPPED_DIRECTORY_NAMES = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'coverage',
+  '.next',
+  '.nuxt',
+  '.svelte-kit',
+  '.output',
+  '.turbo',
+  '.cache',
+  '.parcel-cache',
+  '.yarn',
+  '.pnpm-store',
+  '.vercel',
+  'bower_components'
+]);
 const SOURCE_EXTENSIONS = new Set([
   '.js',
   '.cjs',
@@ -109,6 +127,14 @@ function normalizeLimits(options) {
     maxTotalBytes: normalizeLimit(
       optionObject.maxTotalBytes === undefined ? nested.maxTotalBytes : optionObject.maxTotalBytes,
       DEFAULT_LIMITS.maxTotalBytes
+    ),
+    maxLockfileBytes: normalizeLimit(
+      optionObject.maxLockfileBytes === undefined ? nested.maxLockfileBytes : optionObject.maxLockfileBytes,
+      DEFAULT_LIMITS.maxLockfileBytes
+    ),
+    maxEntries: normalizeLimit(
+      optionObject.maxEntries === undefined ? nested.maxEntries : optionObject.maxEntries,
+      DEFAULT_LIMITS.maxEntries
     )
   };
 }
@@ -163,7 +189,7 @@ function rootEcosystemMarker(discovered) {
 }
 
 function isApplicationSourcePath(relativePath, nestedPaths) {
-  if (!isSourcePath(relativePath) || isTestPath(relativePath) || isUnderNestedPackage(relativePath, nestedPaths)) return false;
+  if (!isReadableSourcePath(relativePath) || isTestPath(relativePath) || isUnderNestedPackage(relativePath, nestedPaths)) return false;
   if (/\.d\.ts$/i.test(relativePath)) return false;
   if (!relativePath.includes('/')) return true;
   const firstDirectory = relativePath.split('/')[0].toLowerCase();
@@ -638,6 +664,39 @@ function parseReadmeCommands(text) {
   return [...references.values()];
 }
 
+function isCoreFile(relativePath) {
+  if (relativePath.includes('/')) return false;
+  const lower = relativePath.toLowerCase();
+  return lower === 'package.json'
+    || lower === 'package-lock.json'
+    || lower === 'npm-shrinkwrap.json'
+    || lower === 'pnpm-lock.yaml'
+    || lower === 'yarn.lock'
+    || lower === 'readme'
+    || lower === 'readme.md'
+    || lower === 'readme.markdown'
+    || lower === '.nvmrc'
+    || lower === '.node-version'
+    || lower === '.env.example'
+    || lower === '.env.sample'
+    || lower === 'tsconfig.json'
+    || /^dockerfile(?:\..*)?$/.test(lower);
+}
+
+function isLockfilePath(relativePath) {
+  const lower = relativePath.toLowerCase();
+  return lower === 'package-lock.json'
+    || lower === 'npm-shrinkwrap.json'
+    || lower === 'pnpm-lock.yaml'
+    || lower === 'yarn.lock';
+}
+
+function isReadableSourcePath(relativePath) {
+  if (!isSourcePath(relativePath)) return false;
+  const lower = relativePath.toLowerCase();
+  return !lower.endsWith('.min.js') && !lower.endsWith('.bundle.js');
+}
+
 function scanFiles(rootPath, limits) {
   const files = new Map();
   const discovered = new Map();
@@ -646,10 +705,15 @@ function scanFiles(rootPath, limits) {
   let complete = true;
   let fileCount = 0;
   let totalBytes = 0;
+  let discoveredFileCount = 0;
+  let entryCount = 0;
+  let skippedPathsTruncated = false;
   let rootState = 'ok';
+  let entryLimitExceeded = false;
 
-  function addSkipped(relativePath, makesIncomplete) {
-    skipped.add(relativePath || '.');
+  function addSkipped(relativePath, makesIncomplete = false) {
+    if (skipped.size < 500) skipped.add(relativePath || '.');
+    else skippedPathsTruncated = true;
     if (makesIncomplete) complete = false;
   }
 
@@ -658,55 +722,44 @@ function scanFiles(rootPath, limits) {
     complete = false;
   }
 
+  function emptyResult() {
+    return {
+      files,
+      discovered,
+      skipped,
+      skippedPathsTruncated,
+      errors,
+      complete,
+      fileCount,
+      discoveredFileCount,
+      totalBytes,
+      rootState
+    };
+  }
+
   let rootStat;
   try {
     rootStat = fs.lstatSync(rootPath);
   } catch {
     rootState = 'unavailable';
     addError('.', 'root');
-    return {
-      files,
-      discovered,
-      skipped,
-      errors,
-      complete,
-      fileCount,
-      totalBytes,
-      rootState
-    };
+    return emptyResult();
   }
 
   if (rootStat.isSymbolicLink()) {
     rootState = 'symlink';
     addSkipped('.', true);
-    return {
-      files,
-      discovered,
-      skipped,
-      errors,
-      complete,
-      fileCount,
-      totalBytes,
-      rootState
-    };
+    return emptyResult();
   }
 
   if (!rootStat.isDirectory()) {
     rootState = 'not-directory';
     addError('.', 'root');
-    return {
-      files,
-      discovered,
-      skipped,
-      errors,
-      complete,
-      fileCount,
-      totalBytes,
-      rootState
-    };
+    return emptyResult();
   }
 
-  function visitDirectory(absoluteDirectory, relativeDirectory, depth) {
+  function visitDirectory(absoluteDirectory, relativeDirectory, depth, nestedPackageRoot = null) {
+    if (entryLimitExceeded) return;
     let entries;
     try {
       entries = fs.readdirSync(absoluteDirectory, { withFileTypes: true });
@@ -716,8 +769,18 @@ function scanFiles(rootPath, limits) {
     }
 
     entries.sort((left, right) => compareStrings(left.name, right.name));
+    const hasNestedPackageManifest = relativeDirectory !== '.'
+      && entries.some((entry) => entry.isFile() && entry.name.toLowerCase() === 'package.json');
+    const activeNestedPackageRoot = nestedPackageRoot || (hasNestedPackageManifest ? relativeDirectory : null);
 
     for (const entry of entries) {
+      entryCount += 1;
+      if (entryCount > limits.maxEntries) {
+        complete = false;
+        entryLimitExceeded = true;
+        break;
+      }
+
       const absoluteEntry = path.join(absoluteDirectory, entry.name);
       const relativeEntry = toRelativePath(rootPath, absoluteEntry);
       let entryStat;
@@ -725,50 +788,54 @@ function scanFiles(rootPath, limits) {
       try {
         entryStat = fs.lstatSync(absoluteEntry);
       } catch {
-        addSkipped(relativeEntry, true);
         addError(relativeEntry, 'file');
         continue;
       }
 
       if (entryStat.isSymbolicLink()) {
-        addSkipped(relativeEntry, false);
+        addSkipped(relativeEntry);
         continue;
       }
 
       if (entryStat.isDirectory()) {
         if (SKIPPED_DIRECTORY_NAMES.has(entry.name)) {
-          addSkipped(relativeEntry, false);
+          addSkipped(relativeEntry);
           continue;
         }
         if (depth + 1 > limits.maxDepth) {
-          addSkipped(relativeEntry, true);
+          addSkipped(relativeEntry);
           continue;
         }
-        visitDirectory(absoluteEntry, relativeEntry, depth + 1);
+        visitDirectory(absoluteEntry, relativeEntry, depth + 1, activeNestedPackageRoot);
+        if (entryLimitExceeded) break;
         continue;
       }
 
-      if (!entryStat.isFile()) {
-        addSkipped(relativeEntry, false);
-        continue;
-      }
-
-      discovered.set(relativeEntry, { size: entryStat.size });
+      if (!entryStat.isFile()) continue;
+      discoveredFileCount += 1;
+      const metadata = { size: entryStat.size, category: 'stat' };
+      discovered.set(relativeEntry, metadata);
 
       if (depth + 1 > limits.maxDepth) {
-        addSkipped(relativeEntry, true);
+        addSkipped(relativeEntry);
         continue;
       }
-      if (fileCount >= limits.maxFiles) {
-        addSkipped(relativeEntry, true);
+
+      const nestedFile = Boolean(activeNestedPackageRoot);
+      const coreFile = !nestedFile && isCoreFile(relativeEntry);
+      const sourceFile = !nestedFile && isReadableSourcePath(relativeEntry);
+      if (!coreFile && !sourceFile) continue;
+      metadata.category = coreFile ? 'core' : 'source';
+
+      const sizeLimit = coreFile && isLockfilePath(relativeEntry)
+        ? limits.maxLockfileBytes
+        : limits.maxFileBytes;
+      if (entryStat.size > sizeLimit) {
+        addSkipped(relativeEntry, coreFile);
         continue;
       }
-      if (entryStat.size > limits.maxFileBytes) {
-        addSkipped(relativeEntry, true);
-        continue;
-      }
-      if (totalBytes + entryStat.size > limits.maxTotalBytes) {
-        addSkipped(relativeEntry, true);
+      if (fileCount >= limits.maxFiles || totalBytes + entryStat.size > limits.maxTotalBytes) {
+        addSkipped(relativeEntry, coreFile);
         continue;
       }
 
@@ -776,18 +843,21 @@ function scanFiles(rootPath, limits) {
       try {
         bytes = fs.readFileSync(absoluteEntry);
       } catch {
-        addSkipped(relativeEntry, true);
-        addError(relativeEntry, 'file');
+        if (coreFile) addError(relativeEntry, 'file');
+        else addSkipped(relativeEntry);
         continue;
       }
 
-      if (bytes.length > limits.maxFileBytes || totalBytes + bytes.length > limits.maxTotalBytes) {
-        addSkipped(relativeEntry, true);
+      const actualLimit = coreFile && isLockfilePath(relativeEntry)
+        ? limits.maxLockfileBytes
+        : limits.maxFileBytes;
+      if (bytes.length > actualLimit || totalBytes + bytes.length > limits.maxTotalBytes) {
+        addSkipped(relativeEntry, coreFile);
         continue;
       }
 
       files.set(relativeEntry, bytes);
-      discovered.get(relativeEntry).scanned = true;
+      metadata.scanned = true;
       fileCount += 1;
       totalBytes += bytes.length;
     }
@@ -795,16 +865,7 @@ function scanFiles(rootPath, limits) {
 
   visitDirectory(rootPath, '.', 0);
 
-  return {
-    files,
-    discovered,
-    skipped,
-    errors,
-    complete,
-    fileCount,
-    totalBytes,
-    rootState
-  };
+  return emptyResult();
 }
 
 function stateFor(relativePath, files, discovered, skipped) {
@@ -1363,7 +1424,7 @@ function scanRepository(rootPath, options) {
     }
   }
 
-  const allSourceFiles = [...scanned.discovered.keys()].filter(isSourcePath).sort(compareStrings);
+  const allSourceFiles = [...scanned.discovered.keys()].filter(isReadableSourcePath).sort(compareStrings);
   const applicationSourceFiles = allSourceFiles.filter((relativePath) => (
     !isTestPath(relativePath) && !isUnderNestedPackage(relativePath, nestedPackageFiles)
   ));
@@ -1676,7 +1737,7 @@ function scanRepository(rootPath, options) {
   else if (summary.warnings > 0) status = 'passed_with_warnings';
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     tool: 'cloneproof',
     mode: 'check',
     status,
@@ -1684,10 +1745,12 @@ function scanRepository(rootPath, options) {
     scan: {
       complete: scanned.complete,
       fileCount: scanned.fileCount,
+      discoveredFileCount: scanned.discoveredFileCount,
       totalBytes: scanned.totalBytes,
       digest,
       limits,
-      skippedPaths: [...scanned.skipped].sort(compareStrings)
+      skippedPaths: [...scanned.skipped].sort(compareStrings),
+      skippedPathsTruncated: scanned.skippedPathsTruncated
     },
     project,
     findings,
