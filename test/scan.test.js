@@ -135,6 +135,46 @@ test('warns when a referenced environment key is absent from the example', () =>
   assert.equal(missing.evidence[0].path, 'src/index.ts');
 }));
 
+test('detects destructured, aliased, defaulted, quoted, and optional environment references', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, '.env.example', [
+    'DATABASE_URL=placeholder',
+    'API_KEY=placeholder',
+    'OPTIONAL=placeholder',
+    'QUOTED_KEY=placeholder',
+    'MULTILINE=placeholder',
+    'ALIASED=placeholder',
+    'DEFAULTED=placeholder',
+    'OPTIONAL_ENV=placeholder'
+  ].join('\n'));
+  writeFile(root, 'src/index.ts', [
+    'const { DATABASE_URL, API_KEY: serviceKey, OPTIONAL = "fallback", \'QUOTED_KEY\': quoted = "fallback", ...rest } = process.env;',
+    '({',
+    '  MULTILINE,',
+    '  ALIASED: alias,',
+    '  DEFAULTED = "fallback",',
+    '} = import.meta.env);',
+    'const optional = process.env?.OPTIONAL_ENV;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const documented = report.findings.filter((item) => item.code === 'ENV_KEY_DOCUMENTED');
+  const documentedTitles = documented.map((item) => item.title).sort();
+
+  assert.equal(report.status, 'passed');
+  assert.deepEqual(documentedTitles, [
+    'Environment key ALIASED is documented',
+    'Environment key API_KEY is documented',
+    'Environment key DATABASE_URL is documented',
+    'Environment key DEFAULTED is documented',
+    'Environment key MULTILINE is documented',
+    'Environment key OPTIONAL is documented',
+    'Environment key OPTIONAL_ENV is documented',
+    'Environment key QUOTED_KEY is documented'
+  ]);
+  assert.equal(report.findings.some((item) => item.title.includes('REST')), false);
+}));
+
 test('handles malformed package.json without executing or throwing', () => withRepository((root) => {
   writeFile(root, 'package.json', '{"name":');
   writeFile(root, 'src/index.js', 'module.exports = process.env.VALUE;\n');

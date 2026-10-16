@@ -150,34 +150,81 @@ function parseEnvTemplate(text) {
 }
 
 function extractEnvironmentReferences(text, relativePath) {
-  const references = new Map();
-  const lines = text.split(/\r?\n/);
-  const patterns = [
-    { expression: /\bprocess\.env\.([A-Za-z_][A-Za-z0-9_]*)/g, group: 1 },
+  const matches = [];
+  const directPatterns = [
+    { expression: /\bprocess\.env(?:\?\.|\.)([A-Za-z_][A-Za-z0-9_]*)/g, group: 1 },
     { expression: /\bprocess\.env\s*\[\s*(['"`])([A-Za-z_][A-Za-z0-9_]*)\1\s*\]/g, group: 2 },
-    { expression: /\bimport\.meta\.env\.([A-Za-z_][A-Za-z0-9_]*)/g, group: 1 },
+    { expression: /\bimport\.meta\.env(?:\?\.|\.)([A-Za-z_][A-Za-z0-9_]*)/g, group: 1 },
     { expression: /\bimport\.meta\.env\s*\[\s*(['"`])([A-Za-z_][A-Za-z0-9_]*)\1\s*\]/g, group: 2 }
   ];
 
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-    const line = lines[lineIndex];
-    for (const pattern of patterns) {
-      pattern.expression.lastIndex = 0;
-      let match = pattern.expression.exec(line);
-      while (match) {
-        const key = match[pattern.group];
-        if (!references.has(key)) {
-          references.set(key, makeEvidence(
-            relativePath,
-            `Source references environment key ${key}.`,
-            lineIndex + 1
-          ));
-        }
-        match = pattern.expression.exec(line);
-      }
+  for (const pattern of directPatterns) {
+    pattern.expression.lastIndex = 0;
+    let match = pattern.expression.exec(text);
+    while (match) {
+      matches.push({ key: match[pattern.group], index: match.index });
+      match = pattern.expression.exec(text);
     }
   }
 
+  function splitDestructuringBody(body) {
+    const entries = [];
+    let start = 0;
+    let quote = null;
+    let escaped = false;
+    let depth = 0;
+    for (let index = 0; index < body.length; index += 1) {
+      const character = body[index];
+      if (quote) {
+        if (escaped) escaped = false;
+        else if (character === '\\') escaped = true;
+        else if (character === quote) quote = null;
+        continue;
+      }
+      if (character === '"' || character === "'" || character === '`') {
+        quote = character;
+        continue;
+      }
+      if (character === '{' || character === '[' || character === '(') depth += 1;
+      else if (character === '}' || character === ']' || character === ')') depth = Math.max(0, depth - 1);
+      else if (character === ',' && depth === 0) {
+        entries.push({ text: body.slice(start, index), start });
+        start = index + 1;
+      }
+    }
+    entries.push({ text: body.slice(start), start });
+    return entries;
+  }
+
+  const destructuringExpression = /\{([\s\S]*?)\}\s*=\s*(process\.env|import\.meta\.env)\b/g;
+  let destructuring = destructuringExpression.exec(text);
+  while (destructuring) {
+    const body = destructuring[1];
+    const bodyStart = destructuring.index + 1;
+    for (const entry of splitDestructuringBody(body)) {
+      const trimmed = entry.text.trim();
+      if (!trimmed || trimmed.startsWith('...') || trimmed.startsWith('[')) continue;
+      const keyMatch = /^(?:(['"])([A-Za-z_][A-Za-z0-9_]*)\1|([A-Za-z_][A-Za-z0-9_]*))(?=\s*(?::|=|$))/.exec(trimmed);
+      if (!keyMatch) continue;
+      matches.push({
+        key: keyMatch[2] || keyMatch[3],
+        index: bodyStart + entry.start + entry.text.indexOf(trimmed)
+      });
+    }
+    destructuring = destructuringExpression.exec(text);
+  }
+
+  matches.sort((left, right) => left.index - right.index || compareStrings(left.key, right.key));
+  const references = new Map();
+  for (const match of matches) {
+    if (!references.has(match.key)) {
+      references.set(match.key, makeEvidence(
+        relativePath,
+        `Source references environment key ${match.key}.`,
+        lineNumberAt(text, match.index)
+      ));
+    }
+  }
   return references;
 }
 
