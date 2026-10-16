@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
-const { scanRepository } = require('../scan/repository');
+const { isCoreFile, loadGitignoreMatcher, scanRepository } = require('../scan/repository');
 const { resolveDockerExecutable } = require('../util/executable');
 
 const DEFAULT_VERIFY_IMAGE = 'node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90';
@@ -172,6 +172,7 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
   const destinationRoot = path.join(stagingRoot, 'source');
   const symlinkPaths = [];
   const skippedSensitivePaths = [];
+  const skippedIgnoredPaths = [];
   let fileCount = 0;
   let totalBytes = 0;
 
@@ -180,6 +181,7 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
   const limits = { ...STAGING_LIMITS, ...overrides };
   const maxDepth = limits.maxDepth;
   const maxFiles = limits.maxFiles;
+  const ignoreMatcher = loadGitignoreMatcher(sourceRoot, overrides.freshClone === true);
 
   function walk(sourceDirectory, destinationDirectory, depth) {
     const entries = fs.readdirSync(sourceDirectory, { withFileTypes: true })
@@ -197,6 +199,10 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
       }
       if (stat.isDirectory()) {
         if (SKIPPED_DIRECTORY_NAMES.has(entry.name)) continue;
+        if (ignoreMatcher && ignoreMatcher.isIgnored(relative, true)) {
+          skippedIgnoredPaths.push(relative);
+          continue;
+        }
         if (depth + 1 > maxDepth) {
           const error = new Error(`staging depth limit exceeded at ${relative}`);
           error.code = 'STAGING_LIMIT_EXCEEDED';
@@ -207,10 +213,14 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
         continue;
       }
       if (!stat.isFile()) continue;
+      const coreFile = isCoreFile(relative);
+      const ignored = ignoreMatcher && ignoreMatcher.isIgnored(relative, false);
+      if (ignored && !coreFile) skippedIgnoredPaths.push(relative);
       if (isSensitiveFile(relative)) {
         skippedSensitivePaths.push(relative);
         continue;
       }
+      if (ignored && !coreFile) continue;
 
       if (fileCount >= maxFiles) {
         const error = new Error(`staging file-count limit exceeded at ${relative}`);
@@ -240,7 +250,7 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
   }
 
   walk(sourceRoot, destinationRoot, 0);
-  return { destinationRoot, symlinkPaths, skippedSensitivePaths, fileCount, totalBytes };
+  return { destinationRoot, symlinkPaths, skippedSensitivePaths, skippedIgnoredPaths, fileCount, totalBytes };
 }
 
 function dockerRunArguments(stagingRoot, allowNetwork, containerName = 'cloneproof-verify') {
@@ -480,6 +490,7 @@ async function verifyRepository(rootPath, options = {}) {
     stdout: '',
     stderr: '',
     omittedPaths: [],
+    ignoredPaths: [],
     cleanup: { attempted: false, completed: true, stagingRemoved: false, clientConfigRemoved: false }
   };
 
@@ -602,8 +613,23 @@ async function verifyRepository(rootPath, options = {}) {
   const containerName = makeContainerName();
   try {
     temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-verify-'));
-    const staged = stageRepository(rootPath, temporaryRoot, options.stagingLimits);
+    const staged = stageRepository(rootPath, temporaryRoot, {
+      ...(options.stagingLimits || {}),
+      freshClone: options.freshClone === true
+    });
     report.verification.omittedPaths = staged.skippedSensitivePaths.slice().sort(compareStrings);
+    report.verification.ignoredPaths = staged.skippedIgnoredPaths.slice().sort(compareStrings);
+    if (report.verification.ignoredPaths.length > 0) {
+      addFinding(report, {
+        code: 'DOCKER_GITIGNORED_PATHS_SKIPPED',
+        status: 'warning',
+        severity: 'warning',
+        title: 'Gitignored paths were omitted from the Docker snapshot',
+        message: 'CloneProof excluded paths ignored by the local checkout rules from Docker verification.',
+        evidence: report.verification.ignoredPaths.map((relative) => ({ path: relative, detail: 'Path matched the local Gitignore rules and was not staged.' })),
+        recommendation: 'Use a fresh GitHub clone for repository-tracked content, or confirm that ignored paths are not required by the root workflow.'
+      });
+    }
     if (report.verification.omittedPaths.length > 0) {
       addFinding(report, {
         code: 'DOCKER_SENSITIVE_FILES_OMITTED',

@@ -2102,4 +2102,9 @@ function scanRepository(rootPath, options) {
   };
 }
 
-module.exports = { classifyLstatFailure, scanRepository };
+module.exports = {
+  classifyLstatFailure,
+  isCoreFile,
+  loadGitignoreMatcher,
+  scanRepository
+};

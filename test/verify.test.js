@@ -365,6 +365,27 @@ test('staging excludes real environment files but keeps safe examples', () => {
   }
 });
 
+test('local staging skips gitignored directories but still copies core files', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-stage-gitignore-'));
+  const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-stage-gitignore-target-'));
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), '{}\n');
+    fs.writeFileSync(path.join(root, 'package-lock.json'), '{}\n');
+    fs.writeFileSync(path.join(root, '.gitignore'), 'build/\npackage-lock.json\n');
+    fs.mkdirSync(path.join(root, 'build'));
+    fs.writeFileSync(path.join(root, 'build', 'generated.js'), 'throw new Error("must not stage");\n');
+
+    const result = stageRepository(root, staging);
+
+    assert.ok(result.skippedIgnoredPaths.includes('build'));
+    assert.equal(fs.existsSync(path.join(result.destinationRoot, 'build')), false);
+    assert.equal(fs.existsSync(path.join(result.destinationRoot, 'package-lock.json')), true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(staging, { recursive: true, force: true });
+  }
+});
+
 test('host process runner enforces a timeout', async () => {
   const result = await runProcess(process.execPath, ['-e', 'setTimeout(() => {}, 500);'], { timeoutMs: 30 });
 
