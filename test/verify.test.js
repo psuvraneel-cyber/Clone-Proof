@@ -45,9 +45,12 @@ test('Docker arguments use a controlled, non-privileged profile', () => {
   assert.ok(args.includes('--read-only'));
   assert.ok(args.includes('--cap-drop=ALL'));
   assert.ok(args.includes('--security-opt=no-new-privileges'));
-  assert.ok(args.includes('--pids-limit=128'));
-  assert.ok(args.includes('--memory=512m'));
+  assert.ok(args.includes('--pids-limit=512'));
+  assert.ok(args.includes('--memory=2g'));
+  assert.ok(args.includes('--memory-swap=2g'));
   assert.ok(args.includes('--cpus=1'));
+  assert.ok(args.includes('/tmp:rw,noexec,nosuid,nodev,size=512m'));
+  assert.ok(args.includes('/workspace:rw,nosuid,nodev,size=1g,uid=1000,gid=1000'));
   assert.ok(args.includes('--user'));
   assert.ok(args.includes('1000:1000'));
   assert.ok(!args.includes('--privileged'));
@@ -176,6 +179,102 @@ test('placeholder npm test scripts block Docker execution', async () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+function makeDependencyFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-dependency-'));
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+    name: 'dependency-fixture',
+    dependencies: { express: '^4.19.0' },
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  fs.writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({
+    name: 'dependency-fixture',
+    lockfileVersion: 3,
+    packages: {
+      '': { name: 'dependency-fixture', dependencies: { express: '^4.19.0' } },
+      'node_modules/express': { version: '4.19.0' }
+    }
+  }));
+  fs.writeFileSync(path.join(root, 'test.js'), 'test("dependency", () => {});\n');
+  return root;
+}
+
+test('dependency installs without network are blocked before Docker starts', async () => {
+  const root = makeDependencyFixture();
+  try {
+    const { calls, runner } = makeRunner();
+    const report = await verifyRepository(root, { execute: true, runner });
+
+    assert.equal(report.status, 'blocked');
+    assert.equal(report.findings.find((item) => item.code === 'DOCKER_NETWORK_REQUIRED').status, 'skipped');
+    assert.equal(calls.length, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('dependency installs with explicit network consent reach the container', async () => {
+  const root = makeDependencyFixture();
+  try {
+    const { calls, runner } = makeRunner();
+    const report = await verifyRepository(root, { execute: true, allowNetwork: true, runner });
+
+    assert.equal(report.status, 'passed');
+    assert.equal(calls.some((call) => call.args[0] === 'run'), true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Docker install and test failures report the failed phase', async () => {
+  const root = path.join(__dirname, '..', 'examples', 'healthy-node');
+  const phases = [
+    { phase: 'install', stdout: 'CLONEPROOF_PHASE=install\n', stderr: 'install failed' },
+    { phase: 'test', stdout: 'CLONEPROOF_PHASE=install\nCLONEPROOF_PHASE=test\n', stderr: 'test failed' }
+  ];
+
+  for (const expected of phases) {
+    const runner = async (command, args) => {
+      if (args[0] === 'version' || args[0] === 'image') {
+        return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+      return { exitCode: 1, signal: null, stdout: expected.stdout, stderr: expected.stderr, timedOut: false, outputTruncated: false, error: null };
+    };
+    const report = await verifyRepository(root, { execute: true, runner });
+    assert.equal(report.status, 'failed');
+    assert.equal(report.verification.failedPhase, expected.phase);
+    assert.match(report.findings.find((item) => item.code === 'DOCKER_VERIFICATION_FAILED').title, new RegExp(expected.phase, 'i'));
+  }
+});
+
+test('network install errors are blocked when network is disabled', async () => {
+  const root = makeDependencyFixture();
+  try {
+    const runner = async (command, args) => {
+      if (args[0] === 'version' || args[0] === 'image') {
+        return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+      return { exitCode: 1, signal: null, stdout: 'CLONEPROOF_PHASE=install\n', stderr: 'getaddrinfo ENOTFOUND registry.npmjs.org', timedOut: false, outputTruncated: false, error: null };
+    };
+    const report = await verifyRepository(root, { execute: true, runner });
+    assert.equal(report.status, 'blocked');
+    assert.equal(report.findings.find((item) => item.code === 'DOCKER_NETWORK_REQUIRED').status, 'skipped');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('exit code 137 explains the likely memory limit', async () => {
+  const runner = async (command, args) => {
+    if (args[0] === 'version' || args[0] === 'image') {
+      return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+    }
+    return { exitCode: 137, signal: null, stdout: 'CLONEPROOF_PHASE=test\n', stderr: '', timedOut: false, outputTruncated: false, error: null };
+  };
+  const report = await verifyRepository(healthyFixture, { execute: true, runner });
+  const failure = report.findings.find((item) => item.code === 'DOCKER_VERIFICATION_FAILED');
+  assert.match(failure.message, /memory/i);
 });
 
 test('staging per-file limits block verification before a container starts', async () => {

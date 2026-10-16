@@ -636,6 +636,31 @@ test('allows a lockfile larger than the ordinary core file limit', () => withRep
   assert.equal(finding(report, 'LOCKFILE_INVALID'), undefined);
 }));
 
+test('exposes npm lockfile package counts for Docker network decisions', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'dependency-fixture',
+    dependencies: { express: '^4.19.0' },
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', JSON.stringify({
+    name: 'dependency-fixture',
+    lockfileVersion: 3,
+    packages: {
+      '': { name: 'dependency-fixture', dependencies: { express: '^4.19.0' } },
+      'node_modules/express': { version: '4.19.0' },
+      'node_modules/body-parser': { version: '1.20.2' }
+    }
+  }));
+
+  const report = scanRepository(root);
+
+  assert.deepEqual(report.project.lockfile, {
+    path: 'package-lock.json',
+    lockfileVersion: 3,
+    externalPackageCount: 2
+  });
+}));
+
 test('marks a traversal that exceeds maxEntries incomplete', () => withRepository((root) => {
   writeHealthyRepository(root);
   for (let index = 0; index < 8; index += 1) writeFile(root, `misc/file-${index}.txt`, 'x');

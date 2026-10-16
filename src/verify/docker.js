@@ -8,8 +8,13 @@ const { spawn } = require('node:child_process');
 const { scanRepository } = require('../scan/repository');
 
 const DEFAULT_VERIFY_IMAGE = 'node:22.19.0-bookworm-slim';
-const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_TIMEOUT_MS = 300000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
+const DEFAULT_CONTAINER_MEMORY = '2g';
+const DEFAULT_CONTAINER_MEMORY_SWAP = '2g';
+const DEFAULT_CONTAINER_PIDS = '512';
+const DEFAULT_TMPFS_SIZE = '512m';
+const DEFAULT_WORKSPACE_TMPFS_SIZE = '1g';
 const DOCKER_PROBE_TIMEOUT_MS = 5000;
 const STAGING_LIMITS = Object.freeze({
   maxDepth: 25,
@@ -302,15 +307,16 @@ function dockerRunArguments(stagingRoot, allowNetwork, containerName = 'clonepro
     '--read-only',
     '--cap-drop=ALL',
     '--security-opt=no-new-privileges',
-    '--pids-limit=128',
-    '--memory=512m',
+    `--pids-limit=${DEFAULT_CONTAINER_PIDS}`,
+    `--memory=${DEFAULT_CONTAINER_MEMORY}`,
+    `--memory-swap=${DEFAULT_CONTAINER_MEMORY_SWAP}`,
     '--cpus=1',
     '--ulimit',
     'nofile=1024:1024',
     '--tmpfs',
-    '/tmp:rw,noexec,nosuid,nodev,size=64m',
+    `/tmp:rw,noexec,nosuid,nodev,size=${DEFAULT_TMPFS_SIZE}`,
     '--tmpfs',
-    '/workspace:rw,nosuid,nodev,size=512m,uid=1000,gid=1000',
+    `/workspace:rw,nosuid,nodev,size=${DEFAULT_WORKSPACE_TMPFS_SIZE},uid=1000,gid=1000`,
     '--mount',
     `type=bind,src=${stagingRoot},dst=/source,readonly`,
     '--workdir',
@@ -387,14 +393,20 @@ function verificationFinding(outcome, verification) {
     };
   }
 
+  const phase = verification.failedPhase || 'setup';
+  const phaseTitle = phase === 'install' ? 'Dependency installation failed' : phase === 'test' ? 'The test script failed' : 'Docker setup failed';
+  let message = verification.timedOut
+    ? `The controlled verification exceeded the ${verification.timeoutMs} ms time limit.`
+    : `${phaseTitle}. The controlled verification exited with code ${verification.exitCode === null ? 'unknown' : verification.exitCode}.`;
+  if (verification.exitCode === 137 && !verification.timedOut) {
+    message += ' The container was killed, probably by the memory limit.';
+  }
   return {
     code: 'DOCKER_VERIFICATION_FAILED',
     status: 'failed',
     severity: 'error',
-    title: verification.timedOut ? 'Docker verification timed out' : 'Docker setup or test workflow failed',
-    message: verification.timedOut
-      ? `The controlled verification exceeded the ${verification.timeoutMs} ms time limit.`
-      : `The controlled verification exited with code ${verification.exitCode === null ? 'unknown' : verification.exitCode}.`,
+    title: verification.timedOut ? 'Docker verification timed out' : phaseTitle,
+    message,
     evidence: [
       ...makeEvidence('verification.stdout', verification.stdout ? 'Captured standard output is available in the JSON report.' : 'No standard output was captured.'),
       ...makeEvidence('verification.stderr', verification.stderr ? 'Captured standard error is available in the JSON report.' : 'No standard error was captured.')
@@ -403,6 +415,14 @@ function verificationFinding(outcome, verification) {
       ? 'Review the captured output. If dependency installation needs registry access, rerun only after explicitly consenting with --allow-network.'
       : 'Review the captured output, correct the repository workflow, and rerun verification.'
   };
+}
+
+function failedPhaseForResult(result) {
+  if (result.timedOut || (result.exitCode === 0 && !result.error)) return null;
+  const output = `${result.stdout || ''}`;
+  if (/CLONEPROOF_PHASE=test/.test(output)) return 'test';
+  if (/CLONEPROOF_PHASE=install/.test(output)) return 'install';
+  return 'setup';
 }
 
 async function probeDocker(runner, dockerCommand, context = {}) {
@@ -479,6 +499,7 @@ async function verifyRepository(rootPath, options = {}) {
     dockerExecutable: dockerCommand ? path.basename(dockerCommand) : null,
     exitCode: null,
     signal: null,
+    failedPhase: null,
     timedOut: false,
     outputTruncated: false,
     stdout: '',
@@ -514,6 +535,25 @@ async function verifyRepository(rootPath, options = {}) {
       message: prerequisiteFailure,
       evidence: makeEvidence('verification', 'The supported Docker profile was not started.'),
       recommendation: 'Fix the blocking static findings or use the supported npm/Node project shape, then rerun verification.'
+    });
+    report.status = 'blocked';
+    recomputeSummary(report);
+    return report;
+  }
+
+  const externalPackageCount = report.project.lockfile && report.project.lockfile.externalPackageCount;
+  if (!allowNetwork && externalPackageCount > 0) {
+    const message = `npm ci must download ${externalPackageCount} packages, but network access is disabled.`;
+    report.verification.outcome = 'blocked';
+    report.verification.stderr = message;
+    addFinding(report, {
+      code: 'DOCKER_NETWORK_REQUIRED',
+      status: 'skipped',
+      severity: 'warning',
+      title: 'Docker verification requires network access',
+      message,
+      evidence: makeEvidence('verification', 'The parsed npm lockfile contains external packages.'),
+      recommendation: 'Review the repository, then rerun with --allow-network if you trust it.'
     });
     report.status = 'blocked';
     recomputeSummary(report);
@@ -625,10 +665,27 @@ async function verifyRepository(rootPath, options = {}) {
     report.verification.outcome = result.exitCode === 0 && !result.error && !result.timedOut ? 'passed' : 'failed';
     report.verification.exitCode = result.exitCode;
     report.verification.signal = result.signal || null;
+    report.verification.failedPhase = failedPhaseForResult(result);
     report.verification.timedOut = Boolean(result.timedOut);
     report.verification.outputTruncated = Boolean(result.outputTruncated);
     report.verification.stdout = redactOutput(result.stdout || '');
     report.verification.stderr = redactOutput(result.stderr || result.error || '');
+    if (
+      report.verification.failedPhase === 'install'
+      && !allowNetwork
+      && /(?:ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|ENETUNREACH)/i.test(report.verification.stderr)
+    ) {
+      report.verification.outcome = 'blocked';
+      addFinding(report, {
+        code: 'DOCKER_NETWORK_REQUIRED',
+        status: 'skipped',
+        severity: 'warning',
+        title: 'Docker verification requires network access',
+        message: 'npm ci failed while network access was disabled and reported a network error.',
+        evidence: makeEvidence('verification.stderr', 'The install output contained a network error.'),
+        recommendation: 'Review the repository, then rerun with --allow-network if you trust it.'
+      });
+    }
     report.verification.cleanup = await cleanupContainer(
       runner,
       dockerCommand,
@@ -648,10 +705,13 @@ async function verifyRepository(rootPath, options = {}) {
       });
       report.verification.outcome = 'failed';
     }
-    addFinding(report, verificationFinding(report.verification.outcome, report.verification));
+    if (report.verification.outcome !== 'blocked') {
+      addFinding(report, verificationFinding(report.verification.outcome, report.verification));
+    }
+    recomputeSummary(report);
     report.status = report.verification.outcome === 'passed'
       ? (report.summary.warnings > 0 || report.verification.omittedPaths.length > 0 ? 'passed_with_warnings' : 'passed')
-      : 'failed';
+      : report.verification.outcome === 'blocked' ? 'blocked' : 'failed';
   } catch (error) {
     if (error && error.code === 'STAGING_LIMIT_EXCEEDED') {
       report.verification.outcome = 'blocked';

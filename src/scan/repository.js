@@ -473,6 +473,32 @@ function addLockfileSyncFinding(findings, packageText, lockfileName, lockfileByt
   );
 }
 
+function npmLockfileSummary(lockfiles, files) {
+  const lockfile = lockfiles.find((candidate) => candidate.packageManager === 'npm' && files.has(candidate.name));
+  if (!lockfile) return null;
+  const parsed = parseReadableNpmLockfile(files.get(lockfile.name));
+  if (!parsed || ![1, 2, 3].includes(parsed.lockfileVersion)) return null;
+  let externalPackageCount = 0;
+  if (parsed.lockfileVersion === 1) {
+    const countDependencies = (dependencies) => {
+      if (!dependencies || typeof dependencies !== 'object') return 0;
+      return Object.values(dependencies).reduce((count, dependency) => (
+        count + 1 + countDependencies(dependency && dependency.dependencies)
+      ), 0);
+    };
+    externalPackageCount = countDependencies(parsed.dependencies);
+  } else if (parsed.packages && typeof parsed.packages === 'object') {
+    externalPackageCount = Object.entries(parsed.packages)
+      .filter(([packagePath, value]) => packagePath !== '' && !(value && value.link === true))
+      .length;
+  }
+  return {
+    path: lockfile.name,
+    lockfileVersion: parsed.lockfileVersion,
+    externalPackageCount
+  };
+}
+
 function firstNonEmptyLine(text) {
   for (const line of text.split(/\r?\n/)) {
     const value = line.trim();
@@ -1709,10 +1735,12 @@ function scanRepository(rootPath, options) {
   }
 
   const digest = calculateDigest(scanned.files);
+  const lockfileSummary = npmLockfileSummary(lockfiles, scanned.files);
   const project = {
     type: projectType,
     packageManager: packageManagerInfo ? packageManagerInfo.name : null,
     packageManagerVersion: packageManagerInfo ? packageManagerInfo.version : null,
+    ...(lockfileSummary ? { lockfile: lockfileSummary } : {}),
     scripts,
     runtime: {
       nvmrc,
