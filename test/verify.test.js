@@ -61,7 +61,7 @@ test('Docker arguments use a controlled, non-privileged profile', () => {
   assert.ok(args.includes('--memory-swap=2g'));
   assert.ok(args.includes('--cpus=1'));
   assert.ok(args.includes('/tmp:rw,noexec,nosuid,nodev,size=512m'));
-  assert.ok(args.includes('/workspace:rw,nosuid,nodev,size=1g,uid=1000,gid=1000'));
+  assert.ok(args.includes('/workspace:rw,exec,nosuid,nodev,size=1g,uid=1000,gid=1000'));
   assert.ok(args.includes('--user'));
   assert.ok(args.includes('1000:1000'));
   assert.ok(args.includes(DEFAULT_VERIFY_IMAGE));

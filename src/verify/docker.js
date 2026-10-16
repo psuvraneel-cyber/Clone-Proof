@@ -279,7 +279,7 @@ function dockerRunArguments(stagingRoot, allowNetwork, containerName = 'clonepro
     '--tmpfs',
     `/tmp:rw,noexec,nosuid,nodev,size=${DEFAULT_TMPFS_SIZE}`,
     '--tmpfs',
-    `/workspace:rw,nosuid,nodev,size=${DEFAULT_WORKSPACE_TMPFS_SIZE},uid=1000,gid=1000`,
+    `/workspace:rw,exec,nosuid,nodev,size=${DEFAULT_WORKSPACE_TMPFS_SIZE},uid=1000,gid=1000`,
     '--mount',
     `type=bind,src=${stagingRoot},dst=/source,readonly`,
     '--workdir',

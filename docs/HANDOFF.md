@@ -76,7 +76,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `node src/cli.js verify examples/healthy-node --docker --execute` — passed, exit `0`, network `none`, cleanup confirmed.
 - `node src/cli.js verify examples/broken-node --docker --execute` — blocked, exit `2`, no target container started.
 - Real Express fixture with `npm install --package-lock-only --ignore-scripts` — no-network verify blocked with `DOCKER_NETWORK_REQUIRED`, exit `2`; `--allow-network` passed, exit `0`.
-- Real Jest fixture using `node node_modules/jest/bin/jest.js --runInBand` — passed with `--allow-network`, exit `0`; no resource-limit adjustment was needed.
+- Real Jest fixture using package.json `"test": "jest"` — passed with `--allow-network`, exit `0` after the workspace tmpfs was changed to `exec`; no resource-limit adjustment was needed.
 - Failing test fixture — failed with `failedPhase: test`; explicit stderr was visible as separate lines in text and HTML renderers.
 - Hanging test fixture with `--timeout-ms 15000` — failed and timed out, cleanup confirmed; `docker ps -a --filter name=cloneproof-verify` showed no containers.
 - `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` — passed, exit `0`, preflight `checked`, repository size `59 KiB`, clone cleaned.
