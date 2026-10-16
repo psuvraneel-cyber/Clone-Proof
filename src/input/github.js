@@ -5,6 +5,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
+const { resolveGitExecutable } = require('../util/executable');
+
 const DEFAULT_CLONE_LIMITS = Object.freeze({
   maxDepth: 25,
   maxFiles: 10000,
@@ -502,6 +504,17 @@ async function cloneGithubRepository(value, options = {}) {
   const limits = normalizeCloneLimits(config);
   const timeoutMs = normalizePositiveInteger(config.timeoutMs, DEFAULT_CLONE_TIMEOUT_MS, MAX_CLONE_TIMEOUT_MS);
   const maxOutputBytes = normalizePositiveInteger(config.maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES);
+  const gitExecutable = config.gitExecutable || resolveGitExecutable({
+    platform: config.platform || process.platform,
+    env: config.hostEnvironment || process.env,
+    lookup: config.executableLookup
+  });
+  if (!gitExecutable) {
+    throw new GithubSourceError(
+      'A trusted Git executable was not found.',
+      'GITHUB_GIT_UNAVAILABLE'
+    );
+  }
   let temporaryRoot;
   let temporaryParent;
 
@@ -520,7 +533,7 @@ async function cloneGithubRepository(value, options = {}) {
       hostEnvironment: config.hostEnvironment || process.env,
       useGlobalConfig: false
     });
-    const versionResult = await runner('git', ['--version'], {
+    const versionResult = await runner(gitExecutable, ['--version'], {
       cwd: temporaryParent,
       env: versionInvocation.env,
       shell: false,
@@ -540,7 +553,7 @@ async function cloneGithubRepository(value, options = {}) {
       hostEnvironment: config.hostEnvironment || process.env,
       useGlobalConfig: gitVersionSupportsGlobalConfig(versionResult)
     });
-    const result = await runner('git', invocation.args, {
+    const result = await runner(gitExecutable, invocation.args, {
       cwd: temporaryParent,
       env: invocation.env,
       shell: false,

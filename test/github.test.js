@@ -12,6 +12,7 @@ const {
   isGithubRepositoryUrl,
   validateGithubUrl
 } = require('../src/input/github');
+const { resolveGitExecutable } = require('../src/util/executable');
 
 const VALID_URL = 'https://github.com/example/project';
 
@@ -74,6 +75,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
     timeoutMs: 4321,
     maxOutputBytes: 8192,
     platform: 'linux',
+    gitExecutable: process.execPath,
     runner: async (command, args, options) => {
       calls.push({ command, args, options });
       if (args[0] === '--version') {
@@ -88,9 +90,9 @@ test('clones with safe git arguments and an injected no-network runner', async (
   });
 
   assert.equal(calls.length, 2);
-  assert.equal(calls[0].command, 'git');
+  assert.equal(calls[0].command, process.execPath);
   assert.deepEqual(calls[0].args, ['--version']);
-  assert.equal(calls[1].command, 'git');
+  assert.equal(calls[1].command, process.execPath);
   assert.deepEqual(calls[1].args.slice(-4), ['1', '--no-tags', VALID_URL, calls[1].args.at(-1)]);
   assert.deepEqual(calls[1].args.slice(0, -1), [
     '-c', 'credential.helper=',
@@ -128,6 +130,7 @@ test('cleans a temporary checkout when git fails', async () => {
   let destination;
   await assert.rejects(
     cloneGithubRepository(VALID_URL, {
+      gitExecutable: process.execPath,
       runner: async (command, args) => {
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
         destination = args.at(-1);
@@ -150,6 +153,7 @@ test('cleans a temporary checkout when the injected runner throws', async () => 
   let destination;
   await assert.rejects(
     cloneGithubRepository(VALID_URL, {
+      gitExecutable: process.execPath,
       runner: async (command, args) => {
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
         destination = args.at(-1);
@@ -169,6 +173,7 @@ test('rejects a checkout that exceeds a bound and removes it', async () => {
   await assert.rejects(
     cloneGithubRepository(VALID_URL, {
       maxFiles: 1,
+      gitExecutable: process.execPath,
       runner: async (command, args) => {
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
         destination = args.at(-1);
@@ -225,4 +230,39 @@ test('builds an isolated git environment and command line policy', () => {
   } finally {
     fs.rmSync(parentPath, { recursive: true, force: true });
   }
+});
+
+test('resolves git only from trusted absolute candidates', () => {
+  const candidates = [];
+  const resolved = resolveGitExecutable({
+    platform: 'linux',
+    env: { PATH: 'relative:/trusted/bin' },
+    lookup: (candidate) => {
+      candidates.push(candidate);
+      return candidate === '/usr/local/bin/git' ? candidate : null;
+    }
+  });
+
+  assert.equal(resolved, '/usr/local/bin/git');
+  assert.deepEqual(candidates, ['/usr/bin/git', '/usr/local/bin/git']);
+});
+
+test('reports unavailable Git without creating a temporary clone folder', async () => {
+  const before = new Set(fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith('cloneproof-github-')));
+  let runnerCalled = false;
+
+  await assert.rejects(
+    cloneGithubRepository(VALID_URL, {
+      executableLookup: () => null,
+      runner: async () => {
+        runnerCalled = true;
+        return successfulResult();
+      }
+    }),
+    (error) => error && error.code === 'GITHUB_GIT_UNAVAILABLE'
+  );
+
+  const after = fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith('cloneproof-github-'));
+  assert.equal(runnerCalled, false);
+  assert.deepEqual(after.filter((name) => !before.has(name)), []);
 });

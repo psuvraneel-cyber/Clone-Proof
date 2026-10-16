@@ -6,6 +6,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const { scanRepository } = require('../scan/repository');
+const { resolveDockerExecutable } = require('../util/executable');
 
 const DEFAULT_VERIFY_IMAGE = 'node:22.19.0-bookworm-slim';
 const DEFAULT_TIMEOUT_MS = 300000;
@@ -29,44 +30,6 @@ const SENSITIVE_FILE_NAMES = new Set([
   '.yarnrc',
   '.yarnrc.yml'
 ]);
-
-function existingFile(candidate) {
-  try {
-    return fs.statSync(candidate).isFile() ? fs.realpathSync(candidate) : null;
-  } catch {
-    return null;
-  }
-}
-
-function resolveDockerExecutable() {
-  const candidates = [];
-  if (process.platform === 'win32') {
-    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
-    const programW6432 = process.env.ProgramW6432 || programFiles;
-    const localAppData = process.env.LOCALAPPDATA;
-    candidates.push(
-      path.join(programFiles, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'),
-      path.join(programW6432, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'),
-      ...(localAppData
-        ? [path.join(localAppData, 'Programs', 'DockerDesktop', 'resources', 'bin', 'docker.exe')]
-        : [])
-    );
-  } else {
-    candidates.push('/usr/bin/docker', '/usr/local/bin/docker', '/opt/homebrew/bin/docker', '/snap/bin/docker');
-  }
-
-  const pathValue = process.env.PATH || process.env.Path || '';
-  for (const directory of pathValue.split(path.delimiter)) {
-    if (!directory || !path.isAbsolute(directory)) continue;
-    candidates.push(path.join(directory, process.platform === 'win32' ? 'docker.exe' : 'docker'));
-  }
-
-  for (const candidate of candidates) {
-    const resolved = existingFile(candidate);
-    if (resolved) return resolved;
-  }
-  return null;
-}
 
 function dockerClientEnvironment(configDirectory) {
   const environment = {};
