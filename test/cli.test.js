@@ -142,7 +142,7 @@ test('HTML reports can be written to an output file', () => {
 
     assert.equal(result.status, 0);
     assert.equal(result.stdout, '');
-    assert.equal(result.stderr, '');
+    assert.match(result.stderr, /wrote report to/);
     const html = fs.readFileSync(outputPath, 'utf8');
     assert.match(html, /^<!doctype html>/i);
     assert.match(html, /healthy-node/);
@@ -151,18 +151,40 @@ test('HTML reports can be written to an output file', () => {
   }
 });
 
-test('output files require the HTML format', () => {
-  const result = spawnSync(process.execPath, [
-    cliPath,
-    'check',
-    path.join(projectRoot, 'examples', 'healthy-node'),
-    '--output',
-    path.join(os.tmpdir(), 'cloneproof-invalid-output.json')
-  ], {
-    cwd: projectRoot,
-    encoding: 'utf8'
-  });
+test('output files support text, JSON, and HTML and create missing parents', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-cli-formats-'));
+  try {
+    for (const [format, extension] of [['text', 'txt'], ['json', 'json'], ['html', 'html']]) {
+      const outputPath = path.join(directory, 'nested', format, `report.${extension}`);
+      const result = spawnSync(process.execPath, [
+        cliPath,
+        'check',
+        path.join(projectRoot, 'examples', 'healthy-node'),
+        '--format',
+        format,
+        '--output',
+        outputPath
+      ], {
+        cwd: projectRoot,
+        encoding: 'utf8'
+      });
 
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /--output requires --format html/);
+      assert.equal(result.status, 0, format);
+      assert.equal(result.stdout, '', format);
+      assert.match(result.stderr, /wrote report to/, format);
+      assert.ok(result.stderr.includes(outputPath), format);
+      assert.equal(fs.existsSync(outputPath), true, format);
+      const contents = fs.readFileSync(outputPath, 'utf8');
+      if (format === 'text') {
+        assert.match(contents, /CloneProof/);
+        assert.doesNotMatch(contents, /\u001b\[/);
+      } else if (format === 'json') {
+        assert.equal(JSON.parse(contents).tool, 'cloneproof');
+      } else {
+        assert.match(contents, /^<!doctype html>/i);
+      }
+    }
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });

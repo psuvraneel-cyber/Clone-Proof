@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const fs = require('node:fs');
+const path = require('node:path');
 
 const {
   cloneGithubRepository,
@@ -133,10 +134,6 @@ function parseArguments(argv) {
     throw new Error('--docker, --execute, --allow-network, and --timeout-ms are only valid for verify');
   }
 
-  if (outputPath && format !== 'html') {
-    throw new Error('--output requires --format html');
-  }
-
   return { command, target, format, color, docker, execute, allowNetwork, timeoutMs, outputPath };
 }
 
@@ -147,9 +144,11 @@ function renderReport(report, format, color) {
 }
 
 function writeReport(report, options) {
-  const rendered = renderReport(report, options.format, options.color);
+  const rendered = renderReport(report, options.format, options.outputPath ? false : options.color);
   if (options.outputPath) {
+    fs.mkdirSync(path.dirname(path.resolve(options.outputPath)), { recursive: true });
     fs.writeFileSync(options.outputPath, rendered, 'utf8');
+    process.stderr.write(`CloneProof: wrote report to ${options.outputPath}\n`);
   } else {
     process.stdout.write(rendered);
   }
