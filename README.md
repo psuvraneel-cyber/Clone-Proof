@@ -118,6 +118,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 - Static inspection does not execute repository-defined scripts, README commands, lifecycle hooks, Dockerfiles, or shell commands.
 - Target repositories are untrusted input. Symlinks, malformed files, large files, and incomplete scans are handled explicitly.
 - Docker is not a complete security boundary. Execution verification is opt-in, bounded, and a reproducibility experiment rather than a safety certification.
+- Gitignore matching reads only the repository-root `.gitignore` and, for local repositories with a real `.git` directory, the root `.git/info/exclude`; nested `.gitignore` files are not read.
 - Real `.env` files, npm configuration files, and other sensitive environment configuration are excluded from the staged container snapshot. The host environment and Docker socket are not mounted.
 - For GitHub clones, executable file modes are read from the Git index before `.git` is removed and preserved in the Docker staging snapshot. Local Windows filesystem scans cannot detect repository execute bits and do not infer them.
 - Scan reports use schema version 2 and record bounded-scan completeness, discovered/read file counts, skipped paths, and npm lockfile package metadata.

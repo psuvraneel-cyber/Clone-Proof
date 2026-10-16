@@ -11,6 +11,7 @@ CloneProof receives repository files as untrusted input. It is not a malware sca
 - Does not follow symlinks.
 - Enforces depth, file count, individual file size, lockfile size/entry, and total-size limits, while treating generated assets and ordinary source files as stat-only or skippable where appropriate.
 - Sorts paths and findings so repeated scans are deterministic.
+- Gitignore matching reads only the repository-root `.gitignore` and, for local repositories with a real `.git` directory, the root `.git/info/exclude`; nested `.gitignore` files are not read.
 - Uses relative paths in reports and does not include host environment values.
 
 Static findings identify high-confidence setup inconsistencies. They are not a security verdict.
