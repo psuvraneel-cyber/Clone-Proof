@@ -143,6 +143,105 @@ test('warns when a Node package has no lockfile', () => withRepository((root) =>
   assert.equal(finding(report, 'LOCKFILE_MISSING').status, 'warning');
 }));
 
+function writeNpmLockRepository(root, packageJson, lockfile) {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'lock-sync-fixture',
+    scripts: { test: 'node --test' },
+    ...packageJson
+  }, null, 2));
+  writeFile(root, 'package-lock.json', `${JSON.stringify(lockfile, null, 2)}\n`);
+  writeFile(root, 'test/index.test.js', 'test("fixture", () => {});\n');
+}
+
+test('fails when a v3 lockfile is missing a package.json dependency', () => withRepository((root) => {
+  writeNpmLockRepository(root, { dependencies: { express: '^4.19.0' } }, {
+    name: 'lock-sync-fixture',
+    lockfileVersion: 3,
+    packages: { '': { name: 'lock-sync-fixture', dependencies: {} } }
+  });
+
+  const report = scanRepository(root);
+  const mismatch = finding(report, 'LOCKFILE_OUT_OF_SYNC');
+
+  assert.equal(report.status, 'failed');
+  assert.equal(mismatch.status, 'failed');
+  assert.match(mismatch.message, /express/);
+  assert.equal(mismatch.evidence.some((item) => item.path === 'package.json'), true);
+  assert.equal(mismatch.evidence.some((item) => item.path === 'package-lock.json'), true);
+}));
+
+test('fails when a v3 lockfile has an extra root dependency', () => withRepository((root) => {
+  writeNpmLockRepository(root, { dependencies: { express: '^4.19.0' } }, {
+    name: 'lock-sync-fixture',
+    lockfileVersion: 3,
+    packages: { '': {
+      name: 'lock-sync-fixture',
+      dependencies: { express: '^4.19.0', lodash: '^4.17.21' }
+    } }
+  });
+
+  const report = scanRepository(root);
+  const mismatch = finding(report, 'LOCKFILE_OUT_OF_SYNC');
+
+  assert.equal(mismatch.status, 'failed');
+  assert.match(mismatch.message, /lodash/);
+}));
+
+test('fails when a v3 lockfile dependency specifier differs', () => withRepository((root) => {
+  writeNpmLockRepository(root, { dependencies: { express: '^4.19.0' } }, {
+    name: 'lock-sync-fixture',
+    lockfileVersion: 3,
+    packages: { '': {
+      name: 'lock-sync-fixture',
+      dependencies: { express: '^4.18.0' }
+    } }
+  });
+
+  const report = scanRepository(root);
+  const mismatch = finding(report, 'LOCKFILE_OUT_OF_SYNC');
+
+  assert.equal(mismatch.status, 'failed');
+  assert.match(mismatch.message, /express/);
+}));
+
+test('does not report an in-sync v3 lockfile', () => withRepository((root) => {
+  writeNpmLockRepository(root, {
+    dependencies: { express: '^4.19.0' },
+    devDependencies: { tap: '^18.7.0' },
+    optionalDependencies: { fsevents: '^2.3.3' }
+  }, {
+    name: 'lock-sync-fixture',
+    lockfileVersion: 3,
+    packages: { '': {
+      name: 'lock-sync-fixture',
+      dependencies: { express: '^4.19.0' },
+      devDependencies: { tap: '^18.7.0' },
+      optionalDependencies: { fsevents: '^2.3.3' }
+    } }
+  });
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'LOCKFILE_OUT_OF_SYNC'), undefined);
+  assert.notEqual(report.status, 'failed');
+}));
+
+test('fails when a v1 lockfile is missing a declared dependency', () => withRepository((root) => {
+  writeNpmLockRepository(root, {
+    dependencies: { express: '^4.19.0', lodash: '^4.17.21' }
+  }, {
+    name: 'lock-sync-fixture',
+    lockfileVersion: 1,
+    dependencies: { express: { version: '4.19.0' } }
+  });
+
+  const report = scanRepository(root);
+  const mismatch = finding(report, 'LOCKFILE_OUT_OF_SYNC');
+
+  assert.equal(mismatch.status, 'failed');
+  assert.match(mismatch.message, /lodash/);
+}));
+
 test('fails when package-lock.json is malformed', () => withRepository((root) => {
   writeFile(root, 'package.json', JSON.stringify({
     name: 'bad-lock',

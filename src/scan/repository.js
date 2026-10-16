@@ -210,6 +210,121 @@ function normalizeScripts(packageData) {
   return scripts;
 }
 
+const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies'];
+
+function dependencyMap(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.keys(value).sort(compareStrings).map((name) => [name, String(value[name])]));
+}
+
+function dependencyEntries(packageData) {
+  const entries = [];
+  for (const field of DEPENDENCY_FIELDS) {
+    const values = dependencyMap(packageData && packageData[field]);
+    for (const name of Object.keys(values)) {
+      entries.push({ field, name, specifier: values[name] });
+    }
+  }
+  return entries;
+}
+
+function parseReadableNpmLockfile(bytes) {
+  try {
+    const parsed = JSON.parse(decodeText(bytes));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    if (!Number.isInteger(parsed.lockfileVersion)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function regexForPackageName(name) {
+  return new RegExp(`"${String(name).replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}"\\s*:`);
+}
+
+function cappedDifferenceNames(differences) {
+  const names = [...new Set(differences.map((item) => item.name))].sort(compareStrings);
+  const visible = names.slice(0, 20);
+  const remaining = names.length - visible.length;
+  return remaining > 0
+    ? `${visible.join(', ')} (and ${remaining} more)`
+    : visible.join(', ');
+}
+
+function compareNpmLockfile(packageData, lockfileData) {
+  const version = lockfileData.lockfileVersion;
+  const differences = [];
+
+  if (version === 2 || version === 3) {
+    const root = lockfileData.packages && lockfileData.packages[''];
+    if (!root || typeof root !== 'object' || Array.isArray(root)) return [];
+    for (const field of DEPENDENCY_FIELDS) {
+      const packageValues = dependencyMap(packageData[field]);
+      const lockValues = dependencyMap(root[field]);
+      const names = [...new Set([...Object.keys(packageValues), ...Object.keys(lockValues)])].sort(compareStrings);
+      for (const name of names) {
+        if (!(name in packageValues)) {
+          differences.push({ field, name, kind: 'extra', packageSpecifier: null, lockSpecifier: lockValues[name] });
+        } else if (!(name in lockValues)) {
+          differences.push({ field, name, kind: 'missing', packageSpecifier: packageValues[name], lockSpecifier: null });
+        } else if (packageValues[name] !== lockValues[name]) {
+          differences.push({ field, name, kind: 'specifier', packageSpecifier: packageValues[name], lockSpecifier: lockValues[name] });
+        }
+      }
+    }
+    return differences;
+  }
+
+  if (version === 1) {
+    const lockDependencies = lockfileData.dependencies;
+    if (!lockDependencies || typeof lockDependencies !== 'object' || Array.isArray(lockDependencies)) return [];
+    for (const entry of dependencyEntries(packageData)) {
+      if (!Object.prototype.hasOwnProperty.call(lockDependencies, entry.name)) {
+        differences.push({
+          field: entry.field,
+          name: entry.name,
+          kind: 'missing',
+          packageSpecifier: entry.specifier,
+          lockSpecifier: null
+        });
+      }
+    }
+  }
+
+  return differences;
+}
+
+function addLockfileSyncFinding(findings, packageText, lockfileName, lockfileBytes, packageData) {
+  const lockfileData = parseReadableNpmLockfile(lockfileBytes);
+  if (!lockfileData) return;
+  const differences = compareNpmLockfile(packageData, lockfileData);
+  if (differences.length === 0) return;
+
+  const details = differences.map((difference) => {
+    if (difference.kind === 'missing') return `${difference.name} missing from lockfile`;
+    if (difference.kind === 'extra') return `${difference.name} extra in lockfile`;
+    return `${difference.name} specifier differs (${difference.packageSpecifier} vs ${difference.lockSpecifier})`;
+  });
+  const evidence = [];
+  for (const name of [...new Set(differences.map((difference) => difference.name))].sort(compareStrings).slice(0, 20)) {
+    const line = firstMatchLine(packageText, regexForPackageName(name));
+    evidence.push(makeEvidence('package.json', `Dependency ${name} is declared in package.json.`, line));
+    evidence.push(makeEvidence(lockfileName, `Dependency ${name} differs from package.json.`));
+  }
+
+  addFinding(
+    findings,
+    'LOCKFILE_OUT_OF_SYNC',
+    'failed',
+    'error',
+    'The npm lockfile is out of sync with package.json',
+    `Dependency differences: ${cappedDifferenceNames(differences)}. Details: ${details.slice(0, 20).join('; ')}${details.length > 20 ? ` (and ${details.length - 20} more)` : ''}.`,
+    evidence,
+    'Run npm install locally and commit the updated lockfile.'
+  );
+}
+
 function firstNonEmptyLine(text) {
   for (const line of text.split(/\r?\n/)) {
     const value = line.trim();
@@ -754,6 +869,14 @@ function scanRepository(rootPath, options) {
             `${lockfile.name} is present but could not be parsed as a valid npm lockfile metadata object.`,
             [makeEvidence(lockfile.name, 'The npm lockfile did not contain valid JSON lockfile metadata.')],
             'Regenerate the lockfile with the project package manager and commit the corrected file.'
+          );
+        } else if (packageValid) {
+          addLockfileSyncFinding(
+            findings,
+            packageText,
+            lockfile.name,
+            scanned.files.get(lockfile.name),
+            packageData
           );
         }
       }
