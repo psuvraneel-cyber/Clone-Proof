@@ -1,6 +1,6 @@
 # CloneProof architecture
 
-CloneProof is a local, command-line-first tool. The first release separates two trust levels:
+CloneProof is a local, command-line-first tool. It accepts local paths and a bounded public GitHub URL source. The first release separates two trust levels:
 
 1. **Static inspection (`check`)** reads repository files and never starts a repository-defined process.
 2. **Execution verification (`verify`)** is opt-in and will use a CloneProof-controlled Docker profile with explicit consent.
@@ -14,12 +14,15 @@ The first slice targets the root of a Node.js or TypeScript repository. It reads
 ```text
 src/
   cli.js                 argument parsing and exit codes
+  input/                 public GitHub URL validation and bounded clone staging
   scan/                  bounded filesystem scan and deterministic rules
-  report/                report schema and terminal/JSON rendering
+  report/                report schema and terminal/JSON/HTML rendering
   verify/                explicit Docker execution boundary
 ```
 
 The scanner returns data. Rules turn that data into evidence-backed findings. Report renderers do not perform checks. This makes the checks deterministic and keeps the execution boundary obvious.
+
+For a GitHub URL, `input/github.js` validates the exact public HTTPS origin, runs `git clone --depth 1 --no-tags` with an argument array and no shell, bounds the temporary checkout, removes its `.git` metadata, and returns an owned cleanup handle. Clone and checkout errors become explicit `incomplete` or `blocked` reports; credentials are never requested.
 
 ## Security assumptions
 

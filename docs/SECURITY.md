@@ -15,6 +15,10 @@ CloneProof receives repository files as untrusted input. It is not a malware sca
 
 Static findings identify high-confidence setup inconsistencies. They are not a security verdict.
 
+## GitHub source mode
+
+When the target is a URL, CloneProof accepts only an exact public `https://github.com/OWNER/REPOSITORY` form. It rejects credentials, query strings, fragments, subdirectories, alternate hosts, and non-HTTPS schemes. The clone uses `git` with an argument array and `shell: false`, `--depth 1 --no-tags`, bounded output/time, independent checkout limits, and cleanup on every failure path. Git metadata is removed before scanning.
+
 ## Docker mode
 
 `cloneproof verify` requires both `--docker` and `--execute`. The Docker profile:
@@ -38,3 +42,7 @@ Docker is not a complete security boundary. A malicious repository could still e
 The verifier intentionally uses the local default Docker endpoint. Remote Docker contexts, arbitrary `DOCKER_HOST` values, and context configuration are outside the supported trust model for this release.
 
 The current image is pinned by a version tag rather than a cryptographic digest. Before treating dynamic verification as a high-assurance service, record a trusted image digest and verify it before each run.
+
+## Report output
+
+JSON and HTML renderers consume the versioned CloneProof report. The HTML report is self-contained with inline styles, escapes repository-controlled text, includes no external resources, and bounds displayed verification output to the last 60 lines and 4,000 characters per stream.

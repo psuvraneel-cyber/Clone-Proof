@@ -42,3 +42,15 @@
 
 - **Decision:** Render only schema version 2 fields and render verification output as bounded, multiline text: the last 60 lines and at most 4,000 characters per stream.
 - **Why:** Compatibility aliases hid schema drift and could make reports disagree with the actual scanner. Bounded lines preserve useful diagnostics without allowing terminal output to grow without limit.
+
+## 2026-10-16 — Accept only bounded public GitHub sources
+
+- **Decision:** Support exact public HTTPS GitHub repository URLs as a second input form. Clone shallowly with `--depth 1 --no-tags`, without a shell or credentials, enforce checkout limits, remove `.git`, and clean up the temporary root after report generation.
+- **Why:** A useful repository checker needs a reproducible remote entry point, but broad URL or credential support would expand the trust boundary beyond the Buildathon scope.
+- **Trade-off:** Private repositories, alternate Git hosts, subdirectories, pull requests, archives, and repositories exceeding the checkout bounds are rejected or reported as incomplete/blocked.
+
+## 2026-10-16 — Keep HTML reports offline and self-contained
+
+- **Decision:** Add `renderHtml` and `--format html --output <file>` using inline CSS and escaped schema-version-2 values only.
+- **Why:** A downloadable report must open locally without a server, external fonts, scripts, or a network connection, and must agree with text/JSON findings.
+- **Trade-off:** The first HTML surface is a static report, not an interactive dashboard.

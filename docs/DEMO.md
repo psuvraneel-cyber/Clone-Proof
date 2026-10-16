@@ -33,7 +33,23 @@ node src/cli.js check examples/broken-node --format json
 
 Explain that the JSON report is suitable for CI or future GitHub comments and contains stable codes, relative paths, evidence, recommendations, and an overall status.
 
-## 4. Show execution safety
+## 4. Show a self-contained HTML report
+
+```bash
+node src/cli.js check examples/healthy-node --format html --output cloneproof-report.html
+```
+
+Open `cloneproof-report.html` directly. It contains the summary, escaped findings, evidence details, recommendations, and any bounded Docker output without loading a server or external assets.
+
+For the optional remote-input demonstration, use a public repository URL:
+
+```bash
+node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
+```
+
+CloneProof performs a shallow bounded clone and cleans the temporary checkout after producing the report. Do not use private URLs or provide credentials.
+
+## 5. Show execution safety
 
 ```bash
 node src/cli.js verify examples/healthy-node

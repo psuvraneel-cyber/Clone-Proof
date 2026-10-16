@@ -30,10 +30,22 @@ Inspect a repository without executing its code:
 node src/cli.js check ./path/to/repository
 ```
 
+The first remote-input profile accepts only a public HTTPS GitHub repository URL and performs a shallow, bounded clone without requesting credentials:
+
+```bash
+node src/cli.js check https://github.com/owner/repository
+```
+
 Request JSON output:
 
 ```bash
 node src/cli.js check ./path/to/repository --format json
+```
+
+Create a self-contained HTML report. `--output` is optional; without it, HTML is written to standard output:
+
+```bash
+node src/cli.js check ./path/to/repository --format html --output report.html
 ```
 
 The intended installed command is also available after `npm link`:
@@ -109,6 +121,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 - Real `.env` files, npm configuration files, and other sensitive environment configuration are excluded from the staged container snapshot. The host environment and Docker socket are not mounted.
 - Scan reports use schema version 2 and record bounded-scan completeness, discovered/read file counts, skipped paths, and npm lockfile package metadata.
 - The current image is pinned to a version tag rather than a digest. A future release should record and verify a trusted digest for stronger supply-chain guarantees.
+- GitHub input is limited to public `https://github.com/OWNER/REPOSITORY` URLs. Clone failures and checkout-limit failures are reported as `incomplete` or `blocked`; CloneProof does not request credentials.
 - The first release focuses on the root package of Node.js/TypeScript repositories. Monorepos, pnpm/Yarn execution, private repositories, and external services may be reported as unsupported or blocked.
 
 ## Buildathon

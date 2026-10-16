@@ -10,22 +10,23 @@ Deliver a credible, secure-by-design CLI for Node.js/TypeScript repository setup
 
 ### Working
 
-- `cloneproof check <path>` produces readable terminal output and stable schema-version-2 JSON.
+- `cloneproof check <path-or-public-github-url>` produces readable terminal output, stable schema-version-2 JSON, and a self-contained HTML report.
 - Static checks cover package metadata, npm/pnpm/Yarn lockfiles, malformed npm lockfiles, npm scripts, README npm commands, environment-example coverage, runtime declarations, Dockerfile Node versions, bounded traversal, source/stat-only scan roles, nested-package boundaries, symlink non-following, and deterministic SHA-256 snapshots.
 - `cloneproof verify <path> --docker --execute` requires explicit consent, defaults to `--network=none`, uses a CloneProof-controlled Node image, stages regular files with independent limits, excludes sensitive configuration, applies container limits, captures bounded multiline output, and reports blocked Docker/image/static-prerequisite/network-required states.
 - Docker timeout/output-interruption cleanup is explicitly attempted with a named container. The verifier never falls back to host execution.
 - Healthy and deliberately broken demo repositories are checked in under `examples/`.
+- Public HTTPS GitHub input is validated, shallow-cloned with bounded resources, stripped of `.git` metadata, and cleaned up after the report is produced.
+- `--format html --output <file>` writes an escaped, offline report with inline styles and bounded verification output.
 - Buildathon rules, security assumptions, decisions, demo steps, and session references are documented.
 
 ### Remaining gaps
 
 - The Docker image is pinned to `node:22.19.0-bookworm-slim` with `--pull=never`, but not yet to a recorded cryptographic digest in CloneProof's verifier policy.
 - The symlink test is skipped on this Windows host because symlink creation returned `EPERM`; run the suite on Linux to exercise that branch.
+- Docker Desktop's daemon was unavailable during the latest branch validation attempt; rerun the real Docker checks after starting the Linux engine.
 - `--allow-network` enables the network for both `npm ci` and `npm test`; it is intentionally broad and should only be used for trusted repositories. Without it, known external npm packages block before Docker starts.
 - The static report intentionally reports warnings for environment references inside the checked-in demo fixtures and verifier source; these do not block verification.
 - No Buildathon dashboard submission has been made yet.
-- The CLI still accepts local paths only; direct GitHub URL input is not implemented.
-- HTML report generation and `--output` file support are not implemented.
 - Dynamic verification intentionally supports only the root npm/Node workflow. “Almost all GitHub repositories” should mean broad, safe static inspection with explicit `unsupported`/`blocked` results—not blind execution of arbitrary projects.
 
 ## Important files
@@ -64,19 +65,19 @@ Do not promise that every arbitrary GitHub project can be installed and tested. 
 
 ### P0 — Required before the final demo
 
-- [ ] Add safe public GitHub URL input, for example `check https://github.com/owner/repo`.
+- [x] Add safe public GitHub URL input, for example `check https://github.com/owner/repo`.
   - Validate only HTTPS GitHub repository URLs in the first version.
   - Clone into a bounded temporary directory with `--depth 1 --no-tags` or a pinned commit when supplied.
   - Never pass the URL through a shell string; use an argument array.
   - Apply clone timeout/size limits, clean up in `finally`, and report clone failures as `incomplete` or `blocked`.
   - Do not request credentials or silently access private repositories.
-- [ ] Add a self-contained HTML renderer and `--output <file>`.
+- [x] Add a self-contained HTML renderer and `--output <file>`.
   - Reuse the existing report schema so text, JSON, and HTML cannot disagree.
   - Include status counts, finding codes, evidence paths/lines, recommendations, verification outcome, network policy, and cleanup state.
   - Escape untrusted repository text and do not load external scripts, fonts, or styles.
-- [ ] Add end-to-end tests for URL cloning using a local fake Git remote or a controlled public repository fixture; keep the canonical offline suite network-free.
+- [x] Add offline injected-runner URL cloning tests; keep the canonical suite network-free.
 - [ ] Re-run the real Docker build, healthy fixture verification, broken fixture block, and a fresh GitHub clone after the URL/HTML changes.
-- [ ] Update README usage and the demo script with the actual URL and HTML commands.
+- [x] Update README usage and the demo script with the actual URL and HTML commands.
 
 ### P1 — Required for trustworthy repository coverage
 
@@ -131,6 +132,7 @@ Working directory: `C:\Users\Sauvraneel Paul\OneDrive\Desktop\Clone-Proof`
 
 - `npm ci --offline --ignore-scripts --no-audit --no-fund` — passed.
 - `npm test` — passed: 69 passed, 1 skipped; the skip is Windows `EPERM` symlink creation.
+- `npm test` after GitHub/HTML integration — passed: 80 passed, 1 skipped; the skip is Windows `EPERM` symlink creation.
 - `npm_config_offline=true npm test` — passed with the same result.
 - `npm run build` — passed; four source files syntax-checked.
 - `git diff --check` — passed.
@@ -145,6 +147,8 @@ Working directory: `C:\Users\Sauvraneel Paul\OneDrive\Desktop\Clone-Proof`
 - A depth-1 clone of `https://github.com/psuvraneel-cyber/Clone-Proof` at `d5b1c58` — static check returned `passed_with_warnings`, 0 failures, 7 warnings, 39 files.
 - The same GitHub clone — Docker verify returned `passed_with_warnings`, verification outcome `passed`, container exit `0`, cleanup confirmed.
 - `make test` — not run; `make` is unavailable on this host.
+- `node src/cli.js check examples/healthy-node --format json` — passed on the current branch; schema version 2, 10 passed findings, 0 warnings.
+- `docker version` — latest branch validation attempt was blocked because the Docker Desktop Linux engine named pipe was unavailable; no real container was started by that attempt.
 
 Latest local commits for the accuracy/verification work:
 
@@ -165,7 +169,7 @@ Use the main session in the Buildathon dashboard and confirm any associated sub-
 
 ## Next step
 
-Run the real Windows Docker Desktop Linux-engine validation again against the current branch, then implement the remaining P0 GitHub URL input and self-contained HTML report. The prior validation passed with:
+Start Docker Desktop's Linux engine and run the real validation again against the current branch. Then review the final public repository and submission checklist. The prior validation passed with:
 
 ```bash
 npm ci --offline
