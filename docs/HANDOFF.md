@@ -1,190 +1,128 @@
 # CloneProof handoff
 
-Updated 2026-10-16; use the latest Git commit as the authoritative revision.
+Updated 2026-10-16; use the latest Git commit on `fix/accuracy-and-verification` as the authoritative revision.
 
 ## Goal
 
-Deliver a credible, secure-by-design CLI for Node.js/TypeScript repository setup verification. `check` must inspect a local repository without executing its code. `verify` must run only the supported npm workflow inside an explicitly authorized, bounded Docker profile and report evidence, failures, or blocked prerequisites.
+Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository setup verification. `check` never executes repository code: local targets are read-only scans and GitHub targets use one isolated shallow clone before scanning. `verify` runs only the supported npm workflow inside an explicitly authorized, bounded Docker profile.
 
 ## State
 
 ### Working
 
-- `cloneproof check <path-or-public-github-url>` produces readable terminal output, stable schema-version-2 JSON, and a self-contained HTML report.
-- Static checks cover package metadata, npm/pnpm/Yarn lockfiles, malformed npm lockfiles, npm scripts, README npm commands, environment-example coverage, runtime declarations, Dockerfile Node versions, bounded traversal, source/stat-only scan roles, nested-package boundaries, symlink non-following, and deterministic SHA-256 snapshots.
-- `cloneproof verify <path> --docker --execute` requires explicit consent, defaults to `--network=none`, uses a CloneProof-controlled Node image, stages regular files with independent limits, excludes sensitive configuration, applies container limits, captures bounded multiline output, and reports blocked Docker/image/static-prerequisite/network-required states.
-- Docker timeout/output-interruption cleanup is explicitly attempted with a named container. The verifier never falls back to host execution.
-- Healthy and deliberately broken demo repositories are checked in under `examples/`.
-- Public HTTPS GitHub input is validated, shallow-cloned with bounded resources, stripped of `.git` metadata, and cleaned up after the report is produced.
-- `--format html --output <file>` writes an escaped, offline report with inline styles and bounded verification output.
-- Buildathon rules, security assumptions, decisions, demo steps, and session references are documented.
+- `check <path-or-github-url>` emits deterministic text, canonical JSON, or self-contained HTML reports with relative paths and no timestamps or absolute target paths.
+- Local scans honor root `.gitignore` and a bounded regular `.git/info/exclude`; ignored directories are skipped, and ignored core files receive `CORE_FILE_GITIGNORED` warnings. GitHub checkouts pass `freshClone: true` and skip local-ignore behavior.
+- Static checks cover package metadata, npm/pnpm/Yarn lockfiles, scripts, README commands, environment references and templates, runtime declarations, Dockerfile Node versions, bounded traversal, nested-package boundaries, symlinks, and deterministic SHA-256 snapshots.
+- Environment destructuring uses a bounded brace scanner that handles aliases, defaults, quoted keys, nested patterns, multiline assignments, and direct `process.env`/`import.meta.env` access.
+- Project classification checks a root package manifest first, then other-ecosystem markers, then supported root/application source locations.
+- Partial `.nvmrc`, `.node-version`, and Docker Node pins use prefix/existential engine-range semantics; full versions retain exact comparison.
+- GitHub input performs a ten-second unauthenticated public visibility/size preflight. Repositories over `MAX_REPOSITORY_BYTES` (1 GiB), private repositories, and missing repositories are blocked before cloning; unavailable/rate-limited preflight continues with bounded clone limits and records `target.preflight: "unavailable"`.
+- GitHub cloning resolves a trusted absolute Git executable, uses an allow-listed environment and empty Git config, disables credential helpers/LFS smudging, uses no shell, and cleans its parent directory on success and failure.
+- Docker verification uses the pinned image `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`, `--pull=never`, a read-only source mount, non-root UID/GID 1000, dropped capabilities, no-new-privileges, no network by default, and bounded CPU/memory/PID/tmpfs/output/time policies.
+- Every verification return is finalized through summary/cleanup normalization. `report.summary` matches `findings` on consent, prerequisite, network, Docker/image, symlink, staging-limit, source-change, execution, timeout, and cleanup paths.
+- Text and HTML verification output explain omitted lines and character shortening; HTML badges are static and contain no `role="status"`.
 
 ### Remaining gaps
 
-- The Docker image is pinned to `node:22.19.0-bookworm-slim` with `--pull=never`, but not yet to a recorded cryptographic digest in CloneProof's verifier policy.
-- The symlink test is skipped on this Windows host because symlink creation returned `EPERM`; run the suite on Linux to exercise that branch.
-- Docker Desktop's daemon was unavailable during the latest branch validation attempt; rerun the real Docker checks after starting the Linux engine.
-- `--allow-network` enables the network for both `npm ci` and `npm test`; it is intentionally broad and should only be used for trusted repositories. Without it, known external npm packages block before Docker starts.
-- The static report intentionally reports warnings for environment references inside the checked-in demo fixtures and verifier source; these do not block verification.
-- No Buildathon dashboard submission has been made yet.
-- Dynamic verification intentionally supports only the root npm/Node workflow. “Almost all GitHub repositories” should mean broad, safe static inspection with explicit `unsupported`/`blocked` results—not blind execution of arbitrary projects.
+- The symlink integration test is skipped on this Windows host because symlink creation returned `EPERM`; the decision helper is unit-tested and the Docker staging path is covered with injected results.
+- `make test` was not run because `make` is unavailable on this Windows host; `npm test` is the portable command and the Makefile remains for Linux.
+- The API preflight is intentionally unauthenticated and may be unavailable under GitHub rate limits; bounded clone limits remain the fallback.
+- Docker verification remains an opt-in reproducibility experiment, not a complete hostile-code sandbox. `--allow-network` enables network for both install and test and should be used only for trusted repositories.
+- Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn, private registries, external services, monorepos, and custom setup remain blocked or unsupported.
+- No Buildathon dashboard submission, merge, push, or PR has been performed.
 
 ## Important files
 
-- `src/cli.js` — command-line parsing, help, output, and exit codes.
-- `src/scan/repository.js` — deterministic, bounded static inspection.
-- `src/report/render.js` — stable JSON and terminal reports.
-- `src/verify/docker.js` — opt-in Docker profile, staging, limits, cleanup, and redacted diagnostics.
-- `examples/healthy-node/` and `examples/broken-node/` — repeatable demo fixtures.
-- `test/` — scanner, report, CLI, and mocked Docker/security tests.
-- `Dockerfile`, `.dockerignore`, `.nvmrc`, `package-lock.json`, `Makefile`, `.env.example` — Buildathon rebuild artifacts.
-- `docs/BUILDATHON_CHECKLIST.md` — official rules and manual submission checklist.
-- `docs/SECURITY.md` — threat model and limitations.
-- `docs/DEMO.md` — demonstration script.
-- `docs/DECISIONS.md` — architecture decisions and current session reference.
+- `src/cli.js` — argument parsing, GitHub-shaped target validation, output files, exit codes, and source metadata.
+- `src/input/github.js` — URL validation, API preflight, trusted Git clone invocation, bounded checkout inspection, and cleanup.
+- `src/util/executable.js` — trusted absolute Git and Docker executable discovery.
+- `src/scan/repository.js` — deterministic scanner, bounded environment parser, project classification, Gitignore matcher, and findings.
+- `src/report/render.js` — canonical JSON, color-safe text, escaped self-contained HTML, bounded-output indicators, and exit-code mapping.
+- `src/verify/docker.js` — pinned Docker profile, staging, limits, cleanup, redaction, and verification summary finalization.
+- `test/github.test.js` — URL, preflight, Git isolation, trusted executable, cleanup, and network-free clone tests.
+- `test/scan.test.js` — scanner, environment, classification, Gitignore, runtime, bounds, and non-execution tests.
+- `test/report.test.js` — canonical renderers, escaping, output bounds, static badges, and exit codes.
+- `test/verify.test.js` — Docker arguments, injected runner, every summary path, staging, cleanup, phases, and timeout behavior.
+- `test/cli.test.js` — CLI reports, URL forms, output formats, nested output folders, and exit codes.
+- `Dockerfile`, `.dockerignore`, `.nvmrc`, `package-lock.json`, `Makefile`, `.env.example` — clean rebuild artifacts.
+- `docs/SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/DEMO.md`, `docs/DECISIONS.md`, `docs/BUILDATHON_CHECKLIST.md` — trust boundary, usage, decisions, and submission evidence.
 
 ## Decisions to preserve
 
-- Keep static inspection separate from execution. Never infer or run arbitrary README commands.
-- The first dynamic profile is npm-only and runs `npm ci --ignore-scripts` followed by the declared `npm test` script.
-- Treat empty/unsupported repositories as `blocked`, malformed or failed checks as `failed`, and incomplete bounded scans as `incomplete`.
-- Do not trust a target Dockerfile, accept arbitrary Docker flags, mount the Docker socket, pass host secrets, or silently enable network access.
-- Use an isolated temporary Docker CLI configuration and the local default endpoint; do not inherit a selected remote Docker context.
-
-## Four-day delivery scope
-
-The realistic submission target is:
-
-1. **Static mode:** accept a local path or public GitHub URL, inspect any repository safely, and return useful `passed`, `warning`, `failed`, `blocked`, or `incomplete` findings without executing target code.
-2. **Dynamic mode:** verify a clearly documented supported profile—root Node.js/TypeScript repositories using npm, a checked-in lockfile, and `scripts.test`—inside the controlled Docker runner.
-3. **Reports:** emit readable terminal output, stable JSON, and a self-contained HTML report that can be opened locally without a server.
-
-Do not promise that every arbitrary GitHub project can be installed and tested. Projects using unsupported languages, package managers, private registries, external services, monorepos, or special infrastructure should receive an explicit blocked/unsupported result with a recommendation.
-
-## Prioritized remaining tasks
-
-### P0 — Required before the final demo
-
-- [x] Add safe public GitHub URL input, for example `check https://github.com/owner/repo`.
-  - Validate only HTTPS GitHub repository URLs in the first version.
-  - Clone into a bounded temporary directory with `--depth 1 --no-tags` or a pinned commit when supplied.
-  - Never pass the URL through a shell string; use an argument array.
-  - Apply clone timeout/size limits, clean up in `finally`, and report clone failures as `incomplete` or `blocked`.
-  - Do not request credentials or silently access private repositories.
-- [x] Add a self-contained HTML renderer and `--output <file>`.
-  - Reuse the existing report schema so text, JSON, and HTML cannot disagree.
-  - Include status counts, finding codes, evidence paths/lines, recommendations, verification outcome, network policy, and cleanup state.
-  - Escape untrusted repository text and do not load external scripts, fonts, or styles.
-- [x] Add offline injected-runner URL cloning tests; keep the canonical suite network-free.
-- [ ] Re-run the real Docker build, healthy fixture verification, broken fixture block, and a fresh GitHub clone after the URL/HTML changes.
-- [x] Update README usage and the demo script with the actual URL and HTML commands.
-
-### P1 — Required for trustworthy repository coverage
-
-- [ ] Improve static-analysis precision.
-  - Ignore conventional host/process variables such as `PATH`, `ProgramFiles`, and `NODE_ENV` when they are not application configuration.
-  - Avoid treating the tool's own verifier code and demo fixtures as the target application's required environment configuration, or label nested fixtures separately.
-  - Add tests for dynamic `process.env[name]` access, literal access, test fixtures, docs, examples, and monorepo-like layouts.
-- [ ] Add a compatibility matrix with explicit profiles for npm, pnpm, and Yarn.
-  - Static detection can cover all three.
-  - Dynamic execution should remain blocked until a package-manager-specific safe profile is implemented and tested; never silently fall back to host execution.
-- [ ] Add representative fixtures and smoke checks for valid npm projects, missing lockfiles, malformed manifests, missing test scripts, failing tests, hanging tests, non-Node repositories, monorepos, and repositories requiring network access.
-- [ ] Pin or verify the Docker verifier image by digest instead of relying only on `node:22.19.0-bookworm-slim` as a mutable tag. Record the resolved digest in the security documentation.
-- [ ] Test CLI exit codes and HTML/JSON output for `passed`, `passed_with_warnings`, `failed`, `blocked`, and `incomplete` outcomes.
-- [ ] Review cleanup, sensitive-file omission, output redaction, Docker executable discovery, and remote Docker-context protection after URL support is added.
-
-### P2 — Only if the P0/P1 work is complete
-
-- [ ] Add optional GitHub metadata such as default branch and commit SHA without requiring GitHub authentication.
-- [ ] Add a build-command check as a separate opt-in profile; do not run arbitrary README commands.
-- [ ] Add a compact HTML summary suitable for attaching to a GitHub issue or pull request, without implementing a hosted backend.
-- [ ] Consider a small Python/Go static-only detector only if it does not destabilize the Node/npm core.
-
-## Four-day execution plan
-
-### Day 1 — URL and report surface
-
-- Implement URL validation, shallow clone staging, cleanup, and clone error reporting.
-- Implement the shared HTML renderer and output-file handling.
-- Add offline fake-remote tests and one real public-repository smoke test.
-
-### Day 2 — Static coverage and compatibility boundaries
-
-- Fix environment-reference false positives and nested fixture handling.
-- Add the compatibility matrix and explicit unsupported/blocked messages.
-- Add failing, hanging, malformed, monorepo, pnpm/Yarn, and non-Node fixtures.
-
-### Day 3 — Docker/security regression pass
-
-- Pin/verify the verifier image digest.
-- Test URL-to-Docker verification, network-disabled behavior, explicit network consent, timeout cleanup, sensitive-file omission, and report escaping.
-- Rebuild the project image from a clean Docker cache if possible.
-
-### Day 4 — Freeze and submit
-
-- Freeze features and run `npm ci --offline`, `npm test`, `docker build`, container tests, URL checks, and HTML report checks.
-- Review README, `docs/SECURITY.md`, `docs/BUILDATHON_CHECKLIST.md`, and `docs/DEMO.md` against actual behavior.
-- Push the final public repository, record the final commit and OmniRush sessions, submit through the Buildathon dashboard, and save the Submission ID for Unstop.
+- Keep static inspection separate from execution. Never run repository scripts, README commands, lifecycle hooks, or target Dockerfiles.
+- For local `check`, start no process. For GitHub `check`, run only the isolated CloneProof-owned Git clone before the read-only scan.
+- Keep the first dynamic profile npm-only: `npm ci --ignore-scripts`, then the declared `npm test`, inside the pinned controlled image.
+- Require `--docker --execute`; keep `--network=none` unless `--allow-network` is explicitly supplied.
+- Do not trust target Dockerfiles, accept arbitrary Docker flags, mount the Docker socket, pass host secrets, inherit host Git config/credentials, or silently enable network access.
+- Keep report fields relative, sorted, canonical, bounded, and free of timestamps.
 
 ## Checks observed
 
-Working directory: `C:\Users\Sauvraneel Paul\OneDrive\Desktop\Clone-Proof`
-
-- `npm ci --offline --ignore-scripts --no-audit --no-fund` — passed.
-- `npm test` after GitHub/HTML integration — passed: 80 passed, 1 skipped; the skip is Windows `EPERM` symlink creation.
-- `npm_config_offline=true npm test` — passed with the same result.
-- `npm run build` — passed; five source files syntax-checked.
+- `npm test` — passed: 109 tests, 108 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
 - `git diff --check` — passed.
-- `node src/cli.js check examples/healthy-node` — observed `passed`, exit `0`.
-- `node src/cli.js check examples/broken-node` — observed `failed`, exit `1`.
-- Missing repository path — observed `incomplete`, exit `2`.
-- `docker version` — passed after enabling WSL 2: Docker Desktop Linux engine 29.8.2, Linux `x86_64`.
-- `docker pull node:22.19.0-bookworm-slim` — passed; resolved digest `sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`.
-- `docker build -t cloneproof .` — passed on Docker Desktop's Linux engine after excluding local `.agents`, `.claude`, and `.opencode` metadata from the build context.
-- `docker run --rm --network none cloneproof npm test` — passed: 81 passed, 0 skipped inside the rebuilt image.
-- `docker run --rm --network none cloneproof` — passed static inspection with 10 passed findings, 1 skipped nested-package finding, and no local worktree metadata in the scan.
-- `node src/cli.js verify examples/healthy-node --docker --execute --format json` — passed: status `passed`, container exit `0`, network `none`, cleanup confirmed.
-- A depth-1 clone of `https://github.com/psuvraneel-cyber/Clone-Proof` at `d5b1c58` — static check returned `passed_with_warnings`, 0 failures, 7 warnings, 39 files.
-- The same GitHub clone — Docker verify returned `passed_with_warnings`, verification outcome `passed`, container exit `0`, cleanup confirmed.
-- `make test` — not run; `make` is unavailable on this host.
-- `node src/cli.js check examples/healthy-node --format json` — passed on the current branch; schema version 2, 10 passed findings, 0 warnings.
-- `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` — passed on the current branch; bounded shallow clone cleaned up, target `psuvraneel-cyber/Clone-Proof`, 10 passed findings, 1 skipped nested-package finding, 0 failures.
-- `docker version` — passed after Docker Desktop was started: Linux engine `29.8.2`.
-- `node src/cli.js verify examples/broken-node --docker --execute --format json` — blocked by static prerequisites; no target container was started.
-- `node src/cli.js verify https://github.com/psuvraneel-cyber/Clone-Proof --docker --execute --format json` — passed: bounded public clone, network `none`, container exit `0`, cleanup confirmed.
+- `node src/cli.js check examples/healthy-node` — passed, exit `0`.
+- `node src/cli.js check examples/broken-node` — failed as intended, exit `1`.
+- `node src/cli.js check . --format json` — passed; nested-package evidence contains only the two demo packages, not `.claude/worktrees` or `.opencode`.
+- Reproduction A — fixed: `ENV_EXAMPLE_MISSING` reports `DATABASE_URL, PORT`, never `join` or `resolve`.
+- Reproduction B — fixed: status `blocked`, exit `2`, `UNSUPPORTED_ROOT` identifies Python and `requirements.txt`.
+- Reproduction C — fixed: no `ENGINES_NODE_UNSATISFIED` for `.nvmrc`/Docker Node `22` versus `>=22.19.0`.
+- Reproduction D — fixed: `findings=11`, `summary.total=11`, `skipped findings=1`, `summary.skipped=1`.
+- Reproduction E — fixed: isolated Git config listing showed only `command line:` entries for credential/filter policy; no host credential helper, LFS filter, sentinel, or askpass variable.
+- Reproduction F — fixed: local scan retained `LOCKFILE_PRESENT` and added `CORE_FILE_GITIGNORED` for `package-lock.json`.
+- `docker image inspect node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` — passed after confirming/pulling the recorded digest.
+- `docker build -t cloneproof .` — passed.
+- `docker run --rm --network none cloneproof` — passed, exit `0`.
+- `docker run --rm --network none cloneproof npm test` — passed, exit `0`, 109 tests passed in the Linux container.
+- `node src/cli.js verify examples/healthy-node --docker --execute` — passed, exit `0`, network `none`, cleanup confirmed.
+- `node src/cli.js verify examples/broken-node --docker --execute` — blocked, exit `2`, no target container started.
+- Real Express fixture with `npm install --package-lock-only --ignore-scripts` — no-network verify blocked with `DOCKER_NETWORK_REQUIRED`, exit `2`; `--allow-network` passed, exit `0`.
+- Real Jest fixture using `node node_modules/jest/bin/jest.js --runInBand` — passed with `--allow-network`, exit `0`; no resource-limit adjustment was needed.
+- Failing test fixture — failed with `failedPhase: test`; explicit stderr was visible as separate lines in text and HTML renderers.
+- Hanging test fixture with `--timeout-ms 15000` — failed and timed out, cleanup confirmed; `docker ps -a --filter name=cloneproof-verify` showed no containers.
+- `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` — passed, exit `0`, preflight `checked`, repository size `59 KiB`, clone cleaned.
+- `node src/cli.js verify https://github.com/psuvraneel-cyber/Clone-Proof --docker --execute --format json` — passed, exit `0`, preflight `checked`, container exit `0`, cleanup confirmed.
+- A random nonexistent public GitHub URL — blocked with `GITHUB_REPOSITORY_UNAVAILABLE`, exit `2`, no sign-in prompt.
+- Two JSON checks of the same fixture with `--output` — byte-identical.
+- Temporary-folder audit after GitHub checks — no `cloneproof-github-*` folders remained.
 
-Latest local commits for the accuracy/verification work:
+## Commits in this review pass
 
-- `14eb5bb fix: harden Docker verification defaults` — lockfile package metadata, network-required blocking, failed-phase diagnostics, exit-code-137 messaging, and Docker resource defaults.
-- `6103d97 fix: simplify report rendering` — schema-version-2 renderer, evidence details, and bounded multiline output.
-- `8ab09ee feat: accept public GitHub repositories` — bounded public GitHub URL input and CLI integration.
-- `d8c12a6 feat: add self-contained HTML reports` — escaped offline HTML rendering and output files.
-- `28effae fix: avoid leaking GitHub URL credentials` — redacted invalid URL labels and disabled Git credential prompts.
+- `bdde31b fix: isolate GitHub clone configuration`
+- `4fa17f0 fix: resolve Git from trusted paths`
+- `0bb7a4f fix: bound environment destructuring scans`
+- `e676e4c fix: classify non-Node repositories before source guesses`
+- `4bde0e1 fix: handle partial Node engine pins`
+- `15543fb fix: finalize verification summaries`
+- `9ccee28 feat: preflight GitHub repositories`
+- `98a96f4 fix: honor local Git ignore rules`
+- `41e9c3f fix: reject ambiguous GitHub targets`
+- `36b2235 fix: support report output files`
+- `8a03c73 fix: parse exported environment templates`
+- `930071a fix: explain truncated verification output`
+- `8d82af7 fix: keep HTML badges static`
+- `746bbef fix: report bounded scan edge cases`
+- `89ba216 docs: fix example commands`
+- `f0048dc docs: align static and GitHub modes`
+- `d4221e6 docs: keep demo reports ignored`
+- `dceb3dc fix: pin verifier image by digest`
 
 ## OmniRush sessions for submission
 
-Use the main session in the Buildathon dashboard and confirm any associated sub-agent sessions are included:
-
 - Main build session: `ses_ebf503317ffe255TeXPMMfCKMW`
-- Workspace/rules investigation: `ses_ebf44fc9effeRrADBObLg7cB1n`
-- Architecture/security planning: `ses_ebf44fc97ffercEX5LvjTf1JFV`
-- Scanner implementation: `ses_ebf3734faffe3Azk3mt4WIWoms`
-- Report implementation: `ses_ebf3734eeffeqd2i440yZUjS1`
-- Docker security review: `ses_ebf1589b2ffegpY2dA2VfKGrJh`
-- QA review: `ses_ebf1589a3ffeunT543GMOe6xH5`
+- Review exploration session: `ses_ebb438187fferFPUplMV8TQS7B`
+- Review scanner/report exploration session: `ses_ebb43817efferVqnNPYek8NqvZ`
+- Earlier workspace, architecture, scanner, report, Docker-review, and QA sessions remain in the prior handoff history if the dashboard requires them.
 
 ## Next step
 
-Review the final public repository and submission checklist. The current validation passed with:
+Review the final diff and checklist. Do not merge into `main`, push, open a PR, or submit until the user approves. The planned post-approval commands are:
 
 ```bash
-npm ci --offline
-npm test
-docker pull node:22.19.0-bookworm-slim
-docker build -t cloneproof .
-docker run --rm --network none cloneproof
-node src/cli.js verify examples/healthy-node --docker --execute
-node src/cli.js verify examples/broken-node --docker --execute
+git status
+git diff --check
+git log --oneline -10
+git switch main
+git merge --ff-only fix/accuracy-and-verification
+git push origin main
+node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```
-
-Then submit the public GitHub repository and recorded sessions through the OmniRush dashboard, select the track, and copy the Submission ID into Unstop.

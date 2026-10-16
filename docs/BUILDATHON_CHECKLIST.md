@@ -15,18 +15,18 @@ Source checked on 2026-10-15: <https://omnirush.ai/buildathon>
 
 ## Rebuild checklist
 
-- [ ] Git history contains small working-step commits.
-- [ ] Runtime is pinned in `.nvmrc`.
-- [ ] `package-lock.json` is committed.
-- [ ] `Dockerfile` installs, builds, and runs the project.
-- [ ] `.dockerignore` excludes local secrets, dependencies, and generated files from the Docker build context.
-- [ ] `npm test` (and the Linux-friendly `make test` wrapper) runs without internet access.
-- [ ] `.env.example` contains placeholders only.
-- [ ] No absolute paths, credentials, or private session data are committed.
-- [x] Docker rebuild and test run verified using Docker Desktop's Linux engine; repeat on a clean Linux host if available.
+- [x] Git history contains small working-step commits — verified with `git log --oneline` after one working commit per review item.
+- [x] Runtime is pinned in `.nvmrc` — verified by `npm test`, Docker build, and the runtime scan findings.
+- [x] `package-lock.json` is committed — verified by `git status`, static scans, and `npm ci` in the image build.
+- [x] `Dockerfile` installs, builds, and runs the project — verified with `docker build -t cloneproof .` and both `docker run --rm --network none cloneproof` commands.
+- [x] `.dockerignore` excludes local secrets, dependencies, and generated files from the Docker build context — verified by the build context and container static scan.
+- [x] `npm test` runs without internet access — verified on the host and inside `docker run --rm --network none cloneproof npm test`.
+- [x] `.env.example` contains placeholders only — verified by the tracked file and Docker staging tests.
+- [x] No absolute paths, credentials, or private session data are committed — verified with tracked-file searches and Git-isolation tests.
+- [x] Docker rebuild and test run verified using Docker Desktop's Linux engine — verified with the Phase 7 Docker build, static run, and 109-test container run.
 
 ## Current environment gaps
 
-- Docker Desktop 4.95.0, WSL 2.7.13, and Docker Linux engine 29.8.2 are now working after enabling the Windows optional features and restarting.
-- The workspace started empty; Git was initialized for this project on 2026-10-15.
-- `make` is not installed on the current Windows host; `npm test` is the portable test command and the Makefile wrapper is intended for Linux judges.
+- The symlink integration test is skipped on Windows because symlink creation returns `EPERM`; the decision helper is unit-tested.
+- `make` is not installed on this Windows host; `npm test` is the portable command and the Makefile wrapper remains intended for Linux judges.
+- Final merge, push, dashboard submission, and Unstop Submission ID entry are intentionally not done pending user approval.

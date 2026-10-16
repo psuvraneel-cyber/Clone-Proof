@@ -54,3 +54,11 @@
 - **Decision:** Add text, JSON, and self-contained HTML report output; `--output <file>` works with every format, creates parent folders, and keeps text output color-free.
 - **Why:** A downloadable report must open locally without a server, external fonts, scripts, or a network connection, and must agree with text/JSON findings.
 - **Trade-off:** The first HTML surface is a static report, not an interactive dashboard.
+
+## 2026-10-16 — Review accuracy and source-boundary fixes
+
+- **Decision:** Keep GitHub cloning isolated from host credentials/configuration, resolve Git from trusted absolute paths, preflight public visibility/size, and preserve deterministic cleanup.
+- **Decision:** Treat local Gitignore rules as part of a local checkout's reproducibility evidence, while treating GitHub checkouts as fresh clones through `freshClone: true`.
+- **Decision:** Finalize every Docker verification return through one summary/cleanup helper so stored counts always match findings.
+- **Decision:** Pin the verifier and project base image to `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`; no resource-limit adjustment was needed in the Jest Phase 7 run.
+- **Review session references:** `ses_ebf503317ffe255TeXPMMfCKMW`, `ses_ebb438187fferFPUplMV8TQS7B`, `ses_ebb43817efferVqnNPYek8NqvZ`.

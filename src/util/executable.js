@@ -53,10 +53,10 @@ function resolveGitExecutable(options = {}) {
   if (platform === 'win32') {
     const programFiles = env.ProgramFiles || 'C:\\Program Files';
     const programW6432 = env.ProgramW6432;
-    const localAppData = env.LOCALAPPDATA;
+    const localProgramsRoot = env.LOCALAPPDATA;
     candidates.push(joinForPlatform(platform, programFiles, 'Git', 'cmd', 'git.exe'));
     if (programW6432) candidates.push(joinForPlatform(platform, programW6432, 'Git', 'cmd', 'git.exe'));
-    if (localAppData) candidates.push(joinForPlatform(platform, localAppData, 'Programs', 'Git', 'cmd', 'git.exe'));
+    if (localProgramsRoot) candidates.push(joinForPlatform(platform, localProgramsRoot, 'Programs', 'Git', 'cmd', 'git.exe'));
   } else {
     candidates.push('/usr/bin/git', '/usr/local/bin/git', '/opt/homebrew/bin/git');
   }
@@ -78,12 +78,12 @@ function resolveDockerExecutable(options = {}) {
   if (platform === 'win32') {
     const programFiles = env.ProgramFiles || 'C:\\Program Files';
     const programW6432 = env.ProgramW6432 || programFiles;
-    const localAppData = env.LOCALAPPDATA;
+    const localProgramsRoot = env.LOCALAPPDATA;
     candidates.push(
       joinForPlatform(platform, programFiles, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'),
       joinForPlatform(platform, programW6432, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'),
-      ...(localAppData
-        ? [joinForPlatform(platform, localAppData, 'Programs', 'DockerDesktop', 'resources', 'bin', 'docker.exe')]
+      ...(localProgramsRoot
+        ? [joinForPlatform(platform, localProgramsRoot, 'Programs', 'DockerDesktop', 'resources', 'bin', 'docker.exe')]
         : [])
     );
   } else {
