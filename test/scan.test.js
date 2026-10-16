@@ -7,6 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const { scanRepository } = require('../src/scan/repository');
+const { exitCodeForReport } = require('../src/report/render');
 
 function makeRepository() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-scan-'));
@@ -562,6 +563,46 @@ test('blocks a Python repository that only contains JavaScript assets', () => wi
   assert.equal(report.project.type, 'unsupported');
   assert.equal(finding(report, 'PACKAGE_JSON_MISSING'), undefined);
   assert.equal(finding(report, 'UNSUPPORTED_ROOT').status, 'warning');
+}));
+
+test('classifies a Python app directory with JavaScript assets as unsupported', () => withRepository((root) => {
+  writeFile(root, 'requirements.txt', 'Django==5.0\n');
+  writeFile(root, 'app/__init__.py', '');
+  writeFile(root, 'app/static/js/main.js', 'console.log("asset");\n');
+
+  const report = scanRepository(root);
+  const unsupported = finding(report, 'UNSUPPORTED_ROOT');
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(exitCodeForReport(report), 2);
+  assert.equal(report.project.type, 'unsupported');
+  assert.equal(finding(report, 'PACKAGE_JSON_MISSING'), undefined);
+  assert.match(unsupported.message, /Python/);
+  assert.equal(unsupported.evidence[0].path, 'requirements.txt');
+}));
+
+test('classifies a Django layout as unsupported before considering JavaScript assets', () => withRepository((root) => {
+  writeFile(root, 'manage.py', 'print("django");\n');
+  writeFile(root, 'requirements.txt', 'Django==5.0\n');
+  writeFile(root, 'static/js/x.js', 'console.log("asset");\n');
+  writeFile(root, 'tsconfig.json', '{}\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.project.type, 'unsupported');
+  assert.equal(finding(report, 'UNSUPPORTED_ROOT').evidence[0].path, 'requirements.txt');
+  assert.equal(finding(report, 'PACKAGE_JSON_MISSING'), undefined);
+}));
+
+test('a root package.json takes precedence over an ecosystem marker', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({ name: 'node-root', scripts: { test: 'node --test' } }));
+  writeFile(root, 'package-lock.json', '{"name":"node-root","lockfileVersion":3,"packages":{"":{"name":"node-root"}}}\n');
+  writeFile(root, 'requirements.txt', 'flask\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.project.type, 'node');
+  assert.equal(finding(report, 'UNSUPPORTED_ROOT'), undefined);
 }));
 
 test('blocks a Go repository with JavaScript only in documentation', () => withRepository((root) => {

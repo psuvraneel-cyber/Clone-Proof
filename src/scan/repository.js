@@ -990,14 +990,16 @@ function calculateDigest(files) {
   return hash.digest('hex');
 }
 
-function inferProjectType(packageState, discovered, nestedPaths = []) {
+function inferProjectType(packageState, discovered, nestedPaths = [], ecosystemMarker = rootEcosystemMarker(discovered)) {
   const knownPaths = [...discovered.keys()].filter((relativePath) => isApplicationSourcePath(relativePath, nestedPaths));
   const hasRootTsconfig = discovered.has('tsconfig.json');
-  const hasTypeScript = hasRootTsconfig || knownPaths.some((relativePath) => /\.(?:ts|cts|mts|tsx)$/i.test(relativePath));
+  const hasTypeScriptSource = knownPaths.some((relativePath) => /\.(?:ts|cts|mts|tsx)$/i.test(relativePath));
   const hasJavaScript = knownPaths.some((relativePath) => /\.(?:js|cjs|mjs|jsx)$/i.test(relativePath));
 
-  if (hasTypeScript) return 'typescript';
-  if (packageState !== 'absent' || hasJavaScript) return 'node';
+  if (packageState !== 'absent') return hasRootTsconfig || hasTypeScriptSource ? 'typescript' : 'node';
+  if (ecosystemMarker) return 'unsupported';
+  if (hasTypeScriptSource) return 'typescript';
+  if (hasJavaScript) return 'node';
   return 'unsupported';
 }
 
@@ -1015,7 +1017,7 @@ function scanRepository(rootPath, options) {
   const packageState = stateFor('package.json', scanned.files, scanned.discovered, scanned.skipped);
   const nestedPackageFiles = nestedPackagePaths(scanned.discovered);
   const ecosystemMarker = rootEcosystemMarker(scanned.discovered);
-  const projectType = inferProjectType(packageState, scanned.discovered, nestedPackageFiles);
+  const projectType = inferProjectType(packageState, scanned.discovered, nestedPackageFiles, ecosystemMarker);
   const packageText = packageState === 'scanned'
     ? decodeText(scanned.files.get('package.json'))
     : null;
