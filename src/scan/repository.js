@@ -838,6 +838,12 @@ function isCoreFile(relativePath) {
     || /^dockerfile(?:\..*)?$/.test(lower);
 }
 
+function classifyLstatFailure(relativePath, entry) {
+  return entry && typeof entry.isFile === 'function' && entry.isFile() && isCoreFile(relativePath)
+    ? 'error'
+    : 'skip';
+}
+
 function escapeRegexCharacter(character) {
   return /[\\^$.*+?()[\]{}|]/.test(character) ? `\\${character}` : character;
 }
@@ -994,6 +1000,7 @@ function scanFiles(rootPath, limits, options = {}) {
   const discovered = new Map();
   const skipped = new Set();
   const ignoredCorePaths = new Set();
+  const depthSkipped = new Set();
   const errors = [];
   let complete = true;
   let fileCount = 0;
@@ -1021,6 +1028,7 @@ function scanFiles(rootPath, limits, options = {}) {
       discovered,
       skipped,
       ignoredCorePaths,
+      depthSkipped,
       skippedPathsTruncated,
       errors,
       complete,
@@ -1084,7 +1092,8 @@ function scanFiles(rootPath, limits, options = {}) {
       try {
         entryStat = fs.lstatSync(absoluteEntry);
       } catch {
-        addError(relativeEntry, 'file');
+        if (classifyLstatFailure(relativeEntry, entry) === 'error') addError(relativeEntry, 'file');
+        else addSkipped(relativeEntry);
         continue;
       }
 
@@ -1103,6 +1112,7 @@ function scanFiles(rootPath, limits, options = {}) {
           continue;
         }
         if (depth + 1 > limits.maxDepth) {
+          depthSkipped.add(relativeEntry);
           addSkipped(relativeEntry);
           continue;
         }
@@ -1778,7 +1788,13 @@ function scanRepository(rootPath, options) {
     }
   }
 
-  if (applicationSourceFiles.length > 0 && (unscannedSourceFiles.length > 0 || unscannedEnvTemplates.length > 0)) {
+  const depthSkippedEnvironmentPaths = [...scanned.depthSkipped].sort(compareStrings);
+  const unscannedEnvironmentPaths = [
+    ...unscannedSourceFiles,
+    ...unscannedEnvTemplates,
+    ...depthSkippedEnvironmentPaths
+  ].sort(compareStrings);
+  if (unscannedEnvironmentPaths.length > 0 && (applicationSourceFiles.length > 0 || depthSkippedEnvironmentPaths.length > 0)) {
     addFinding(
       findings,
       'ENV_CHECK_SKIPPED',
@@ -1786,9 +1802,12 @@ function scanRepository(rootPath, options) {
       'info',
       'Environment references could not be fully checked',
       'At least one source or environment template file was outside the readable scan set.',
-      [...unscannedSourceFiles, ...unscannedEnvTemplates]
-        .sort(compareStrings)
-        .map((relativePath) => makeEvidence(relativePath, 'File was not available for environment-variable inspection.')),
+      unscannedEnvironmentPaths.map((relativePath) => makeEvidence(
+        relativePath,
+        depthSkippedEnvironmentPaths.includes(relativePath)
+          ? 'Directory was outside the configured maximum scan depth.'
+          : 'File was not available for environment-variable inspection.'
+      )),
       'Increase the scan bounds and run the scan again.'
     );
   } else if (environmentReferences.size > 0) {
@@ -2083,4 +2102,4 @@ function scanRepository(rootPath, options) {
   };
 }
 
-module.exports = { scanRepository };
+module.exports = { classifyLstatFailure, scanRepository };

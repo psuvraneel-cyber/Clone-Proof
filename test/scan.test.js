@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { scanRepository } = require('../src/scan/repository');
+const { classifyLstatFailure, scanRepository } = require('../src/scan/repository');
 const { exitCodeForReport } = require('../src/report/render');
 
 function makeRepository() {
@@ -880,6 +880,25 @@ test('marks a bounded scan incomplete and records skipped files', () => withRepo
     maxEntries: 200000
   });
 }));
+
+test('reports directories cut off by maxDepth in environment-check evidence', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'src/deep/config.js', 'process.env.DEEP_SETTING;\n');
+
+  const report = scanRepository(root, { maxDepth: 1 });
+  const skipped = finding(report, 'ENV_CHECK_SKIPPED');
+
+  assert.equal(skipped.status, 'skipped');
+  assert.ok(skipped.evidence.some((item) => item.path === 'src/deep'));
+  assert.match(skipped.evidence.find((item) => item.path === 'src/deep').detail, /maximum scan depth/);
+}));
+
+test('classifies metadata failures as incomplete only for root core files', () => {
+  assert.equal(classifyLstatFailure('package.json', { isFile: () => true }), 'error');
+  assert.equal(classifyLstatFailure('README.md', { isFile: () => true }), 'error');
+  assert.equal(classifyLstatFailure('src/index.js', { isFile: () => true }), 'skip');
+  assert.equal(classifyLstatFailure('package.json', { isFile: () => false }), 'skip');
+});
 
 test('ignores oversized generated assets without making the scan incomplete', () => withRepository((root) => {
   writeHealthyRepository(root);
