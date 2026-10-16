@@ -361,6 +361,104 @@ test('warns when exact Node runtime declarations disagree', () => withRepository
   assert.equal(finding(report, 'RUNTIME_VERSION_MISMATCH').status, 'warning');
 }));
 
+test('warns when major Node runtime declarations disagree', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'major-runtime-mismatch',
+    engines: { node: '>=18' },
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"major-runtime-mismatch","lockfileVersion":3,"packages":{}}\n');
+  writeFile(root, '.nvmrc', '22\n');
+  writeFile(root, 'Dockerfile', 'FROM node:18-alpine\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'RUNTIME_VERSION_MISMATCH').status, 'warning');
+}));
+
+test('does not warn when a partial Docker tag agrees by major version', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'major-runtime-match',
+    engines: { node: '>=22' },
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"major-runtime-match","lockfileVersion":3,"packages":{}}\n');
+  writeFile(root, '.nvmrc', '22.19.0\n');
+  writeFile(root, 'Dockerfile', 'FROM node:22-bookworm-slim\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'RUNTIME_VERSION_MISMATCH'), undefined);
+}));
+
+test('includes .node-version in runtime declarations', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, '.node-version', '22.19.0\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.project.runtime.nodeVersion, '22.19.0');
+  assert.equal(finding(report, 'NODE_VERSION_PRESENT').status, 'passed');
+}));
+
+test('ignores runtime aliases that cannot be pinned', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'runtime-alias',
+    engines: { node: 'lts/*' },
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"runtime-alias","lockfileVersion":3,"packages":{}}\n');
+  writeFile(root, '.nvmrc', 'lts/*\n');
+  writeFile(root, 'Dockerfile', 'FROM node:latest\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'RUNTIME_VERSION_MISMATCH'), undefined);
+  assert.equal(finding(report, 'ENGINES_NODE_UNSATISFIED'), undefined);
+}));
+
+test('warns when a pinned runtime does not satisfy engines.node', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'engine-unsatisfied',
+    engines: { node: '>=22' },
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"engine-unsatisfied","lockfileVersion":3,"packages":{}}\n');
+  writeFile(root, '.nvmrc', '20\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENGINES_NODE_UNSATISFIED').status, 'warning');
+}));
+
+test('accepts an engines alternative that includes the pinned runtime', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'engine-alternatives',
+    engines: { node: '^20 || ^22' },
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"engine-alternatives","lockfileVersion":3,"packages":{}}\n');
+  writeFile(root, '.nvmrc', '22\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENGINES_NODE_UNSATISFIED'), undefined);
+}));
+
+test('skips unsupported engine range syntax without a false finding', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'engine-unknown',
+    engines: { node: '20 - 22' },
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"engine-unknown","lockfileVersion":3,"packages":{}}\n');
+  writeFile(root, '.nvmrc', '18\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENGINES_NODE_UNSATISFIED'), undefined);
+}));
+
 test('blocks an empty repository instead of reporting a false pass', () => withRepository((root) => {
   const report = scanRepository(root);
 

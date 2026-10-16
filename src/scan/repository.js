@@ -455,6 +455,120 @@ function exactRuntimeVersion(value) {
   return match ? match[1] : null;
 }
 
+function parseVersionParts(value) {
+  if (typeof value !== 'string') return null;
+  const match = /^\s*v?(\d+)(?:\.(\d+|x|X))?(?:\.(\d+|x|X))?/ .exec(value);
+  if (!match) return null;
+  return {
+    major: Number(match[1]),
+    minor: match[2] && !/^x$/i.test(match[2]) ? Number(match[2]) : null,
+    patch: match[3] && !/^x$/i.test(match[3]) ? Number(match[3]) : null,
+    full: Boolean(match[2] && match[3] && !/^x$/i.test(match[2]) && !/^x$/i.test(match[3]))
+  };
+}
+
+function parsePinnedRuntime(value) {
+  if (typeof value !== 'string') return null;
+  const raw = value.trim();
+  if (!raw || /^(?:lts(?:\/.*)?|node|latest|current|stable)$/i.test(raw)) return null;
+  const parts = parseVersionParts(raw.replace(/[-+].*$/, ''));
+  if (!parts) return null;
+  return { raw, major: parts.major, minor: parts.minor, patch: parts.patch, full: parts.full };
+}
+
+function parseDockerNodeDeclarations(text, relativePath) {
+  const declarations = [];
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const match = /^\s*FROM\s+(?:(?:--platform=[^\s]+)\s+)?([^\s]+)(?:\s+AS\s+[^\s]+)?(?:\s+#.*)?\s*$/i.exec(line);
+    if (!match) continue;
+    let image = match[1].split('@')[0];
+    const slashIndex = image.lastIndexOf('/');
+    const imageName = slashIndex === -1 ? image : image.slice(slashIndex + 1);
+    if (!/^node(?::|$)/i.test(imageName)) continue;
+    const colonIndex = imageName.indexOf(':');
+    const tag = colonIndex === -1 ? 'latest' : imageName.slice(colonIndex + 1);
+    const parsed = parsePinnedRuntime(tag);
+    if (parsed) {
+      const normalizedRaw = parsed.full
+        ? `${parsed.major}.${parsed.minor}.${parsed.patch}`
+        : parsed.minor !== null
+          ? `${parsed.major}.${parsed.minor}`
+          : String(parsed.major);
+      declarations.push({ ...parsed, raw: normalizedRaw, tag, path: relativePath });
+    }
+  }
+  return declarations;
+}
+
+function compareVersions(left, right) {
+  for (const key of ['major', 'minor', 'patch']) {
+    const leftValue = left[key] ?? 0;
+    const rightValue = right[key] ?? 0;
+    if (leftValue !== rightValue) return leftValue < rightValue ? -1 : 1;
+  }
+  return 0;
+}
+
+function parseRangeVersion(value) {
+  const parsed = parseVersionParts(value);
+  if (!parsed) return null;
+  return {
+    major: parsed.major,
+    minor: parsed.minor ?? 0,
+    patch: parsed.patch ?? 0,
+    full: parsed.full
+  };
+}
+
+function satisfiesRangeToken(pinned, token) {
+  const trimmed = token.trim();
+  if (!trimmed) return true;
+  const operatorMatch = /^(\^|~|>=|<=|>|<)?\s*(v?\d+(?:\.(?:\d+|x|X))?(?:\.(?:\d+|x|X))?)$/.exec(trimmed);
+  if (!operatorMatch) return null;
+  const operator = operatorMatch[1] || '';
+  const version = parseRangeVersion(operatorMatch[2]);
+  if (!version) return null;
+  const pinnedVersion = {
+    major: pinned.major,
+    minor: pinned.minor ?? 0,
+    patch: pinned.patch ?? 0
+  };
+  if (operator === '^') {
+    const lower = compareVersions(pinnedVersion, version) >= 0;
+    const upper = version.major > 0
+      ? pinnedVersion.major < version.major + 1
+      : pinnedVersion.major === 0 && pinnedVersion.minor === version.minor;
+    return lower && upper;
+  }
+  if (operator === '~') {
+    const lower = compareVersions(pinnedVersion, version) >= 0;
+    const upper = version.minor > 0
+      ? (pinnedVersion.major === version.major && pinnedVersion.minor < version.minor + 1)
+      : pinnedVersion.major < version.major + 1;
+    return lower && upper;
+  }
+  if (operator === '>=') return compareVersions(pinnedVersion, version) >= 0;
+  if (operator === '>') return compareVersions(pinnedVersion, version) > 0;
+  if (operator === '<=') return compareVersions(pinnedVersion, version) <= 0;
+  if (operator === '<') return compareVersions(pinnedVersion, version) < 0;
+  if (version.full) return compareVersions(pinnedVersion, version) === 0;
+  return pinned.major === version.major;
+}
+
+function satisfiesEngineRange(pinned, range) {
+  if (typeof range !== 'string' || !range.trim()) return null;
+  const alternatives = range.split('||').map((part) => part.trim());
+  const results = [];
+  for (const alternative of alternatives) {
+    const tokens = alternative.split(/\s+/).filter(Boolean);
+    const tokenResults = tokens.map((token) => satisfiesRangeToken(pinned, token));
+    if (tokenResults.some((result) => result === null)) continue;
+    results.push(tokenResults.every(Boolean));
+  }
+  return results.length > 0 ? results.some(Boolean) : null;
+}
+
 function parseReadmeCommands(text) {
   const references = new Map();
   const lines = text.split(/\r?\n/);
@@ -784,21 +898,23 @@ function scanRepository(rootPath, options) {
   const nvmrc = nvmrcState === 'scanned'
     ? firstNonEmptyLine(decodeText(scanned.files.get('.nvmrc')))
     : null;
+  const nodeVersionState = stateFor('.node-version', scanned.files, scanned.discovered, scanned.skipped);
+  const nodeVersion = nodeVersionState === 'scanned'
+    ? firstNonEmptyLine(decodeText(scanned.files.get('.node-version')))
+    : null;
 
   const dockerFiles = sortedKnownRootFiles(scanned.discovered)
     .filter((relativePath) => /^dockerfile(?:\..*)?$/i.test(relativePath));
-  const dockerNode = [];
+  const dockerDeclarations = [];
   const unscannedDockerFiles = [];
   for (const dockerFile of dockerFiles) {
     if (scanned.files.has(dockerFile)) {
-      for (const version of extractDockerNodeVersions(decodeText(scanned.files.get(dockerFile)))) {
-        if (!dockerNode.includes(version)) dockerNode.push(version);
-      }
+      dockerDeclarations.push(...parseDockerNodeDeclarations(decodeText(scanned.files.get(dockerFile)), dockerFile));
     } else {
       unscannedDockerFiles.push(dockerFile);
     }
   }
-  dockerNode.sort(compareStrings);
+  const dockerNode = [...new Set(dockerDeclarations.map((declaration) => declaration.raw))].sort(compareStrings);
 
   const target = {
     kind: 'local',
@@ -1353,6 +1469,43 @@ function scanRepository(rootPath, options) {
     );
   }
 
+  if (nodeVersionState === 'scanned') {
+    if (nodeVersion) {
+      addFinding(
+        findings,
+        'NODE_VERSION_PRESENT',
+        'passed',
+        'info',
+        'Node runtime is pinned by .node-version',
+        `The repository declares Node.js ${nodeVersion} in .node-version.`,
+        [makeEvidence('.node-version', 'Node runtime declaration.')],
+        'Keep .node-version aligned with the supported Node.js runtime.'
+      );
+    } else {
+      addFinding(
+        findings,
+        'NODE_VERSION_EMPTY',
+        'warning',
+        'warning',
+        '.node-version is empty',
+        'The repository contains .node-version but it does not declare a runtime version.',
+        [makeEvidence('.node-version', 'Empty Node runtime declaration.')],
+        'Put a concrete Node.js runtime version in .node-version.'
+      );
+    }
+  } else if (nodeVersionState === 'unscanned' || nodeVersionState === 'skipped') {
+    addFinding(
+      findings,
+      'NODE_VERSION_CHECK_SKIPPED',
+      'skipped',
+      'info',
+      '.node-version could not be inspected',
+      'A runtime declaration was discovered but was not included in the readable scan set.',
+      [makeEvidence('.node-version', 'Runtime declaration was not available to inspect.')],
+      'Increase the scan bounds or make .node-version readable, then run the scan again.'
+    );
+  }
+
   if (enginesNode) {
     const enginesLine = packageText ? firstMatchLine(packageText, /"node"\s*:/) : undefined;
     addFinding(
@@ -1375,41 +1528,71 @@ function scanRepository(rootPath, options) {
       'info',
       'Dockerfile Node base versions were detected',
       `Detected Node base version${dockerNode.length === 1 ? '' : 's'}: ${dockerNode.join(', ')}.`,
-      dockerFiles
-        .filter((relativePath) => scanned.files.has(relativePath))
-        .map((relativePath) => makeEvidence(relativePath, 'Node base image declaration.')),
-      'Keep Dockerfile Node bases aligned with the project runtime.'
-    );
+       dockerDeclarations.map((declaration) => makeEvidence(
+         declaration.path,
+         `Node base image declaration: ${declaration.raw}.`
+       )),
+       'Keep Dockerfile Node bases aligned with the project runtime.'
+     );
   }
 
   const runtimeDeclarations = [];
-  const nvmrcExact = exactRuntimeVersion(nvmrc);
+  for (const [value, declarationPath, detail] of [
+    [nvmrc, '.nvmrc', 'Runtime declared in .nvmrc.'],
+    [nodeVersion, '.node-version', 'Runtime declared in .node-version.']
+  ]) {
+    const parsed = parsePinnedRuntime(value);
+    if (parsed) runtimeDeclarations.push({ ...parsed, path: declarationPath, detail });
+  }
+  for (const declaration of dockerDeclarations) runtimeDeclarations.push(declaration);
   const enginesExact = exactRuntimeVersion(enginesNode);
-  if (nvmrcExact) {
-    runtimeDeclarations.push({ version: nvmrcExact, path: '.nvmrc', detail: 'Exact runtime declared in .nvmrc.' });
-  }
   if (enginesExact) {
-    runtimeDeclarations.push({ version: enginesExact, path: 'package.json', detail: 'Exact engines.node runtime declared in package.json.' });
-  }
-  for (const version of dockerNode) {
-    const exact = exactRuntimeVersion(version);
-    if (exact) {
-      runtimeDeclarations.push({ version: exact, path: dockerFiles[0] || 'Dockerfile', detail: 'Exact Node base version declared in a Dockerfile.' });
-    }
+    const parsed = parsePinnedRuntime(enginesExact);
+    if (parsed) runtimeDeclarations.push({ ...parsed, path: 'package.json', detail: 'Exact engines.node runtime declaration.' });
   }
 
-  const runtimeVersions = [...new Set(runtimeDeclarations.map((declaration) => declaration.version))].sort(compareStrings);
-  if (runtimeVersions.length > 1) {
+  const exactVersions = [...new Set(runtimeDeclarations
+    .filter((declaration) => declaration.full)
+    .map((declaration) => `${declaration.major}.${declaration.minor}.${declaration.patch}`))]
+    .sort(compareStrings);
+  const majorVersions = [...new Set(runtimeDeclarations.map((declaration) => declaration.major))].sort((left, right) => left - right);
+  const runtimeMismatch = exactVersions.length > 1 || majorVersions.length > 1;
+  if (runtimeMismatch) {
     addFinding(
       findings,
       'RUNTIME_VERSION_MISMATCH',
       'warning',
       'warning',
       'Runtime declarations disagree',
-      `Exact Node.js declarations contain multiple versions: ${runtimeVersions.join(', ')}.`,
-      runtimeDeclarations.map((declaration) => makeEvidence(declaration.path, `${declaration.detail} Found ${declaration.version}.`)),
+      `Node.js declarations contain ${majorVersions.length > 1 ? `multiple major versions (${majorVersions.join(', ')})` : `multiple exact versions (${exactVersions.join(', ')})`}.`,
+      runtimeDeclarations.map((declaration) => makeEvidence(
+        declaration.path,
+        `${declaration.detail} Found ${declaration.raw || `${declaration.major}.${declaration.minor ?? 'x'}.${declaration.patch ?? 'x'}`}.`
+      )),
       'Choose one supported Node.js version and align .nvmrc, engines.node, and Dockerfile base images.'
     );
+  }
+
+  if (enginesNode && !enginesExact) {
+    const unsupportedRange = runtimeDeclarations
+      .filter((declaration) => declaration.path !== 'package.json')
+      .map((declaration) => ({ declaration, result: satisfiesEngineRange(declaration, enginesNode) }))
+      .find((item) => item.result === false);
+    if (unsupportedRange) {
+      addFinding(
+        findings,
+        'ENGINES_NODE_UNSATISFIED',
+        'warning',
+        'warning',
+        'A pinned Node runtime does not satisfy engines.node',
+        `${unsupportedRange.declaration.path} declares Node.js ${unsupportedRange.declaration.raw}, which does not satisfy engines.node ${enginesNode}.`,
+        [
+          makeEvidence(unsupportedRange.declaration.path, 'Pinned Node runtime declaration.'),
+          makeEvidence('package.json', 'Node engine range declaration.', packageText ? firstMatchLine(packageText, /"node"\s*:/) : undefined)
+        ],
+        'Align the pinned runtime with the engines.node range or update the supported engine range.'
+      );
+    }
   }
 
   if (unscannedDockerFiles.length > 0) {
@@ -1433,6 +1616,7 @@ function scanRepository(rootPath, options) {
     scripts,
     runtime: {
       nvmrc,
+      nodeVersion,
       enginesNode,
       dockerNode
     }
