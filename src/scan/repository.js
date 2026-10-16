@@ -297,22 +297,88 @@ function extractEnvironmentReferences(text, relativePath) {
     return entries;
   }
 
-  const destructuringExpression = /\{([\s\S]*?)\}\s*=\s*(process\.env|import\.meta\.env)\b/g;
-  let destructuring = destructuringExpression.exec(text);
-  while (destructuring) {
-    const body = destructuring[1];
-    const bodyStart = destructuring.index + 1;
-    for (const entry of splitDestructuringBody(body)) {
-      const trimmed = entry.text.trim();
-      if (!trimmed || trimmed.startsWith('...') || trimmed.startsWith('[')) continue;
-      const keyMatch = /^(?:(['"])([A-Za-z_][A-Za-z0-9_]*)\1|([A-Za-z_][A-Za-z0-9_]*))(?=\s*(?::|=|$))/.exec(trimmed);
-      if (!keyMatch) continue;
-      matches.push({
-        key: keyMatch[2] || keyMatch[3],
-        index: bodyStart + entry.start + entry.text.indexOf(trimmed)
-      });
+  function matchingDestructuringBrace(start) {
+    const limit = Math.min(text.length, start + 1 + 10000);
+    const stack = ['{'];
+    let quote = null;
+    let escaped = false;
+    let comment = null;
+
+    for (let index = start + 1; index < limit; index += 1) {
+      const character = text[index];
+      const next = text[index + 1];
+
+      if (comment === 'line') {
+        if (character === '\n' || character === '\r') comment = null;
+        continue;
+      }
+      if (comment === 'block') {
+        if (character === '*' && next === '/') {
+          comment = null;
+          index += 1;
+        }
+        continue;
+      }
+      if (quote) {
+        if (escaped) escaped = false;
+        else if (character === '\\') escaped = true;
+        else if (character === quote) quote = null;
+        continue;
+      }
+
+      if (character === '/' && next === '/') {
+        comment = 'line';
+        index += 1;
+        continue;
+      }
+      if (character === '/' && next === '*') {
+        comment = 'block';
+        index += 1;
+        continue;
+      }
+      if (character === '"' || character === "'" || character === '`') {
+        quote = character;
+        escaped = false;
+        continue;
+      }
+
+      if (character === '{' || character === '[' || character === '(') {
+        stack.push(character);
+        continue;
+      }
+      if (character === '}' || character === ']' || character === ')') {
+        const expected = character === '}' ? '{' : character === ']' ? '[' : '(';
+        if (stack.at(-1) !== expected) return null;
+        stack.pop();
+        if (stack.length === 0) return index;
+      }
     }
-    destructuring = destructuringExpression.exec(text);
+
+    return null;
+  }
+
+  const destructuringStarts = /(?:\b(?:const|let|var)\s*|\(\s*)\{/g;
+  let destructuringStart = destructuringStarts.exec(text);
+  while (destructuringStart) {
+    const openingBrace = destructuringStart.index + destructuringStart[0].length - 1;
+    const closingBrace = matchingDestructuringBrace(openingBrace);
+    if (closingBrace !== null) {
+      const assignment = /^\s*=\s*(?:process\.env|import\.meta\.env)\b/.exec(text.slice(closingBrace + 1));
+      if (assignment) {
+        const body = text.slice(openingBrace + 1, closingBrace);
+        for (const entry of splitDestructuringBody(body)) {
+          const trimmed = entry.text.trim();
+          if (!trimmed || trimmed.startsWith('...') || trimmed.startsWith('[')) continue;
+          const keyMatch = /^(?:(['"])([A-Za-z_][A-Za-z0-9_]*)\1|([A-Za-z_][A-Za-z0-9_]*))(?=\s*(?::|=|$))/.exec(trimmed);
+          if (!keyMatch) continue;
+          matches.push({
+            key: keyMatch[2] || keyMatch[3],
+            index: openingBrace + 1 + entry.start + entry.text.indexOf(trimmed)
+          });
+        }
+      }
+    }
+    destructuringStart = destructuringStarts.exec(text);
   }
 
   matches.sort((left, right) => left.index - right.index || compareStrings(left.key, right.key));

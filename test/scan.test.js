@@ -175,6 +175,82 @@ test('detects destructured, aliased, defaulted, quoted, and optional environment
   assert.equal(report.findings.some((item) => item.title.includes('REST')), false);
 }));
 
+function writeEnvironmentFixture(root, source) {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'environment-fixture',
+    scripts: { test: 'node --test' }
+  }));
+  writeFile(root, 'package-lock.json', '{"name":"environment-fixture","lockfileVersion":3,"packages":{"":{"name":"environment-fixture"}}}\n');
+  writeFile(root, 'index.js', source);
+}
+
+test('does not treat an earlier object destructuring as environment access', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    "const { join, resolve } = require('path');",
+    'const { PORT, DATABASE_URL } = process.env;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /DATABASE_URL, PORT/);
+  assert.doesNotMatch(missing.message, /join|resolve/);
+  assert.equal(report.findings.some((item) => item.title.includes('join')), false);
+  assert.equal(report.findings.some((item) => item.title.includes('resolve')), false);
+}));
+
+test('finds destructuring after a function and inside a function body', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'function before() { return 1; }',
+    'const { AFTER_FUNCTION } = process.env;',
+    'function read() {',
+    '  const { INSIDE_FUNCTION } = import.meta.env;',
+    '  return INSIDE_FUNCTION;',
+    '}'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.match(missing.message, /AFTER_FUNCTION/);
+  assert.match(missing.message, /INSIDE_FUNCTION/);
+}));
+
+test('finds multiline, assignment-form, nested, quoted, defaulted, and spread destructuring keys', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'function read() {',
+    '  const {',
+    '    MULTILINE,',
+    '    ALIASED: localAlias,',
+    '    DEFAULTED = "fallback",',
+    '    "QUOTED_KEY": quoted,',
+    '    NESTED: { ignored },',
+    '    ARRAY: [alsoIgnored],',
+    '    ...rest',
+    '  } = process.env;',
+    '  ({ ASSIGNED } = import.meta.env);',
+    '}'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  for (const key of ['ALIASED', 'ASSIGNED', 'DEFAULTED', 'MULTILINE', 'NESTED', 'QUOTED_KEY']) {
+    assert.match(missing.message, new RegExp(key));
+  }
+  assert.doesNotMatch(missing.message, /ignored|alsoIgnored|rest|localAlias/);
+}));
+
+test('does not infer environment keys from ordinary object literals or aliases', () => withRepository((root) => {
+  writeEnvironmentFixture(root, 'const obj = { a: 1 };\nconst env = process.env;\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENV_EXAMPLE_MISSING'), undefined);
+  assert.equal(finding(report, 'ENV_KEY_MISSING'), undefined);
+}));
+
 test('ignores host environment variables and isolates nested packages', () => withRepository((root) => {
   writeHealthyRepository(root);
   writeFile(root, 'src/index.ts', 'export const path = process.env.PATH;\nexport const app = process.env.APP_SETTING;\n');
