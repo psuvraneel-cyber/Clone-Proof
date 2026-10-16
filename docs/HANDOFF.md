@@ -131,30 +131,35 @@ Do not promise that every arbitrary GitHub project can be installed and tested. 
 Working directory: `C:\Users\Sauvraneel Paul\OneDrive\Desktop\Clone-Proof`
 
 - `npm ci --offline --ignore-scripts --no-audit --no-fund` — passed.
-- `npm test` — passed: 69 passed, 1 skipped; the skip is Windows `EPERM` symlink creation.
 - `npm test` after GitHub/HTML integration — passed: 80 passed, 1 skipped; the skip is Windows `EPERM` symlink creation.
 - `npm_config_offline=true npm test` — passed with the same result.
-- `npm run build` — passed; four source files syntax-checked.
+- `npm run build` — passed; five source files syntax-checked.
 - `git diff --check` — passed.
 - `node src/cli.js check examples/healthy-node` — observed `passed`, exit `0`.
 - `node src/cli.js check examples/broken-node` — observed `failed`, exit `1`.
 - Missing repository path — observed `incomplete`, exit `2`.
 - `docker version` — passed after enabling WSL 2: Docker Desktop Linux engine 29.8.2, Linux `x86_64`.
 - `docker pull node:22.19.0-bookworm-slim` — passed; resolved digest `sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`.
-- `docker build -t cloneproof .` — passed on Docker Desktop's Linux engine.
-- `docker run --rm --network none cloneproof npm test` — passed: 37 passed, 0 skipped.
-- `node src/cli.js verify examples/healthy-node --docker --execute --format json` — passed: status `passed`, container exit `0`, network `none`, cleanup confirmed. The first real attempt exposed and led to fixing the redundant `/bin/sh` argument in `5de4d11`; the rerun passed.
+- `docker build -t cloneproof .` — passed on Docker Desktop's Linux engine after excluding local `.agents`, `.claude`, and `.opencode` metadata from the build context.
+- `docker run --rm --network none cloneproof npm test` — passed: 81 passed, 0 skipped inside the rebuilt image.
+- `docker run --rm --network none cloneproof` — passed static inspection with 10 passed findings, 1 skipped nested-package finding, and no local worktree metadata in the scan.
+- `node src/cli.js verify examples/healthy-node --docker --execute --format json` — passed: status `passed`, container exit `0`, network `none`, cleanup confirmed.
 - A depth-1 clone of `https://github.com/psuvraneel-cyber/Clone-Proof` at `d5b1c58` — static check returned `passed_with_warnings`, 0 failures, 7 warnings, 39 files.
 - The same GitHub clone — Docker verify returned `passed_with_warnings`, verification outcome `passed`, container exit `0`, cleanup confirmed.
 - `make test` — not run; `make` is unavailable on this host.
 - `node src/cli.js check examples/healthy-node --format json` — passed on the current branch; schema version 2, 10 passed findings, 0 warnings.
 - `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` — passed on the current branch; bounded shallow clone cleaned up, target `psuvraneel-cyber/Clone-Proof`, 10 passed findings, 1 skipped nested-package finding, 0 failures.
-- `docker version` — latest branch validation attempt was blocked because the Docker Desktop Linux engine named pipe was unavailable; no real container was started by that attempt.
+- `docker version` — passed after Docker Desktop was started: Linux engine `29.8.2`.
+- `node src/cli.js verify examples/broken-node --docker --execute --format json` — blocked by static prerequisites; no target container was started.
+- `node src/cli.js verify https://github.com/psuvraneel-cyber/Clone-Proof --docker --execute --format json` — passed: bounded public clone, network `none`, container exit `0`, cleanup confirmed.
 
 Latest local commits for the accuracy/verification work:
 
 - `14eb5bb fix: harden Docker verification defaults` — lockfile package metadata, network-required blocking, failed-phase diagnostics, exit-code-137 messaging, and Docker resource defaults.
 - `6103d97 fix: simplify report rendering` — schema-version-2 renderer, evidence details, and bounded multiline output.
+- `8ab09ee feat: accept public GitHub repositories` — bounded public GitHub URL input and CLI integration.
+- `d8c12a6 feat: add self-contained HTML reports` — escaped offline HTML rendering and output files.
+- `28effae fix: avoid leaking GitHub URL credentials` — redacted invalid URL labels and disabled Git credential prompts.
 
 ## OmniRush sessions for submission
 
@@ -170,7 +175,7 @@ Use the main session in the Buildathon dashboard and confirm any associated sub-
 
 ## Next step
 
-Start Docker Desktop's Linux engine and run the real validation again against the current branch. Then review the final public repository and submission checklist. The prior validation passed with:
+Review the final public repository and submission checklist. The current validation passed with:
 
 ```bash
 npm ci --offline
