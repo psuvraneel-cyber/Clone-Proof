@@ -155,6 +155,29 @@ test('static failures block Docker execution', async () => {
   assert.equal(calls.length, 0);
 });
 
+test('placeholder npm test scripts block Docker execution', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-placeholder-'));
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+      name: 'placeholder-fixture',
+      scripts: { test: 'echo "Error: no test specified" && exit 1' }
+    }, null, 2));
+    fs.writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({
+      name: 'placeholder-fixture',
+      lockfileVersion: 3,
+      packages: { '': { name: 'placeholder-fixture' } }
+    }));
+    const { calls, runner } = makeRunner();
+    const report = await verifyRepository(root, { execute: true, runner });
+
+    assert.equal(report.status, 'blocked');
+    assert.equal(report.findings.find((item) => item.code === 'DOCKER_PREREQUISITES_FAILED').status, 'skipped');
+    assert.equal(calls.length, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('staging excludes real environment files but keeps safe examples', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-stage-source-'));
   const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-stage-target-'));

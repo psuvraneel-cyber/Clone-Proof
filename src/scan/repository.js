@@ -884,13 +884,25 @@ function scanRepository(rootPath, options) {
   }
 
   let missingTestFinding = null;
+  let placeholderTestFinding = null;
   if (packageValid) {
     const rawScripts = packageData.scripts && typeof packageData.scripts === 'object' && !Array.isArray(packageData.scripts)
       ? packageData.scripts
       : {};
     const testValue = Object.prototype.hasOwnProperty.call(rawScripts, 'test') ? rawScripts.test : null;
     const testLine = packageText ? firstMatchLine(packageText, /"test"\s*:/) : undefined;
-    if (typeof testValue === 'string' && testValue.trim()) {
+    if (typeof testValue === 'string' && /no test specified/i.test(testValue)) {
+      placeholderTestFinding = addFinding(
+        findings,
+        'TEST_SCRIPT_PLACEHOLDER',
+        'failed',
+        'error',
+        'The package test script is npm’s placeholder',
+        'scripts.test still uses npm’s default “Error: no test specified” placeholder instead of running a test suite.',
+        [makeEvidence('package.json', 'scripts.test contains the npm placeholder command.', testLine)],
+        'Replace the placeholder with a deterministic command that runs the repository test suite.'
+      );
+    } else if (typeof testValue === 'string' && testValue.trim()) {
       addFinding(
         findings,
         'TEST_SCRIPT_PRESENT',
@@ -1015,7 +1027,7 @@ function scanRepository(rootPath, options) {
     }
 
     if (reference.kind === 'test') {
-      if (packageValid && typeof scripts.test === 'string' && scripts.test.trim()) {
+      if (packageValid && typeof scripts.test === 'string' && scripts.test.trim() && !placeholderTestFinding) {
         addFinding(
           findings,
           'README_TEST_COMMAND',
@@ -1026,8 +1038,8 @@ function scanRepository(rootPath, options) {
           evidence,
           'Keep the README test command aligned with scripts.test.'
         );
-      } else if (missingTestFinding) {
-        missingTestFinding.evidence.push(...evidence);
+      } else if (missingTestFinding || placeholderTestFinding) {
+        (missingTestFinding || placeholderTestFinding).evidence.push(...evidence);
       } else {
         addFinding(
           findings,
@@ -1057,8 +1069,8 @@ function scanRepository(rootPath, options) {
             evidence,
             'Keep README script names synchronized with package.json.'
           );
-        } else if (scriptName === 'test' && missingTestFinding) {
-          missingTestFinding.evidence.push(...evidence);
+        } else if (scriptName === 'test' && (missingTestFinding || placeholderTestFinding)) {
+          (missingTestFinding || placeholderTestFinding).evidence.push(...evidence);
         } else {
           addFinding(
             findings,

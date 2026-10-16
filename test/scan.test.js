@@ -93,6 +93,22 @@ test('reports a missing package test script as a blocking finding', () => withRe
   assert.equal(finding(report, 'TEST_SCRIPT_MISSING').status, 'failed');
 }));
 
+test('reports npm placeholder test scripts as a blocking finding', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.scripts.test = 'echo "Error: no test specified" && exit 1';
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, 'README.md', 'Run `npm test` after installing dependencies.\n');
+
+  const report = scanRepository(root);
+  const placeholder = finding(report, 'TEST_SCRIPT_PLACEHOLDER');
+
+  assert.equal(report.status, 'failed');
+  assert.equal(placeholder.status, 'failed');
+  assert.equal(placeholder.evidence.some((item) => item.path === 'README.md'), true);
+  assert.equal(finding(report, 'TEST_SCRIPT_PRESENT'), undefined);
+}));
+
 test('reports an unknown npm script referenced by README', () => withRepository((root) => {
   writeHealthyRepository(root);
   writeFile(root, 'README.md', 'Run `npm run release` after installing dependencies.\n');
