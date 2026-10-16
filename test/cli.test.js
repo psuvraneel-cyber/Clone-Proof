@@ -1,6 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const test = require('node:test');
@@ -59,4 +61,68 @@ test('verify refuses to run repository code without explicit authorization flags
 
   assert.equal(result.status, 2);
   assert.match(result.stderr, /requires both --docker and --execute/);
+});
+
+test('invalid GitHub URLs return a blocked machine-readable report without invoking git', () => {
+  const result = spawnSync(process.execPath, [
+    cliPath,
+    'check',
+    'https://github.com/example/project/issues',
+    '--format',
+    'json'
+  ], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: { ...process.env, NO_COLOR: '1' }
+  });
+
+  assert.equal(result.status, 2);
+  assert.equal(result.stderr, '');
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.findings[0].code, 'GITHUB_URL_INVALID');
+});
+
+test('HTML reports can be written to an output file', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-cli-report-'));
+  const outputPath = path.join(directory, 'report.html');
+  try {
+    const result = spawnSync(process.execPath, [
+      cliPath,
+      'check',
+      path.join(projectRoot, 'examples', 'healthy-node'),
+      '--format',
+      'html',
+      '--output',
+      outputPath
+    ], {
+      cwd: projectRoot,
+      encoding: 'utf8'
+    });
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr, '');
+    const html = fs.readFileSync(outputPath, 'utf8');
+    assert.match(html, /^<!doctype html>/i);
+    assert.match(html, /healthy-node/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('output files require the HTML format', () => {
+  const result = spawnSync(process.execPath, [
+    cliPath,
+    'check',
+    path.join(projectRoot, 'examples', 'healthy-node'),
+    '--output',
+    path.join(os.tmpdir(), 'cloneproof-invalid-output.json')
+  ], {
+    cwd: projectRoot,
+    encoding: 'utf8'
+  });
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /--output requires --format html/);
 });

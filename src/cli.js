@@ -1,22 +1,30 @@
 #!/usr/bin/env node
 
+const fs = require('node:fs');
+
+const {
+  cloneGithubRepository,
+  isGithubRepositoryUrl,
+  validateGithubUrl
+} = require('./input/github');
 const { scanRepository } = require('./scan/repository');
-const { exitCodeForReport, renderJson, renderText } = require('./report/render');
+const { exitCodeForReport, renderHtml, renderJson, renderText } = require('./report/render');
 const { verifyRepository } = require('./verify/docker');
 
 const COMMANDS = new Set(['check', 'verify']);
-const FORMATS = new Set(['text', 'json']);
+const FORMATS = new Set(['text', 'json', 'html']);
 
 function printHelp() {
   process.stdout.write([
     'CloneProof — repository setup verification',
     '',
     'Usage:',
-    '  cloneproof check <repository> [--format text|json]',
-    '  cloneproof verify <repository> --docker --execute [--allow-network] [--timeout-ms N] [--format text|json]',
+    '  cloneproof check <repository-or-github-url> [--format text|json|html] [--output FILE]',
+    '  cloneproof verify <repository-or-github-url> --docker --execute [--allow-network] [--timeout-ms N] [--format text|json|html] [--output FILE]',
     '',
     'Static check never executes repository code. Docker verification requires explicit --docker --execute consent.',
     'Network access is disabled unless --allow-network is also provided.',
+    'GitHub input accepts only public https://github.com/OWNER/REPOSITORY URLs.',
     ''
   ].join('\n'));
 }
@@ -39,6 +47,7 @@ function parseArguments(argv) {
   let execute = false;
   let allowNetwork = false;
   let timeoutMs;
+  let outputPath = null;
 
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
@@ -59,6 +68,21 @@ function parseArguments(argv) {
     }
     if (value === '--no-color') {
       color = false;
+      continue;
+    }
+    if (value === '--output') {
+      outputPath = values[index + 1];
+      index += 1;
+      if (!outputPath || outputPath.startsWith('-')) {
+        throw new Error('Missing output file path');
+      }
+      continue;
+    }
+    if (value.startsWith('--output=')) {
+      outputPath = value.slice('--output='.length);
+      if (!outputPath) {
+        throw new Error('Missing output file path');
+      }
       continue;
     }
     if (value === '--color') {
@@ -109,19 +133,114 @@ function parseArguments(argv) {
     throw new Error('--docker, --execute, --allow-network, and --timeout-ms are only valid for verify');
   }
 
-  return { command, target, format, color, docker, execute, allowNetwork, timeoutMs };
+  if (outputPath && format !== 'html') {
+    throw new Error('--output requires --format html');
+  }
+
+  return { command, target, format, color, docker, execute, allowNetwork, timeoutMs, outputPath };
 }
 
 function renderReport(report, format, color) {
-  return format === 'json'
-    ? renderJson(report)
-    : renderText(report, { color });
+  if (format === 'json') return renderJson(report);
+  if (format === 'html') return renderHtml(report);
+  return renderText(report, { color });
 }
 
-function runCheck(options) {
-  const report = scanRepository(options.target);
-  process.stdout.write(renderReport(report, options.format, options.color));
-  return exitCodeForReport(report);
+function writeReport(report, options) {
+  const rendered = renderReport(report, options.format, options.color);
+  if (options.outputPath) {
+    fs.writeFileSync(options.outputPath, rendered, 'utf8');
+  } else {
+    process.stdout.write(rendered);
+  }
+}
+
+function isRemoteTarget(target) {
+  return /^https?:\/\//i.test(target);
+}
+
+function cloneFailureStatus(error) {
+  return error && (
+    error.code === 'GITHUB_URL_INVALID'
+    || error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
+    || error.code === 'GITHUB_CHECKOUT_UNAVAILABLE'
+  )
+    ? 'blocked'
+    : 'incomplete';
+}
+
+function cloneFailureReport(target, error, mode) {
+  const status = cloneFailureStatus(error);
+  const findingStatus = status === 'incomplete' ? 'failed' : 'skipped';
+  const title = error && error.code === 'GITHUB_URL_INVALID'
+    ? 'GitHub repository URL is not supported'
+    : 'GitHub repository could not be staged';
+  const message = error && error.message ? error.message : 'The GitHub repository could not be cloned.';
+  return {
+    schemaVersion: 2,
+    tool: 'cloneproof',
+    mode,
+    status,
+    target: { kind: 'github', name: String(target) },
+    findings: [{
+      code: error && error.code ? error.code : 'GITHUB_CLONE_FAILED',
+      status: findingStatus,
+      severity: findingStatus === 'failed' ? 'error' : 'warning',
+      title,
+      message,
+      evidence: [{ path: String(target), detail: 'GitHub source input.' }],
+      recommendation: status === 'blocked'
+        ? 'Use a public HTTPS GitHub repository URL within the supported checkout limits.'
+        : 'Check the public repository URL and Git installation, then rerun the command.'
+    }],
+    summary: {
+      total: 1,
+      passed: 0,
+      failed: findingStatus === 'failed' ? 1 : 0,
+      warnings: 0,
+      skipped: findingStatus === 'skipped' ? 1 : 0
+    }
+  };
+}
+
+async function resolveTarget(target) {
+  if (!isRemoteTarget(target)) {
+    return { path: target, source: null };
+  }
+
+  // Validate before creating a temporary directory or starting git.
+  validateGithubUrl(target);
+  const source = await cloneGithubRepository(target);
+  return { path: source.root, source };
+}
+
+function applySourceTarget(report, source) {
+  if (!source) return report;
+  report.target = {
+    kind: 'github',
+    name: source.repository,
+    url: source.url
+  };
+  return report;
+}
+
+async function runCheck(options) {
+  let resolved;
+  try {
+    resolved = await resolveTarget(options.target);
+  } catch (error) {
+    const report = cloneFailureReport(options.target, error, 'check');
+    writeReport(report, options);
+    return exitCodeForReport(report);
+  }
+
+  try {
+    const report = applySourceTarget(scanRepository(resolved.path), resolved.source);
+    writeReport(report, options);
+    return exitCodeForReport(report);
+  } finally {
+    if (resolved.source) await resolved.source.cleanup();
+  }
 }
 
 async function runVerify(options) {
@@ -130,13 +249,26 @@ async function runVerify(options) {
     return 2;
   }
 
-  const report = await verifyRepository(options.target, {
-    execute: true,
-    allowNetwork: options.allowNetwork,
-    timeoutMs: options.timeoutMs
-  });
-  process.stdout.write(renderReport(report, options.format, options.color));
-  return exitCodeForReport(report);
+  let resolved;
+  try {
+    resolved = await resolveTarget(options.target);
+  } catch (error) {
+    const report = cloneFailureReport(options.target, error, 'verify');
+    writeReport(report, options);
+    return exitCodeForReport(report);
+  }
+
+  try {
+    const report = applySourceTarget(await verifyRepository(resolved.path, {
+      execute: true,
+      allowNetwork: options.allowNetwork,
+      timeoutMs: options.timeoutMs
+    }), resolved.source);
+    writeReport(report, options);
+    return exitCodeForReport(report);
+  } finally {
+    if (resolved.source) await resolved.source.cleanup();
+  }
 }
 
 async function run() {

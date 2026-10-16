@@ -1,0 +1,493 @@
+'use strict';
+
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawn } = require('node:child_process');
+
+const DEFAULT_CLONE_LIMITS = Object.freeze({
+  maxDepth: 25,
+  maxFiles: 10000,
+  maxFileBytes: 25 * 1024 * 1024,
+  maxTotalBytes: 200 * 1024 * 1024,
+  maxEntries: 200000
+});
+const DEFAULT_CLONE_TIMEOUT_MS = 120000;
+const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
+const MAX_CLONE_TIMEOUT_MS = 10 * 60 * 1000;
+const MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
+
+class GithubSourceError extends Error {
+  constructor(message, code = 'GITHUB_SOURCE_ERROR') {
+    super(message);
+    this.name = 'GithubSourceError';
+    this.code = code;
+  }
+}
+
+function normalizePositiveInteger(value, fallback, maximum) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return fallback;
+  }
+  return Math.min(Math.floor(value), maximum);
+}
+
+function normalizeLimit(value, fallback, maximum) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return fallback;
+  }
+  return Math.min(Math.floor(value), maximum);
+}
+
+function normalizeCloneLimits(options = {}) {
+  const nested = options.limits && typeof options.limits === 'object'
+    ? options.limits
+    : {};
+  const valueFor = (name) => options[name] === undefined ? nested[name] : options[name];
+
+  return {
+    maxDepth: normalizeLimit(valueFor('maxDepth'), DEFAULT_CLONE_LIMITS.maxDepth, 100),
+    maxFiles: normalizeLimit(valueFor('maxFiles'), DEFAULT_CLONE_LIMITS.maxFiles, DEFAULT_CLONE_LIMITS.maxFiles),
+    maxFileBytes: normalizeLimit(
+      valueFor('maxFileBytes'),
+      DEFAULT_CLONE_LIMITS.maxFileBytes,
+      DEFAULT_CLONE_LIMITS.maxFileBytes
+    ),
+    maxTotalBytes: normalizeLimit(
+      valueFor('maxTotalBytes'),
+      DEFAULT_CLONE_LIMITS.maxTotalBytes,
+      DEFAULT_CLONE_LIMITS.maxTotalBytes
+    ),
+    maxEntries: normalizeLimit(valueFor('maxEntries'), DEFAULT_CLONE_LIMITS.maxEntries, DEFAULT_CLONE_LIMITS.maxEntries)
+  };
+}
+
+function invalidUrl(message) {
+  throw new GithubSourceError(`Invalid GitHub repository URL: ${message}`, 'GITHUB_URL_INVALID');
+}
+
+/**
+ * Validate and describe a public GitHub repository URL.
+ *
+ * The returned URL is safe to pass as one argument to git. It is deliberately
+ * limited to the public HTTPS GitHub origin and a single owner/repository
+ * path, so it cannot select a subdirectory, pull request, archive, or remote
+ * host.
+ */
+function validateGithubUrl(value) {
+  if (typeof value !== 'string' || value.length === 0) {
+    invalidUrl('expected a non-empty string');
+  }
+  if (value.trim() !== value || /[\u0000-\u001f\u007f]/.test(value)) {
+    invalidUrl('whitespace or control characters are not allowed');
+  }
+  // WHATWG URL parsing normalizes dot segments and backslashes. Reject them
+  // before parsing so an input such as /owner/repo/../other cannot become a
+  // different, apparently valid two-component path.
+  if (value.includes('\\') || /(?:^|\/)\.{1,2}(?:\/|$)/.test(value)) {
+    invalidUrl('path traversal is not allowed');
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    invalidUrl('URL syntax is not valid');
+  }
+
+  if (parsed.protocol !== 'https:') {
+    invalidUrl('only HTTPS URLs are supported');
+  }
+  if (parsed.hostname !== 'github.com') {
+    invalidUrl('the host must be github.com');
+  }
+  if (parsed.port !== '') {
+    invalidUrl('custom ports are not supported');
+  }
+  if (parsed.username !== '' || parsed.password !== '') {
+    invalidUrl('credentials are not allowed');
+  }
+  if (parsed.search !== '' || parsed.hash !== '' || /[?#]/.test(value)) {
+    invalidUrl('query strings and fragments are not allowed');
+  }
+
+  // GitHub names do not need URL decoding here. Rejecting escapes also
+  // prevents encoded slashes and other alternate path spellings from
+  // bypassing the exact two-component check.
+  const pathMatch = /^\/([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*?)(?:\.git)?\/?$/.exec(parsed.pathname);
+  if (!pathMatch) {
+    invalidUrl('expected exactly /owner/repository with an optional .git suffix or trailing slash');
+  }
+
+  const owner = pathMatch[1];
+  const repo = pathMatch[2];
+  return Object.freeze({
+    url: parsed.href,
+    owner,
+    repo,
+    repository: `${owner}/${repo}`
+  });
+}
+
+function isGithubRepositoryUrl(value) {
+  try {
+    validateGithubUrl(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function relativePath(rootPath, absolutePath) {
+  return (path.relative(rootPath, absolutePath) || '.').split(path.sep).join('/');
+}
+
+function limitError(message, relative, limit) {
+  const error = new GithubSourceError(
+    `GitHub checkout limit exceeded: ${message}${relative ? ` at ${relative}` : ''}`,
+    'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
+  );
+  error.limit = limit;
+  error.path = relative || '.';
+  return error;
+}
+
+/**
+ * Inspect a checkout without following symlinks.
+ *
+ * This is synchronous on purpose: cloneGithubRepository performs it before
+ * handing the path to a caller, and a synchronous walk keeps the limit checks
+ * atomic with respect to this process's view of the checkout.
+ */
+function inspectCheckout(rootPath, options = {}) {
+  if (typeof rootPath !== 'string' || rootPath.length === 0) {
+    throw new TypeError('checkout root must be a non-empty path');
+  }
+
+  const limits = normalizeCloneLimits(options);
+  const root = path.resolve(rootPath);
+  let rootStat;
+  try {
+    rootStat = fs.lstatSync(root);
+  } catch (error) {
+    throw new GithubSourceError(`GitHub checkout is unavailable: ${error.message}`, 'GITHUB_CHECKOUT_UNAVAILABLE');
+  }
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    throw new GithubSourceError('GitHub checkout root is not a directory', 'GITHUB_CHECKOUT_UNAVAILABLE');
+  }
+
+  const metadata = {
+    complete: true,
+    fileCount: 0,
+    totalBytes: 0,
+    maxDepth: 0,
+    entryCount: 0,
+    symlinkCount: 0,
+    symlinkPaths: [],
+    limits
+  };
+
+  function walk(directory, depth) {
+    let entries;
+    try {
+      entries = fs.readdirSync(directory, { withFileTypes: true })
+        .sort((left, right) => left.name.localeCompare(right.name));
+    } catch (error) {
+      throw new GithubSourceError(
+        `Unable to inspect GitHub checkout at ${relativePath(root, directory)}: ${error.message}`,
+        'GITHUB_CHECKOUT_UNAVAILABLE'
+      );
+    }
+
+    for (const entry of entries) {
+      const absolute = path.join(directory, entry.name);
+      const relative = relativePath(root, absolute);
+      metadata.entryCount += 1;
+      if (metadata.entryCount > limits.maxEntries) {
+        throw limitError('entry count', relative, limits.maxEntries);
+      }
+
+      let stat;
+      try {
+        stat = fs.lstatSync(absolute);
+      } catch (error) {
+        throw new GithubSourceError(
+          `Unable to inspect GitHub checkout entry ${relative}: ${error.message}`,
+          'GITHUB_CHECKOUT_UNAVAILABLE'
+        );
+      }
+
+      if (stat.isSymbolicLink()) {
+        metadata.symlinkCount += 1;
+        metadata.symlinkPaths.push(relative);
+        metadata.maxDepth = Math.max(metadata.maxDepth, depth);
+        continue;
+      }
+
+      if (stat.isDirectory()) {
+        const nextDepth = depth + 1;
+        if (nextDepth > limits.maxDepth) {
+          throw limitError('directory depth', relative, limits.maxDepth);
+        }
+        metadata.maxDepth = Math.max(metadata.maxDepth, nextDepth);
+        walk(absolute, nextDepth);
+        continue;
+      }
+
+      if (!stat.isFile()) continue;
+      if (stat.size > limits.maxFileBytes) {
+        throw limitError('file size', relative, limits.maxFileBytes);
+      }
+      if (metadata.fileCount >= limits.maxFiles) {
+        throw limitError('file count', relative, limits.maxFiles);
+      }
+      if (metadata.totalBytes + stat.size > limits.maxTotalBytes) {
+        throw limitError('total file bytes', relative, limits.maxTotalBytes);
+      }
+
+      metadata.fileCount += 1;
+      metadata.totalBytes += stat.size;
+      metadata.maxDepth = Math.max(metadata.maxDepth, depth);
+    }
+  }
+
+  walk(root, 0);
+  return metadata;
+}
+
+function appendOutput(state, channel, chunk, child) {
+  const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), 'utf8');
+  const remaining = state.maxBytes - state.bytes;
+  if (remaining <= 0) {
+    state.truncated = true;
+  } else if (bytes.length <= remaining) {
+    state.parts[channel].push(bytes);
+    state.bytes += bytes.length;
+  } else {
+    state.parts[channel].push(bytes.subarray(0, remaining));
+    state.bytes = state.maxBytes;
+    state.truncated = true;
+  }
+
+  if (state.truncated && !state.killedForOutput) {
+    state.killedForOutput = true;
+    try {
+      child.kill('SIGKILL');
+    } catch {
+      // The close/error event still completes the bounded runner if the
+      // process has already exited.
+    }
+  }
+}
+
+/**
+ * Run git without a shell and with bounded output and wall-clock time.
+ * Exporting cloneGithubRepository's runner seam keeps tests network-free.
+ */
+function runProcess(command, args, options = {}) {
+  const timeoutMs = normalizePositiveInteger(options.timeoutMs, DEFAULT_CLONE_TIMEOUT_MS, MAX_CLONE_TIMEOUT_MS);
+  const maxOutputBytes = normalizePositiveInteger(options.maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES);
+
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(command, args, {
+        cwd: options.cwd,
+        env: options.env,
+        shell: false,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+    } catch (error) {
+      resolve({
+        command,
+        args,
+        exitCode: null,
+        signal: null,
+        stdout: '',
+        stderr: '',
+        timedOut: false,
+        outputTruncated: false,
+        error: error.message
+      });
+      return;
+    }
+
+    const output = {
+      maxBytes: maxOutputBytes,
+      bytes: 0,
+      parts: { stdout: [], stderr: [] },
+      truncated: false,
+      killedForOutput: false
+    };
+    let timedOut = false;
+    let settled = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        // The close/error event will settle the promise.
+      }
+    }, timeoutMs);
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({
+        command,
+        args,
+        exitCode: result.exitCode ?? null,
+        signal: result.signal ?? null,
+        stdout: Buffer.concat(output.parts.stdout).toString('utf8'),
+        stderr: Buffer.concat(output.parts.stderr).toString('utf8'),
+        timedOut,
+        outputTruncated: output.truncated,
+        error: result.error || null
+      });
+    };
+
+    child.stdout.on('data', (chunk) => appendOutput(output, 'stdout', chunk, child));
+    child.stderr.on('data', (chunk) => appendOutput(output, 'stderr', chunk, child));
+    child.once('error', (error) => finish({ error: error.message }));
+    child.once('close', (exitCode, signal) => finish({ exitCode, signal }));
+  });
+}
+
+function resultExitCode(result) {
+  if (!result || typeof result !== 'object') return null;
+  if (typeof result.exitCode === 'number' || result.exitCode === null) return result.exitCode;
+  if (typeof result.code === 'number' || result.code === null) return result.code;
+  if (typeof result.status === 'number' || result.status === null) return result.status;
+  return null;
+}
+
+function outputString(value, maxBytes) {
+  if (value === undefined || value === null) return '';
+  const bytes = Buffer.from(String(value), 'utf8');
+  return bytes.subarray(0, maxBytes).toString('utf8');
+}
+
+function cloneFailure(result, maxOutputBytes) {
+  const exitCode = resultExitCode(result);
+  const reason = result && result.timedOut
+    ? 'timed out'
+    : result && result.outputTruncated
+      ? 'produced too much output'
+      : result && result.error
+        ? String(result.error)
+        : `exited with code ${exitCode === null ? 'unknown' : exitCode}`;
+  const stderr = outputString(result && result.stderr, maxOutputBytes);
+  const stdout = outputString(result && result.stdout, maxOutputBytes);
+  const details = stderr || stdout;
+  const error = new GithubSourceError(
+    `GitHub clone failed: ${reason}${details ? `: ${details.trim()}` : ''}`,
+    'GITHUB_CLONE_FAILED'
+  );
+  error.result = result;
+  return error;
+}
+
+function cloneSucceeded(result, maxOutputBytes) {
+  if (!result || typeof result !== 'object') return false;
+  const outputBytes = Buffer.byteLength(String(result.stdout || ''), 'utf8')
+    + Buffer.byteLength(String(result.stderr || ''), 'utf8');
+  return resultExitCode(result) === 0
+    && !result.signal
+    && !result.timedOut
+    && !result.outputTruncated
+    && !result.error
+    && outputBytes <= maxOutputBytes;
+}
+
+async function removeTemporaryDirectory(directory) {
+  await fs.promises.rm(directory, {
+    recursive: true,
+    force: true,
+    maxRetries: 3,
+    retryDelay: 25
+  });
+}
+
+/**
+ * Clone a validated public GitHub repository into a bounded temporary
+ * checkout. The successful result owns the temporary directory; callers must
+ * invoke its idempotent cleanup function after consuming the checkout.
+ */
+async function cloneGithubRepository(value, options = {}) {
+  const config = options && typeof options === 'object' ? options : {};
+  const source = validateGithubUrl(value);
+  const runner = config.runner || runProcess;
+  if (typeof runner !== 'function') {
+    throw new TypeError('clone runner must be a function');
+  }
+
+  const limits = normalizeCloneLimits(config);
+  const timeoutMs = normalizePositiveInteger(config.timeoutMs, DEFAULT_CLONE_TIMEOUT_MS, MAX_CLONE_TIMEOUT_MS);
+  const maxOutputBytes = normalizePositiveInteger(config.maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES);
+  let temporaryRoot;
+
+  try {
+    temporaryRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'cloneproof-github-'));
+    const args = ['clone', '--depth', '1', '--no-tags', source.url, temporaryRoot];
+    const result = await runner('git', args, {
+      cwd: path.dirname(temporaryRoot),
+      shell: false,
+      windowsHide: true,
+      timeoutMs,
+      maxOutputBytes
+    });
+
+    if (!cloneSucceeded(result, maxOutputBytes)) {
+      throw cloneFailure(result, maxOutputBytes);
+    }
+
+    // The scanner and verifier do not need Git metadata. Removing it keeps the
+    // checkout bounds focused on repository content and prevents object data
+    // from being handed to later stages.
+    await removeTemporaryDirectory(path.join(temporaryRoot, '.git'));
+    const metadata = inspectCheckout(temporaryRoot, limits);
+    let cleaned = false;
+    const cleanup = async () => {
+      if (cleaned) return;
+      await removeTemporaryDirectory(temporaryRoot);
+      cleaned = true;
+    };
+
+    return Object.freeze({
+      url: source.url,
+      owner: source.owner,
+      repo: source.repo,
+      repository: source.repository,
+      root: temporaryRoot,
+      path: temporaryRoot,
+      metadata,
+      process: {
+        exitCode: resultExitCode(result),
+        stdout: outputString(result.stdout, maxOutputBytes),
+        stderr: outputString(result.stderr, maxOutputBytes),
+        timedOut: Boolean(result.timedOut),
+        outputTruncated: Boolean(result.outputTruncated)
+      },
+      cleanup
+    });
+  } catch (error) {
+    if (temporaryRoot) {
+      try {
+        await removeTemporaryDirectory(temporaryRoot);
+      } catch (cleanupError) {
+        error.cleanupError = cleanupError;
+      }
+    }
+    throw error;
+  }
+}
+
+module.exports = {
+  DEFAULT_CLONE_LIMITS,
+  cloneGithubRepository,
+  inspectCheckout,
+  isGithubRepositoryUrl,
+  validateGithubUrl
+};
