@@ -51,6 +51,6 @@
 
 ## 2026-10-16 — Keep HTML reports offline and self-contained
 
-- **Decision:** Add `renderHtml` and `--format html --output <file>` using inline CSS and escaped schema-version-2 values only.
+- **Decision:** Add text, JSON, and self-contained HTML report output; `--output <file>` works with every format, creates parent folders, and keeps text output color-free.
 - **Why:** A downloadable report must open locally without a server, external fonts, scripts, or a network connection, and must agree with text/JSON findings.
 - **Trade-off:** The first HTML surface is a static report, not an interactive dashboard.

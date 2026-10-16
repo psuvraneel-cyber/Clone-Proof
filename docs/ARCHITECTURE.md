@@ -2,7 +2,7 @@
 
 CloneProof is a local, command-line-first tool. It accepts local paths and a bounded public GitHub URL source. The first release separates two trust levels:
 
-1. **Static inspection (`check`)** reads repository files and never starts a repository-defined process.
+1. **Static inspection (`check`)** never executes repository code. For a local path it starts no process; for a GitHub URL it starts exactly one isolated `git clone` before the read-only scan.
 2. **Execution verification (`verify`)** is opt-in and will use a CloneProof-controlled Docker profile with explicit consent.
 
 ## First vertical slice
@@ -22,12 +22,12 @@ src/
 
 The scanner returns data. Rules turn that data into evidence-backed findings. Report renderers do not perform checks. This makes the checks deterministic and keeps the execution boundary obvious.
 
-For a GitHub URL, `input/github.js` validates the exact public HTTPS origin, runs `git clone --depth 1 --no-tags` with an argument array and no shell, bounds the temporary checkout, removes its `.git` metadata, and returns an owned cleanup handle. Clone and checkout errors become explicit `incomplete` or `blocked` reports; credentials are never requested.
+For a GitHub URL, `input/github.js` validates the exact public HTTPS origin, checks public visibility and repository size before cloning, then runs one isolated `git clone --depth 1 --no-tags` with an argument array and no shell. The clone uses no host Git config or credentials, bounds the temporary checkout, removes its `.git` metadata, and returns an owned cleanup handle. Clone and checkout errors become explicit `incomplete` or `blocked` reports; the subsequent scan is read-only.
 
 ## Security assumptions
 
 - A target repository is untrusted input.
-- Static mode must not invoke `node`, `npm`, a shell, Git, or Docker.
+- Local static mode must not invoke `node`, `npm`, a shell, Git, or Docker. GitHub static mode invokes only the isolated clone described above; it never executes repository code.
 - Symlinks are reported and not followed by default.
 - Scan size, depth, file count, and individual file size are bounded.
 - Report paths are relative to the target root; machine-specific absolute paths are not part of canonical JSON.

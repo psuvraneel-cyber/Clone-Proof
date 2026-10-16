@@ -6,7 +6,7 @@ CloneProof receives repository files as untrusted input. It is not a malware sca
 
 `cloneproof check` is the safe default. It:
 
-- Reads files only; it does not run Node, npm, Git, Docker, shell commands, README commands, lifecycle hooks, or Dockerfiles.
+- For a local path, reads files only; it starts no process and does not run Node, npm, Git, Docker, shell commands, README commands, lifecycle hooks, or Dockerfiles. For a GitHub URL, it runs one isolated `git clone` after the public size/visibility check, then performs the same read-only scan without executing repository code.
 - Skips `.git`, `node_modules`, `dist`, `coverage`, and other recognized generated/cache directories.
 - Does not follow symlinks.
 - Enforces depth, file count, individual file size, lockfile size/entry, and total-size limits, while treating generated assets and ordinary source files as stat-only or skippable where appropriate.

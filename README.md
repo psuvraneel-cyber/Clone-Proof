@@ -42,7 +42,7 @@ Request JSON output:
 node src/cli.js check ./path/to/repository --format json
 ```
 
-Create a self-contained HTML report. `--output` is optional; without it, HTML is written to standard output:
+Create a report in text, JSON, or self-contained HTML. `--output` works with every format and creates missing parent folders; without it, the report is written to standard output:
 
 ```bash
 node src/cli.js check ./path/to/repository --format html --output report.html

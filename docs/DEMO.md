@@ -36,10 +36,10 @@ Explain that the JSON report is suitable for CI or future GitHub comments and co
 ## 4. Show a self-contained HTML report
 
 ```bash
-node src/cli.js check examples/healthy-node --format html --output cloneproof-report.html
+node src/cli.js check examples/healthy-node --format html --output reports/cloneproof-report.html
 ```
 
-Open `cloneproof-report.html` directly. It contains the summary, escaped findings, evidence details, recommendations, and any bounded Docker output without loading a server or external assets.
+Open `reports/cloneproof-report.html` directly. It contains the summary, escaped findings, evidence details, recommendations, and any bounded Docker output without loading a server or external assets. The same `--output` option also accepts text and JSON.
 
 For the optional remote-input demonstration, use a public repository URL:
 
@@ -47,7 +47,7 @@ For the optional remote-input demonstration, use a public repository URL:
 node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```
 
-CloneProof performs a shallow bounded clone and cleans the temporary checkout after producing the report. Do not use private URLs or provide credentials.
+CloneProof performs the public size/visibility preflight, then one isolated shallow bounded clone with no host Git config or credentials, and cleans the temporary clone parent after producing the report. Do not use private URLs or provide credentials.
 
 ## 5. Show execution safety
 
