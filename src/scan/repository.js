@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const {
   CHECK_GROUPS,
@@ -1721,6 +1722,54 @@ function calculateDigest(files) {
   return hash.digest('hex');
 }
 
+function normalizedAbsolutePath(value) {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function wrongTargetReport(absoluteRoot, limits) {
+  const findings = [
+    addFinding(
+      [],
+      'WRONG_TARGET',
+      'skipped',
+      'warning',
+      'The target is a home folder or filesystem root',
+      'This is your home folder (or a drive root), not a project folder.',
+      [makeEvidence(rootName(absoluteRoot), 'The requested local target is a home folder or filesystem root.')],
+      'Run cloneproof check <project-folder> or cloneproof check https://github.com/OWNER/REPO.'
+    )
+  ];
+  const coverage = createCoverageTracker().snapshot();
+  return {
+    schemaVersion: 2,
+    tool: 'cloneproof',
+    mode: 'check',
+    status: 'blocked',
+    target: { kind: 'local', name: rootName(absoluteRoot) },
+    scan: {
+      complete: false,
+      fileCount: 0,
+      discoveredFileCount: 0,
+      totalBytes: 0,
+      digest: calculateDigest(new Map()),
+      limits,
+      skippedPaths: [],
+      skippedPathsTruncated: false
+    },
+    project: {
+      type: 'unsupported',
+      packageManager: null,
+      packageManagerVersion: null,
+      scripts: {},
+      runtime: { nvmrc: null, nodeVersion: null, enginesNode: null, dockerNode: [] }
+    },
+    findings,
+    summary: { total: 1, passed: 0, failed: 0, warnings: 1, skipped: 1 },
+    coverage
+  };
+}
+
 function inferProjectType(packageState, discovered, nestedPaths = [], ecosystemMarker = rootEcosystemMarker(discovered)) {
   const knownPaths = [...discovered.keys()].filter((relativePath) => isApplicationSourcePath(relativePath, nestedPaths));
   const hasRootTsconfig = discovered.has('tsconfig.json');
@@ -1744,6 +1793,16 @@ function scanRepository(rootPath, options) {
 
   const limits = normalizeLimits(options);
   const scanOptions = options && typeof options === 'object' ? options : {};
+  let homeDirectory;
+  try {
+    homeDirectory = normalizedAbsolutePath(scanOptions.homeDirectory === undefined ? os.homedir() : scanOptions.homeDirectory);
+  } catch {
+    homeDirectory = normalizedAbsolutePath(os.homedir());
+  }
+  const filesystemRoot = normalizedAbsolutePath(path.parse(absoluteRoot).root);
+  if (normalizedAbsolutePath(absoluteRoot) === homeDirectory || normalizedAbsolutePath(absoluteRoot) === filesystemRoot) {
+    return wrongTargetReport(absoluteRoot, limits);
+  }
   const scanned = scanFiles(absoluteRoot, limits, scanOptions);
   const coverage = createCoverageTracker();
   const findings = [];

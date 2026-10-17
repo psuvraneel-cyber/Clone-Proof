@@ -1168,6 +1168,35 @@ test('blocks an empty repository instead of reporting a false pass', () => withR
   assert.equal(finding(report, 'EMPTY_REPOSITORY').status, 'warning');
 }));
 
+test('blocks an injected home-folder target before traversal', () => {
+  const injectedHome = path.join(os.tmpdir(), 'cloneproof-injected-home');
+  const originalReaddir = fs.readdirSync;
+  let traversalCalled = false;
+  fs.readdirSync = (...args) => {
+    traversalCalled = true;
+    return originalReaddir(...args);
+  };
+  try {
+    const report = scanRepository(injectedHome, { homeDirectory: injectedHome });
+
+    assert.equal(report.status, 'blocked');
+    assert.equal(finding(report, 'WRONG_TARGET').status, 'skipped');
+    assert.equal(finding(report, 'WRONG_TARGET').severity, 'warning');
+    assert.equal(traversalCalled, false);
+  } finally {
+    fs.readdirSync = originalReaddir;
+  }
+});
+
+test('blocks a filesystem root before traversal', () => {
+  const root = path.parse(process.cwd()).root;
+  const report = scanRepository(root, { homeDirectory: path.join(os.tmpdir(), 'not-the-home') });
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(finding(report, 'WRONG_TARGET').status, 'skipped');
+  assert.match(finding(report, 'WRONG_TARGET').recommendation, /cloneproof check <project-folder>/);
+});
+
 test('blocks an unsupported repository type with a clear finding', () => withRepository((root) => {
   writeFile(root, 'README.md', '# Python project\n');
   writeFile(root, 'main.py', 'print("hello")\n');
