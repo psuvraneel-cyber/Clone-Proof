@@ -118,23 +118,23 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Field-test fix `22e0258` — fresh public GitHub clones stage committed sensitive fixtures while local folders retain omission protection.
 - Field-test fix `aeea9ac` — `INSTALL_SCRIPTS_SKIPPED` is informational/skipped and no longer downgrades an otherwise healthy check.
 - Field-test docs `2a35843` — rerun expectations were recorded before the affected repository commands.
-- Pre-submit implementation commits: `0b99b43`, `4926d4d`, `510c407`, `28dcc0d`, `59ec879`, `9c435aa`, `9929395`.
+- Pre-submit implementation commits: `0b99b43`, `4926d4d`, `510c407`, `28dcc0d`, `59ec879`, `9c435aa`, `9929395`, `dbb3841`.
 - Field-test swap — `microsoft/TypeScript-Node-Starter` was unavailable from read-only `git ls-remote`; `typeorm/typeorm` was used as the documented TypeScript/external-service replacement.
 - Previous post-push check against `main` at `d57a465` — passed, exit `0`, target commit `d57a465e73e8`, complete scan, status `passed`; GitHub preflight was `unavailable` (the unauthenticated API limit), and the clone was cleaned.
 - Post-push check against `main` at `4c0900e` — passed, exit `0`, target commit `4c0900eb03fcb4f38e00486b4ef276fd40d56d30`, preflight `checked`, repository size `150 KiB`, complete scan, status `passed`, 10 passed / 1 skipped / 0 failed; the clone was cleaned and the temp/container audit was empty. Subsequent handoff-only commits change documentation only.
 
 ## Final gap-closure checks
 
-- `npm test` — passed: 164 tests, 163 passed, 1 skipped on Windows; the skip is the expected symlink `EPERM` case.
+- `npm test` — passed: 165 tests, 164 passed, 1 skipped on Windows; the skip is the expected symlink `EPERM` case.
 - `git diff --check` — passed.
 - `docker build -t cloneproof .` — passed using the pinned base image.
-- `docker run --rm --network none cloneproof npm test` — passed: 164 tests, 164 passed, 0 skipped in Linux.
+- `docker run --rm --network none cloneproof npm test` — passed: 165 tests, 165 passed, 0 skipped in Linux.
 - `node src/cli.js setup` — passed; the exact verifier image was already present and no pull was needed.
 - `node src/cli.js verify examples/healthy-node --docker --execute --format json` — passed, exit `0`, network `none`, cleanup complete.
 - `node src/cli.js verify examples/broken-node --docker --execute --format json` — blocked, exit `2`, `DOCKER_PREREQUISITES_FAILED`, no target container started.
 - `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` after push — passed, exit `0`, `target.commit: a107b5cfc8b0dcb57c0a2ede540f13c7500c5464`, preflight `checked`, authenticated `false`, 10 checked groups, 10 passed / 1 skipped / 0 failed.
-- Pre-submit CI run `39025517137` — passed: Ubuntu, macOS, Windows, and Docker E2E.
-- Main CI run `39025568167` — passed: Ubuntu, macOS, Windows, and Docker E2E.
+- The preflight-redaction regression test covers a token-bearing GitHub API error: reports and stderr contain only `[REDACTED]`.
+- Pre-submit and main CI runs for the final revision are recorded in the final response; both must be green.
 - Docker/container cleanup audit after the final checks — no `cloneproof-verify` containers and no CloneProof GitHub clone directories remained.
 
 ## Commits in this review pass
