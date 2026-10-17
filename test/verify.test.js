@@ -371,6 +371,60 @@ test('test-phase failures explain skipped install scripts for native packages', 
   }
 });
 
+test('test-phase browser failures explain the controlled image browser limitation', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-browser-test-'));
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+      name: 'browser-test-fixture',
+      devDependencies: { '@playwright/test': '^1.50.0' },
+      scripts: {
+        test: 'npm run test:browser',
+        'test:browser': 'playwright test'
+      }
+    }, null, 2));
+    fs.writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({
+      name: 'browser-test-fixture',
+      lockfileVersion: 3,
+      packages: {
+        '': {
+          name: 'browser-test-fixture',
+          devDependencies: { '@playwright/test': '^1.50.0' }
+        }
+      }
+    }, null, 2));
+    fs.mkdirSync(path.join(root, 'test'));
+    fs.writeFileSync(path.join(root, 'test', 'browser.test.js'), 'test("browser", () => {});\n');
+
+    const runner = async (command, args) => {
+      if (args[0] === 'version' || args[0] === 'image') {
+        return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+      return {
+        exitCode: 1,
+        signal: null,
+        stdout: 'CLONEPROOF_PHASE=install\nCLONEPROOF_PHASE=test\n',
+        stderr: 'browserType.launch: Executable does not exist',
+        timedOut: false,
+        outputTruncated: false,
+        error: null
+      };
+    };
+
+    const report = await verifyRepository(root, { execute: true, allowNetwork: true, runner });
+    assertSummaryMatchesFindings(report);
+
+    assert.equal(report.status, 'failed');
+    assert.equal(report.verification.failedPhase, 'test');
+    const browserFinding = report.findings.find((item) => item.code === 'BROWSER_TESTS_DETECTED');
+    assert.equal(browserFinding.status, 'warning');
+    const failure = report.findings.find((item) => item.code === 'DOCKER_VERIFICATION_FAILED');
+    assert.match(failure.message, /controlled image has no browser executable or browser installation/i);
+    assert.match(failure.message, /may cause this test failure/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('network install errors are blocked when network is disabled', async () => {
   const root = makeDependencyFixture();
   try {

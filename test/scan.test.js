@@ -110,6 +110,56 @@ test('reports npm placeholder test scripts as a blocking finding', () => withRep
   assert.equal(finding(report, 'TEST_SCRIPT_PRESENT'), undefined);
 }));
 
+test('warns when browser test tooling is used through an npm test script indirection', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.devDependencies = {
+    '@playwright/test': '^1.50.0',
+    '@vitest/browser': '^2.1.0',
+    '@vitest/browser-playwright': '^2.1.0',
+    '@web/test-runner': '^0.19.0',
+    cypress: '^13.0.0',
+    karma: '^6.4.0',
+    playwright: '^1.50.0',
+    puppeteer: '^23.0.0'
+  };
+  packageData.scripts.test = 'npm run test:browser';
+  packageData.scripts['test:browser'] = 'vitest --browser';
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, 'package-lock.json', `${JSON.stringify({
+    name: packageData.name,
+    lockfileVersion: 3,
+    packages: { '': { name: packageData.name, devDependencies: packageData.devDependencies } }
+  }, null, 2)}\n`);
+
+  const report = scanRepository(root);
+  const browserFinding = finding(report, 'BROWSER_TESTS_DETECTED');
+
+  assert.equal(report.status, 'passed_with_warnings');
+  assert.equal(browserFinding.status, 'warning');
+  assert.equal(browserFinding.severity, 'warning');
+  assert.match(browserFinding.message, /vitest/);
+  assert.match(browserFinding.message, /@playwright\/test/);
+  assert.ok(browserFinding.evidence.some((item) => item.path === 'package.json'));
+  assert.equal(browserFinding.evidence.every((item) => item.path === 'package.json'), true);
+}));
+
+test('does not warn for browser tooling that is not part of the package test command', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.devDependencies = { playwright: '^1.50.0' };
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, 'package-lock.json', `${JSON.stringify({
+    name: packageData.name,
+    lockfileVersion: 3,
+    packages: { '': { name: packageData.name, devDependencies: packageData.devDependencies } }
+  }, null, 2)}\n`);
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'BROWSER_TESTS_DETECTED'), undefined);
+}));
+
 test('reports an unknown npm script referenced by README', () => withRepository((root) => {
   writeHealthyRepository(root);
   writeFile(root, 'README.md', 'Run `npm run release` after installing dependencies.\n');

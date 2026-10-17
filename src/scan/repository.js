@@ -425,6 +425,24 @@ function normalizeScripts(packageData) {
 }
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies'];
+const BROWSER_TEST_DEPENDENCIES = new Set([
+  'karma',
+  'puppeteer',
+  'playwright',
+  '@playwright/test',
+  'cypress',
+  '@web/test-runner',
+  '@vitest/browser',
+  '@vitest/browser-playwright'
+]);
+const BROWSER_TEST_RUNNERS = [
+  'vitest',
+  'karma',
+  'cypress',
+  'playwright',
+  'puppeteer',
+  'web-test-runner'
+];
 
 function dependencyMap(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -440,6 +458,63 @@ function dependencyEntries(packageData) {
     }
   }
   return entries;
+}
+
+function browserTestDependencyNames(packageData) {
+  const devDependencies = dependencyMap(packageData && packageData.devDependencies);
+  return Object.keys(devDependencies)
+    .filter((name) => BROWSER_TEST_DEPENDENCIES.has(name.toLowerCase()))
+    .sort(compareStrings);
+}
+
+function escapeRegexText(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function browserTestRunnerNames(command) {
+  if (typeof command !== 'string') return [];
+  return BROWSER_TEST_RUNNERS.filter((runner) => {
+    const expression = new RegExp(
+      `(?:^|[^A-Za-z0-9_@-])${escapeRegexText(runner)}(?=$|[^A-Za-z0-9_@-])`,
+      'i'
+    );
+    return expression.test(command);
+  });
+}
+
+function npmRunScriptNames(command) {
+  if (typeof command !== 'string') return [];
+  const names = [];
+  const expression = /\bnpm\s+run\s+(?:--[^\s]+\s+)*([^\s"'`;&|]+)/gi;
+  let match = expression.exec(command);
+  while (match) {
+    names.push(match[1]);
+    match = expression.exec(command);
+  }
+  return names;
+}
+
+function browserTestWorkflow(scripts) {
+  const pending = ['test'];
+  const visited = new Set();
+  const runners = new Set();
+
+  while (pending.length > 0) {
+    const scriptName = pending.shift();
+    if (visited.has(scriptName) || !Object.prototype.hasOwnProperty.call(scripts, scriptName)) continue;
+    visited.add(scriptName);
+    const command = scripts[scriptName];
+
+    for (const runner of browserTestRunnerNames(command)) runners.add(runner);
+    for (const referencedScript of npmRunScriptNames(command)) {
+      if (!visited.has(referencedScript)) pending.push(referencedScript);
+    }
+  }
+
+  return {
+    runners: [...runners].sort(compareStrings),
+    scriptNames: [...visited].sort(compareStrings)
+  };
 }
 
 function parseReadableNpmLockfile(bytes) {
@@ -1673,6 +1748,35 @@ function scanRepository(rootPath, options) {
         : [],
       'Provide a readable package.json and run the scan again.'
     );
+  }
+
+  if (packageValid && typeof scripts.test === 'string' && scripts.test.trim() && !placeholderTestFinding) {
+    const browserDependencies = browserTestDependencyNames(packageData);
+    const browserWorkflow = browserTestWorkflow(scripts);
+    if (browserDependencies.length > 0 && browserWorkflow.runners.length > 0) {
+      const evidence = [
+        ...browserDependencies.map((name) => makeEvidence(
+          'package.json',
+          `devDependencies includes ${name}.`,
+          packageText ? firstMatchLine(packageText, regexForPackageName(name)) : undefined
+        )),
+        ...browserWorkflow.scriptNames.map((name) => makeEvidence(
+          'package.json',
+          `scripts.${name} participates in the npm test workflow.`,
+          packageText ? firstMatchLine(packageText, regexForPackageName(name)) : undefined
+        ))
+      ];
+      addFinding(
+        findings,
+        'BROWSER_TESTS_DETECTED',
+        'warning',
+        'warning',
+        'Browser test tooling is part of the package test workflow',
+        `Root devDependencies include ${browserDependencies.join(', ')}, and the npm test workflow references ${browserWorkflow.runners.join(', ')}.`,
+        evidence,
+        'Ensure the required browser executable is available before relying on Docker verification for npm test.'
+      );
+    }
   }
 
   const testFiles = [...scanned.files.keys()]

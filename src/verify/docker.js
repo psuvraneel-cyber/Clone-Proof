@@ -399,6 +399,15 @@ function verificationFinding(outcome, verification, staticReport) {
   ) {
     message += ' CloneProof intentionally skips lifecycle/install scripts, so the affected packages are a likely cause of this test failure.';
   }
+  if (
+    outcome === 'failed'
+    && phase === 'test'
+    && staticReport
+    && Array.isArray(staticReport.findings)
+    && staticReport.findings.some((finding) => finding.code === 'BROWSER_TESTS_DETECTED')
+  ) {
+    message += ' The controlled image has no browser executable or browser installation, which may cause this test failure.';
+  }
   return {
     code: 'DOCKER_VERIFICATION_FAILED',
     status: 'failed',
