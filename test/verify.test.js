@@ -38,6 +38,17 @@ function makeRunner({ docker = true, image = true, run = true } = {}) {
   return { calls, runner };
 }
 
+function makeIgnoredPathsFixture(count) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-ignored-paths-'));
+  fs.cpSync(healthyFixture, root, { recursive: true });
+  fs.writeFileSync(path.join(root, '.gitignore'), 'ignored-*.txt\n');
+  for (let index = 0; index < count; index += 1) {
+    const name = `ignored-${String(index).padStart(3, '0')}.txt`;
+    fs.writeFileSync(path.join(root, name), `ignored ${index}\n`);
+  }
+  return root;
+}
+
 function assertSummaryMatchesFindings(report) {
   assert.deepEqual(report.summary, {
     total: report.findings.length,
@@ -92,6 +103,47 @@ test('successful Docker verification records evidence and cleans staging', async
   assert.ok(mount);
   const stagedPath = mount.slice('type=bind,src='.length).split(',dst=')[0];
   assert.equal(fs.existsSync(stagedPath), false);
+});
+
+test('gitignored Docker paths are informational and have bounded sorted evidence', async () => {
+  const root = makeIgnoredPathsFixture(302);
+  try {
+    const { runner } = makeRunner();
+    const report = await verifyRepository(root, { execute: true, runner });
+    assertSummaryMatchesFindings(report);
+
+    assert.equal(report.status, 'passed');
+    assert.equal(report.verification.ignoredPathCount, 302);
+    assert.equal(report.verification.ignoredPaths.length, 302);
+    const finding = report.findings.find((item) => item.code === 'DOCKER_GITIGNORED_PATHS_SKIPPED');
+    assert.ok(finding);
+    assert.equal(finding.status, 'skipped');
+    assert.equal(finding.severity, 'info');
+    assert.equal(finding.evidence.length, 50);
+    assert.deepEqual(
+      finding.evidence.map((item) => item.path),
+      report.verification.ignoredPaths.slice(0, 50)
+    );
+    assert.deepEqual(report.verification.ignoredPaths, [...report.verification.ignoredPaths].sort());
+    assert.match(finding.message, /302/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('gitignored Docker path metadata preserves the full count while capping paths', async () => {
+  const root = makeIgnoredPathsFixture(600);
+  try {
+    const { runner } = makeRunner();
+    const report = await verifyRepository(root, { execute: true, runner });
+    assertSummaryMatchesFindings(report);
+
+    assert.equal(report.verification.ignoredPaths.length, 500);
+    assert.equal(report.verification.ignoredPathCount, 600);
+    assert.equal(report.verification.ignoredPathsTruncated, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('network access is visible and opt-in', async () => {

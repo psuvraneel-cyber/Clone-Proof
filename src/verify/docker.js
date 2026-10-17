@@ -17,6 +17,8 @@ const DEFAULT_CONTAINER_PIDS = '512';
 const DEFAULT_TMPFS_SIZE = '512m';
 const DEFAULT_WORKSPACE_TMPFS_SIZE = '1g';
 const DOCKER_PROBE_TIMEOUT_MS = 5000;
+const MAX_IGNORED_PATHS = 500;
+const MAX_IGNORED_PATH_EVIDENCE = 50;
 const STAGING_LIMITS = Object.freeze({
   maxDepth: 25,
   maxFiles: 20000,
@@ -493,6 +495,8 @@ async function verifyRepository(rootPath, options = {}) {
     stderr: '',
     omittedPaths: [],
     ignoredPaths: [],
+    ignoredPathCount: 0,
+    ignoredPathsTruncated: false,
     cleanup: { attempted: false, completed: true, stagingRemoved: false, clientConfigRemoved: false }
   };
 
@@ -621,15 +625,20 @@ async function verifyRepository(rootPath, options = {}) {
       executablePaths: options.executablePaths || []
     });
     report.verification.omittedPaths = staged.skippedSensitivePaths.slice().sort(compareStrings);
-    report.verification.ignoredPaths = staged.skippedIgnoredPaths.slice().sort(compareStrings);
-    if (report.verification.ignoredPaths.length > 0) {
+    const ignoredPaths = staged.skippedIgnoredPaths.slice().sort(compareStrings);
+    report.verification.ignoredPathCount = ignoredPaths.length;
+    report.verification.ignoredPaths = ignoredPaths.slice(0, MAX_IGNORED_PATHS);
+    report.verification.ignoredPathsTruncated = ignoredPaths.length > report.verification.ignoredPaths.length;
+    if (report.verification.ignoredPathCount > 0) {
       addFinding(report, {
         code: 'DOCKER_GITIGNORED_PATHS_SKIPPED',
-        status: 'warning',
-        severity: 'warning',
+        status: 'skipped',
+        severity: 'info',
         title: 'Gitignored paths were omitted from the Docker snapshot',
-        message: 'CloneProof excluded paths ignored by the local checkout rules from Docker verification.',
-        evidence: report.verification.ignoredPaths.map((relative) => ({ path: relative, detail: 'Path matched the local Gitignore rules and was not staged.' })),
+        message: `CloneProof excluded ${report.verification.ignoredPathCount} path${report.verification.ignoredPathCount === 1 ? '' : 's'} ignored by the local checkout rules from Docker verification.`,
+        evidence: report.verification.ignoredPaths
+          .slice(0, MAX_IGNORED_PATH_EVIDENCE)
+          .map((relative) => ({ path: relative, detail: 'Path matched the local Gitignore rules and was not staged.' })),
         recommendation: 'Use a fresh GitHub clone for repository-tracked content, or confirm that ignored paths are not required by the root workflow.'
       });
     }
