@@ -595,12 +595,27 @@ function parseGitFileModes(output) {
   };
 }
 
-async function removeTemporaryDirectory(directory) {
+async function removeTemporaryDirectory(directory, options = {}) {
+  const remover = typeof options.remover === 'function' ? options.remover : fs.promises.rm;
+  if (remover !== fs.promises.rm) {
+    let lastError;
+    for (let attempt = 0; attempt <= 10; attempt += 1) {
+      try {
+        await remover(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 10) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+    throw lastError;
+  }
   await fs.promises.rm(directory, {
     recursive: true,
     force: true,
-    maxRetries: 3,
-    retryDelay: 25
+    maxRetries: 10,
+    retryDelay: 100
   });
 }
 
@@ -622,6 +637,9 @@ async function cloneGithubRepository(value, options = {}) {
   const maxOutputBytes = normalizePositiveInteger(config.maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES);
   const hostEnvironment = config.hostEnvironment || process.env;
   const githubToken = githubTokenFromEnvironment(hostEnvironment);
+  const removeDirectory = typeof config.removeTemporaryDirectory === 'function'
+    ? (directory) => removeTemporaryDirectory(directory, { remover: config.removeTemporaryDirectory })
+    : removeTemporaryDirectory;
   const preflight = await preflightGithubRepository(
     source,
     config.fetcher || globalThis.fetch,
@@ -742,12 +760,17 @@ async function cloneGithubRepository(value, options = {}) {
     // The scanner and verifier do not need Git metadata. Removing it keeps the
     // checkout bounds focused on repository content and prevents object data
     // from being handed to later stages.
-    await removeTemporaryDirectory(path.join(temporaryRoot, '.git'));
+    await removeDirectory(path.join(temporaryRoot, '.git'));
     let cleaned = false;
     const cleanup = async () => {
       if (cleaned) return;
-      await removeTemporaryDirectory(temporaryParent);
-      cleaned = true;
+      try {
+        await removeDirectory(temporaryParent);
+        cleaned = true;
+      } catch (cleanupError) {
+        cleanupError.cleanupDirectory = temporaryParent;
+        throw cleanupError;
+      }
     };
 
     return Object.freeze({
@@ -792,9 +815,10 @@ async function cloneGithubRepository(value, options = {}) {
     }
     if (temporaryParent) {
       try {
-        await removeTemporaryDirectory(temporaryParent);
+        await removeDirectory(temporaryParent);
       } catch (cleanupError) {
         error.cleanupError = cleanupError;
+        error.cleanupDirectory = temporaryParent;
       }
     }
     throw error;
@@ -811,6 +835,7 @@ module.exports = {
   isGithubRepositoryUrl,
   parseGitFileModes,
   preflightGithubRepository,
+  removeTemporaryDirectory,
   redactGithubToken,
   validateGithubUrl
 };

@@ -222,7 +222,8 @@ function cloneFailureReport(target, error, mode) {
   const reportTarget = {
     kind: 'github',
     name: targetName,
-    preflightAuthenticated: Boolean(error && error.preflightAuthenticated === true)
+    preflightAuthenticated: Boolean(error && error.preflightAuthenticated === true),
+    ...(error && error.cleanupError ? { cleanupFailed: true } : {})
   };
   if (error && error.preflightErrorRedacted === true) {
     reportTarget.preflightError = '[REDACTED]';
@@ -255,6 +256,27 @@ function cloneFailureReport(target, error, mode) {
     },
     coverage: createCoverage()
   };
+}
+
+function cleanupDirectoryName(value) {
+  const normalized = String(value || '').replace(/[\\/]+$/, '');
+  const parts = normalized.split(/[\\/]/).filter(Boolean);
+  return parts.at(-1) || 'temporary-folder';
+}
+
+function reportCleanupFailure(report, error) {
+  const cleanup = report && report.verification && report.verification.cleanup;
+  const cleanupDirectory = error && (error.cleanupDirectory || error.directory)
+    || cleanup && cleanup.cleanupDirectory;
+  if (!cleanupDirectory) return false;
+  const folderName = cleanupDirectoryName(cleanupDirectory);
+  if (report && report.target && report.target.kind === 'github') report.target.cleanupFailed = true;
+  if (cleanup) {
+    cleanup.cleanupFailed = true;
+    cleanup.stagingRemoved = false;
+  }
+  process.stderr.write(`CloneProof: could not remove temporary folder ${folderName}; it is safe to delete.\n`);
+  return true;
 }
 
 async function resolveTarget(target) {
@@ -302,12 +324,14 @@ async function runCheck(options) {
   } catch (error) {
     reportPreflightWarning(error);
     const report = cloneFailureReport(options.target, error, 'check');
+    reportCleanupFailure(report, error.cleanupError || error);
     writeReport(report, options);
     return exitCodeForReport(report);
   }
 
+  let report;
   try {
-    const report = applySourceTarget(
+    report = applySourceTarget(
       scanRepository(resolved.path, {
         freshClone: Boolean(resolved.source),
         symlinkPaths: resolved.source ? resolved.source.symlinkPaths : [],
@@ -316,11 +340,17 @@ async function runCheck(options) {
       resolved.source
     );
     reportPreflightWarning(resolved.source);
-    writeReport(report, options);
-    return exitCodeForReport(report);
   } finally {
-    if (resolved.source) await resolved.source.cleanup();
+    if (resolved.source) {
+      try {
+        await resolved.source.cleanup();
+      } catch (error) {
+        reportCleanupFailure(report, error);
+      }
+    }
   }
+  writeReport(report, options);
+  return exitCodeForReport(report);
 }
 
 async function runVerify(options) {
@@ -335,12 +365,14 @@ async function runVerify(options) {
   } catch (error) {
     reportPreflightWarning(error);
     const report = cloneFailureReport(options.target, error, 'verify');
+    reportCleanupFailure(report, error.cleanupError || error);
     writeReport(report, options);
     return exitCodeForReport(report);
   }
 
+  let report;
   try {
-    const report = applySourceTarget(await verifyRepository(resolved.path, {
+    report = applySourceTarget(await verifyRepository(resolved.path, {
       execute: true,
       allowNetwork: options.allowNetwork,
       timeoutMs: options.timeoutMs,
@@ -350,11 +382,20 @@ async function runVerify(options) {
       symlinkPaths: resolved.source ? resolved.source.symlinkPaths : []
     }), resolved.source);
     reportPreflightWarning(resolved.source);
-    writeReport(report, options);
-    return exitCodeForReport(report);
+    if (report.verification && report.verification.cleanup && report.verification.cleanup.cleanupFailed) {
+      reportCleanupFailure(report, report.verification.cleanup);
+    }
   } finally {
-    if (resolved.source) await resolved.source.cleanup();
+    if (resolved.source) {
+      try {
+        await resolved.source.cleanup();
+      } catch (error) {
+        reportCleanupFailure(report, error);
+      }
+    }
   }
+  writeReport(report, options);
+  return exitCodeForReport(report);
 }
 
 async function runSetup() {
@@ -403,4 +444,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseArguments, renderReport };
+module.exports = { parseArguments, renderReport, reportCleanupFailure };

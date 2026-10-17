@@ -6,6 +6,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const { isCoreFile, loadGitignoreMatcher, scanRepository } = require('../scan/repository');
+const { removeTemporaryDirectory } = require('../input/github');
 const { resolveDockerExecutable } = require('../util/executable');
 
 const DEFAULT_VERIFY_IMAGE = 'node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90';
@@ -655,6 +656,17 @@ async function cleanupContainer(runner, dockerCommand, containerName, runResult,
   };
 }
 
+async function cleanupVerificationDirectory(directory, report, field, removeDirectory) {
+  try {
+    await removeDirectory(directory);
+    report.verification.cleanup[field] = true;
+  } catch (error) {
+    report.verification.cleanup.cleanupFailed = true;
+    report.verification.cleanup.cleanupDirectory = directory;
+    report.verification.cleanup[field] = false;
+  }
+}
+
 /**
  * Verify the supported npm workflow in a CloneProof-controlled container.
  * The caller must pass execute:true. Network access is disabled unless
@@ -669,9 +681,13 @@ async function verifyRepository(rootPath, options = {}) {
   const allowNetwork = options.allowNetwork === true;
   const timeoutMs = normalizePositiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS, 10 * 60 * 1000);
   const maxOutputBytes = normalizePositiveInteger(options.maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES, 10 * 1024 * 1024);
+  const removeDirectory = (directory) => removeTemporaryDirectory(directory, {
+    remover: typeof options.removeTemporaryDirectory === 'function' ? options.removeTemporaryDirectory : undefined
+  });
   const staticReport = scanRepository(rootPath, {
     freshClone: options.freshClone === true,
-    symlinkPaths: options.symlinkPaths || []
+    symlinkPaths: options.symlinkPaths || [],
+    repositoryName: options.repositoryName
   });
   const report = cloneReport(staticReport);
   report.mode = 'verify';
@@ -703,7 +719,7 @@ async function verifyRepository(rootPath, options = {}) {
     ignoredPaths: [],
     ignoredPathCount: 0,
     ignoredPathsTruncated: false,
-    cleanup: { attempted: false, completed: true, stagingRemoved: false, clientConfigRemoved: false }
+    cleanup: { attempted: false, completed: true, stagingRemoved: false, clientConfigRemoved: false, stagingAttempted: false }
   };
 
   if (!execute) {
@@ -791,8 +807,8 @@ async function verifyRepository(rootPath, options = {}) {
     });
     report.status = 'blocked';
     report.verification.cleanup.completed = true;
-    report.verification.cleanup.clientConfigRemoved = true;
-    fs.rmSync(dockerConfigRoot, { recursive: true, force: true });
+    await cleanupVerificationDirectory(dockerConfigRoot, report, 'clientConfigRemoved', removeDirectory);
+    report.verification.cleanup.completed = !report.verification.cleanup.cleanupFailed;
     return finalizeVerificationReport(report);
   }
 
@@ -815,9 +831,8 @@ async function verifyRepository(rootPath, options = {}) {
       recommendation: `Run cloneproof setup (or docker pull ${DEFAULT_VERIFY_IMAGE})`
     });
     report.status = 'blocked';
-    report.verification.cleanup.completed = true;
-    report.verification.cleanup.clientConfigRemoved = true;
-    fs.rmSync(dockerConfigRoot, { recursive: true, force: true });
+    await cleanupVerificationDirectory(dockerConfigRoot, report, 'clientConfigRemoved', removeDirectory);
+    report.verification.cleanup.completed = !report.verification.cleanup.cleanupFailed;
     return finalizeVerificationReport(report);
   }
 
@@ -825,6 +840,7 @@ async function verifyRepository(rootPath, options = {}) {
   const containerName = makeContainerName();
   try {
     temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-verify-'));
+    report.verification.cleanup.stagingAttempted = true;
     const staged = stageRepository(rootPath, temporaryRoot, {
       ...(options.stagingLimits || {}),
       freshClone: options.freshClone === true,
@@ -977,12 +993,15 @@ async function verifyRepository(rootPath, options = {}) {
     report.status = 'failed';
   } finally {
     if (temporaryRoot) {
-      fs.rmSync(temporaryRoot, { recursive: true, force: true });
+      await cleanupVerificationDirectory(temporaryRoot, report, 'stagingRemoved', removeDirectory);
     }
-    fs.rmSync(dockerConfigRoot, { recursive: true, force: true });
-    report.verification.cleanup.stagingRemoved = true;
-    report.verification.cleanup.clientConfigRemoved = true;
-    report.verification.cleanup.completed = Boolean(report.verification.cleanup.completed);
+    await cleanupVerificationDirectory(dockerConfigRoot, report, 'clientConfigRemoved', removeDirectory);
+    report.verification.cleanup.completed = Boolean(
+      report.verification.cleanup.completed
+      && !report.verification.cleanup.cleanupFailed
+      && (!report.verification.cleanup.stagingAttempted || report.verification.cleanup.stagingRemoved)
+      && report.verification.cleanup.clientConfigRemoved
+    );
   }
 
   return finalizeVerificationReport(report);

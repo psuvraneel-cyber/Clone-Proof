@@ -15,6 +15,7 @@ const {
   isGithubRepositoryUrl,
   parseGitFileModes,
   preflightGithubRepository,
+  removeTemporaryDirectory,
   validateGithubUrl
 } = require('../src/input/github');
 const { scanRepository } = require('../src/scan/repository');
@@ -153,6 +154,54 @@ test('clones with safe git arguments and an injected no-network runner', async (
   await result.cleanup();
   assert.equal(fs.existsSync(result.root), false);
   await result.cleanup();
+});
+
+test('temporary directory removal retries an injected transient remover', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-remove-'));
+  let attempts = 0;
+  try {
+    await removeTemporaryDirectory(directory, {
+      remover: async (target) => {
+        attempts += 1;
+        if (attempts < 3) throw new Error('brief file lock');
+        await fs.promises.rm(target, { recursive: true, force: true });
+      }
+    });
+    assert.equal(attempts, 3);
+    assert.equal(fs.existsSync(directory), false);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('reports a cleanup failure without losing the clone result', async () => {
+  let cleanupDirectory;
+  const result = await cloneGithubRepository(VALID_URL, {
+    gitExecutable: process.execPath,
+    fetcher: publicFetcher(),
+    removeTemporaryDirectory: async (directory) => {
+      if (path.basename(directory).startsWith('cloneproof-github-')) {
+        cleanupDirectory = directory;
+        throw new Error('locked by antivirus');
+      }
+      await fs.promises.rm(directory, { recursive: true, force: true });
+    },
+    runner: async (command, args) => {
+      if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+      if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+      if (args.includes('rev-parse')) return commitResult();
+      const destination = args.at(-1);
+      fs.writeFileSync(path.join(destination, 'README.md'), '# fixture\n');
+      fs.writeFileSync(path.join(destination, 'index.js'), 'module.exports = 1;\n');
+      return successfulResult();
+    }
+  });
+
+  assert.ok(result.root);
+  await assert.rejects(result.cleanup(), (error) => {
+    assert.equal(path.basename(error.cleanupDirectory), path.basename(cleanupDirectory));
+    return true;
+  });
 });
 
 test('cleans a temporary checkout when git fails', async () => {

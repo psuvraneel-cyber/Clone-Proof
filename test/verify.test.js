@@ -126,6 +126,27 @@ test('successful Docker verification records evidence and cleans staging', async
   assert.equal(fs.existsSync(stagedPath), false);
 });
 
+test('transient staging remover failures are retried without a cleanup notice', async () => {
+  const { runner } = makeRunner();
+  let stagingAttempts = 0;
+  const report = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner,
+    removeTemporaryDirectory: async (directory) => {
+      if (path.basename(directory).startsWith('cloneproof-verify-')) {
+        stagingAttempts += 1;
+        if (stagingAttempts < 3) throw new Error('brief staging lock');
+      }
+      await fs.promises.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  assert.equal(report.status, 'passed');
+  assert.equal(report.verification.cleanup.stagingRemoved, true);
+  assert.equal(report.verification.cleanup.cleanupFailed, undefined);
+  assert.ok(stagingAttempts >= 3);
+});
+
 test('gitignored Docker paths are informational and have bounded sorted evidence', async () => {
   const root = makeIgnoredPathsFixture(302);
   try {
