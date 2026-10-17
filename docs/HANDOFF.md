@@ -104,7 +104,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Real Jest fixture using package.json `"test": "jest"` — passed with `--allow-network`, exit `0` after the workspace tmpfs was changed to `exec`; no resource-limit adjustment was needed.
 - Failing test fixture — failed with `failedPhase: test`; explicit stderr was visible as separate lines in text and HTML renderers.
 - Hanging test fixture with `--timeout-ms 15000` — failed and timed out, cleanup confirmed; `docker ps -a --filter name=cloneproof-verify` showed no containers.
-- `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` — passed, exit `0`, preflight `checked`, repository size `59 KiB`, clone cleaned.
+- `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` — passed, exit `0`, preflight `checked`, repository size `150 KiB`, clone cleaned.
 - `node src/cli.js verify https://github.com/psuvraneel-cyber/Clone-Proof --docker --execute --format json` — passed, exit `0`, preflight `checked`, container exit `0`, cleanup confirmed.
 - Final GitHub verification with `--allow-network` — passed, exit `0`; preflight `checked`, container exit `0`, `verification.ignoredPaths: []`, and cleanup confirmed.
 - A random nonexistent public GitHub URL — blocked with `GITHUB_REPOSITORY_UNAVAILABLE`, exit `2`, no sign-in prompt.
@@ -121,7 +121,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Pre-submit implementation commits: `0b99b43`, `4926d4d`, `510c407`, `28dcc0d`, `59ec879`, `9c435aa`, `9929395`.
 - Field-test swap — `microsoft/TypeScript-Node-Starter` was unavailable from read-only `git ls-remote`; `typeorm/typeorm` was used as the documented TypeScript/external-service replacement.
 - Previous post-push check against `main` at `d57a465` — passed, exit `0`, target commit `d57a465e73e8`, complete scan, status `passed`; GitHub preflight was `unavailable` (the unauthenticated API limit), and the clone was cleaned.
-- Post-push check against `main` at `4c0900e` — passed, exit `0`, target commit `4c0900eb03fcb4f38e00486b4ef276fd40d56d30`, preflight `checked`, repository size `150 KiB`, complete scan, status `passed`, 10 passed / 1 skipped / 0 failed; the clone was cleaned and the temp/container audit was empty. The subsequent handoff-only commit changes documentation only.
+- Post-push check against `main` at `4c0900e` — passed, exit `0`, target commit `4c0900eb03fcb4f38e00486b4ef276fd40d56d30`, preflight `checked`, repository size `150 KiB`, complete scan, status `passed`, 10 passed / 1 skipped / 0 failed; the clone was cleaned and the temp/container audit was empty. Subsequent handoff-only commits change documentation only.
 
 ## Commits in this review pass
 
@@ -161,6 +161,9 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `22e0258 fix: copy sensitive files for fresh clones`
 - `aeea9ac fix: treat skipped install scripts as informational`
 - `2a35843 docs: record field-test rerun expectations`
+- `bfb8cd3 docs: correct field-test report`
+- `4c0900e docs: record final field-test checks`
+- `a3f5031 docs: record pushed check result`
 
 ## OmniRush sessions for submission
 
@@ -173,12 +176,14 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Part 4 implementation session: `ses_eb6f7fc5fffeBeCHmoHZzvPT3H`
 - Earlier workspace, architecture, scanner, report, Docker-review, and QA sessions remain in the prior handoff history if the dashboard requires them.
 
-## Next step
+## Next session
 
 The final diff and checks must be complete before fast-forwarding `main` to `pre-submit`, pushing it, confirming CI on both refs, and performing the post-push GitHub check:
 
 ```bash
-git status
+git status --short --branch
+git log --oneline --decorate -10
+git show --stat --oneline HEAD
 git diff --check
 git log --oneline -10
 docker build -t cloneproof .
