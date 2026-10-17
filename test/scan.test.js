@@ -207,10 +207,76 @@ test('validates npm start against scripts.start or a root server.js', () => with
 
   fs.rmSync(path.join(root, 'server.js'));
   const unknown = scanRepository(root);
-  const unknownStart = finding(unknown, 'README_SCRIPT_UNKNOWN');
-  assert.equal(unknownStart.status, 'failed');
+  const unknownStart = finding(unknown, 'README_START_COMMAND_UNKNOWN');
+  assert.equal(unknownStart.status, 'warning');
   assert.equal(unknownStart.evidence[0].path, 'README.md');
   assert.match(unknownStart.message, /npm start/);
+}));
+
+test('ignores README commands that operate on a generated different project', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    '# Generated app',
+    '```bash',
+    'express /tmp/app && cd /tmp/app',
+    'npm install',
+    'npm start',
+    '```'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const otherProject = finding(report, 'README_OTHER_PROJECT_COMMANDS');
+
+  assert.equal(finding(report, 'README_SCRIPT_UNKNOWN'), undefined);
+  assert.equal(otherProject.status, 'skipped');
+  assert.equal(otherProject.severity, 'info');
+  assert.match(otherProject.message, /line 3/);
+  assert.match(otherProject.message, /line 4/);
+  assert.match(otherProject.message, /line 5/);
+}));
+
+test('reports an unknown npm start as a warning for the repository project', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    'git clone https://github.com/example/myrepo.git && cd myrepo',
+    'npm start'
+  ].join('\n'));
+
+  const report = scanRepository(root, { repositoryName: 'myrepo' });
+  const unknownStart = finding(report, 'README_START_COMMAND_UNKNOWN');
+
+  assert.equal(report.status, 'passed_with_warnings');
+  assert.equal(unknownStart.status, 'warning');
+  assert.equal(unknownStart.severity, 'warning');
+  assert.equal(finding(report, 'README_SCRIPT_UNKNOWN'), undefined);
+}));
+
+test('ends the different-project state at the next Markdown heading', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    'cd /tmp/app',
+    'npm install',
+    '## This repository',
+    'npm run missing'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'README_OTHER_PROJECT_COMMANDS').status, 'skipped');
+  assert.equal(finding(report, 'README_SCRIPT_UNKNOWN').status, 'failed');
+}));
+
+test('ignores explicit scripts for a nested different project', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    'cd packages/web',
+    'npm run build'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'README_SCRIPT_UNKNOWN'), undefined);
+  assert.equal(finding(report, 'README_OTHER_PROJECT_COMMANDS').status, 'skipped');
 }));
 
 test('checks npm run-script, yarn run, and pnpm run against package scripts', () => withRepository((root) => {

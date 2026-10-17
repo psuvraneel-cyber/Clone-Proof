@@ -310,7 +310,8 @@ async function runCheck(options) {
     const report = applySourceTarget(
       scanRepository(resolved.path, {
         freshClone: Boolean(resolved.source),
-        symlinkPaths: resolved.source ? resolved.source.symlinkPaths : []
+        symlinkPaths: resolved.source ? resolved.source.symlinkPaths : [],
+        repositoryName: resolved.source ? resolved.source.repo : undefined
       }),
       resolved.source
     );
@@ -344,6 +345,7 @@ async function runVerify(options) {
       allowNetwork: options.allowNetwork,
       timeoutMs: options.timeoutMs,
       freshClone: Boolean(resolved.source),
+      repositoryName: resolved.source ? resolved.source.repo : undefined,
       executablePaths: resolved.source ? resolved.source.executablePaths : [],
       symlinkPaths: resolved.source ? resolved.source.symlinkPaths : []
     }), resolved.source);

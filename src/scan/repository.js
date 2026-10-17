@@ -1238,10 +1238,37 @@ function setupCommandFromReadmeLine(line) {
   };
 }
 
-function parseReadmeCommands(text) {
+function readmeCdTarget(line) {
+  const match = /(?:^|[;&|]\s*|\s)cd(?:\s+--)?\s+([^\s;&|`'"<>]+)/i.exec(String(line));
+  if (!match) return null;
+  return stripReadmeCommandPunctuation(match[1]).replace(/[\\/]+$/, '') || '.';
+}
+
+function readmePackageName(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().replace(/^@[^/]+\//, '');
+  return normalized || null;
+}
+
+function parseReadmeCommands(text, options = {}) {
   const references = new Map();
   const setupCommands = [];
+  const otherProjectLines = [];
   const lines = text.split(/\r?\n/);
+  const ownProjectNames = new Set([
+    readmePackageName(options.repositoryName),
+    readmePackageName(options.rootName),
+    readmePackageName(options.packageName),
+    readmePackageName(options.packageName && String(options.packageName).split('/').pop())
+  ].filter(Boolean).map((name) => name.toLowerCase()));
+  let differentProject = false;
+
+  function addOtherProjectLine(lineNumber, line) {
+    if (otherProjectLines.length >= 10) return;
+    const textValue = String(line).trim();
+    if (!textValue || otherProjectLines.some((entry) => entry.line === lineNumber)) return;
+    otherProjectLines.push({ line: lineNumber, text: textValue });
+  }
 
   function addReference(key, kind, line, detail) {
     if (!references.has(key)) {
@@ -1252,6 +1279,24 @@ function parseReadmeCommands(text) {
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const line = lines[lineIndex];
     const lineNumber = lineIndex + 1;
+    if (/^\s*#{1,6}(?:\s|$)/.test(line)) differentProject = false;
+    const cdTarget = readmeCdTarget(line);
+    if (cdTarget) {
+      const normalizedTarget = cdTarget.toLowerCase();
+      const isRepositoryTarget = cdTarget === '.'
+        || cdTarget === './'
+        || ownProjectNames.has(normalizedTarget)
+        || normalizedTarget === (options.packageName || '').toLowerCase();
+      if (!isRepositoryTarget) {
+        differentProject = true;
+        addOtherProjectLine(lineNumber, line);
+      }
+    }
+    if (differentProject) {
+      if (/\b(?:npm|yarn|pnpm)\s+\S+/i.test(line)) addOtherProjectLine(lineNumber, line);
+      continue;
+    }
+
     const setupCommand = setupCommandFromReadmeLine(line);
     if (setupCommand) setupCommands.push({ ...setupCommand, line: lineNumber });
 
@@ -1294,7 +1339,8 @@ function parseReadmeCommands(text) {
 
   return {
     references: [...references.values()],
-    setupCommands
+    setupCommands,
+    otherProjectLines
   };
 }
 
@@ -2212,9 +2258,31 @@ function scanRepository(rootPath, options) {
   let readmeText = null;
   if (readmeState === 'scanned') {
     readmeText = decodeText(scanned.files.get(readmePath));
-    const parsedReadme = parseReadmeCommands(readmeText);
+    const parsedReadme = parseReadmeCommands(readmeText, {
+      repositoryName: scanOptions.repositoryName,
+      rootName: rootName(absoluteRoot),
+      packageName: packageData && packageData.name
+    });
     readmeReferences = parsedReadme.references;
     readmeSetupCommands = parsedReadme.setupCommands;
+    if (parsedReadme.otherProjectLines.length > 0) {
+      addFinding(
+        findings,
+        'README_OTHER_PROJECT_COMMANDS',
+        'skipped',
+        'info',
+        'README commands for another project were ignored',
+        `Ignored README commands for another project: ${parsedReadme.otherProjectLines
+          .map((entry) => `line ${entry.line} ${entry.text}`)
+          .join('; ')}.`,
+        parsedReadme.otherProjectLines.map((entry) => makeEvidence(
+          readmePath,
+          'README command was associated with a different project.',
+          entry.line
+        )),
+        'Run CloneProof separately on the generated or nested project when it needs verification.'
+      );
+    }
   } else if (readmeState === 'unscanned' || readmeState === 'skipped') {
     addFinding(
       findings,
@@ -2369,13 +2437,13 @@ function scanRepository(rootPath, options) {
       } else if (packageValid) {
         addFinding(
           findings,
-          'README_SCRIPT_UNKNOWN',
-          'failed',
-          'error',
-          'README references an unknown npm script',
+          'README_START_COMMAND_UNKNOWN',
+          'warning',
+          'warning',
+          'README references an unknown npm start command',
           'README references npm start, but package.json does not define scripts.start and no root server.js entrypoint is present.',
           evidence,
-          'Define scripts.start, add a root server.js entrypoint, or update the README command.'
+          'Define scripts.start or add a root server.js entrypoint when this repository is expected to start an application.'
         );
       } else {
         addFinding(
