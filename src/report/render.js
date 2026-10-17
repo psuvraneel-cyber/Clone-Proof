@@ -1,5 +1,13 @@
 'use strict';
 
+const {
+  CHECK_GROUPS,
+  CHECK_GROUP_IDS,
+  CHECK_GROUP_LABELS,
+  NOT_CHECKED,
+  NOT_CHECKED_LABELS
+} = require('./coverage');
+
 const ANSI = Object.freeze({
   reset: '\u001b[0m',
   bold: '\u001b[1m',
@@ -155,6 +163,59 @@ function textValue(value, fallback = '') {
   }
 
   return String(value);
+}
+
+function reportCoverage(report) {
+  const coverage = report && report.coverage && typeof report.coverage === 'object'
+    ? report.coverage
+    : {};
+  return {
+    checked: Array.isArray(coverage.checked) ? coverage.checked : [],
+    notChecked: Array.isArray(coverage.notChecked) ? coverage.notChecked : [...NOT_CHECKED]
+  };
+}
+
+function coverageLabel(id, labels) {
+  return labels[id] || id;
+}
+
+function successExplanation(report, checkedCount) {
+  const status = normalizeStatus(reportStatus(report));
+  if (report && report.mode === 'check' && status === 'passed') {
+    return `No known setup problems were found (${checkedCount} checks). This is not a guarantee that a fresh clone works; see Not checked.`;
+  }
+  if (
+    report
+    && report.mode === 'verify'
+    && report.verification
+    && typeof report.verification === 'object'
+    && normalizeStatus(report.verification.outcome) === 'passed'
+  ) {
+    return 'npm ci and npm test succeeded inside the controlled container.';
+  }
+  return null;
+}
+
+function textCoverageLines(report) {
+  const coverage = reportCoverage(report);
+  const lines = ['What was checked:'];
+  if (coverage.checked.length === 0) {
+    lines.push('  (none recorded)');
+  } else {
+    for (const id of coverage.checked) {
+      lines.push(`  - ${escapeControlCharacters(coverageLabel(id, CHECK_GROUP_LABELS))} (${escapeControlCharacters(id)})`);
+    }
+  }
+
+  lines.push('', 'Not checked:');
+  if (coverage.notChecked.length === 0) {
+    lines.push('  (none recorded)');
+  } else {
+    for (const id of coverage.notChecked) {
+      lines.push(`  - ${escapeControlCharacters(coverageLabel(id, NOT_CHECKED_LABELS))} (${escapeControlCharacters(id)})`);
+    }
+  }
+  return lines;
 }
 
 /**
@@ -374,11 +435,16 @@ function renderText(report, options = {}) {
   const counts = reportCounts(safeReport, findings);
   const status = escapeControlCharacters(reportStatus(safeReport));
   const commit = targetCommit(safeReport);
+  const coverage = reportCoverage(safeReport);
+  const explanation = successExplanation(safeReport, coverage.checked.length);
   const lines = [
     paint('CloneProof — repository setup verification', ANSI.bold, enabled),
     `Target: ${escapeControlCharacters(targetName(safeReport))}`,
     ...(commit ? [`Commit: ${escapeControlCharacters(commit)}`] : []),
     `Status: ${status}`,
+    ...(explanation ? [escapeControlCharacters(explanation)] : []),
+    '',
+    ...textCoverageLines(safeReport),
     '',
     'Counts:',
     `  Total: ${escapeControlCharacters(counts.total)}`,
@@ -444,6 +510,10 @@ section, article { margin-top: 1.5rem; }
 .status-skipped, .status-unknown { background: #e5e7eb; color: #374151; }
 .finding-meta { align-items: center; display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0; }
 .finding-message { margin-bottom: 0; }
+.report-explanation { margin: 0.5rem 0 0; }
+.coverage-columns { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
+.coverage-list { margin: 0.5rem 0 0; padding-left: 1.4rem; }
+.coverage-list li { margin: 0.35rem 0; overflow-wrap: anywhere; }
 .evidence { margin: 0.75rem 0 0; padding-left: 1.4rem; }
 .evidence li { margin: 0.4rem 0; overflow-wrap: anywhere; }
 .evidence-location { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -520,6 +590,36 @@ function htmlEvidenceItem(item) {
   }
 
   return `<li>${parts.length > 0 ? parts.join(' <span aria-hidden="true">—</span> ') : '<span class="muted">(no detail recorded)</span>'}</li>`;
+}
+
+function htmlCoverage(report) {
+  const coverage = reportCoverage(report);
+  const checkedItems = coverage.checked.map((id) => (
+    `<li>${htmlValue(coverageLabel(id, CHECK_GROUP_LABELS))} <code>${htmlValue(id)}</code></li>`
+  ));
+  const notCheckedItems = coverage.notChecked.map((id) => (
+    `<li>${htmlValue(coverageLabel(id, NOT_CHECKED_LABELS))} <code>${htmlValue(id)}</code></li>`
+  ));
+
+  return [
+    '<section class="panel" aria-labelledby="coverage-heading">',
+    '  <h2 id="coverage-heading">Report coverage</h2>',
+    '  <div class="coverage-columns">',
+    '    <section aria-labelledby="checked-heading">',
+    '      <h3 id="checked-heading">What was checked</h3>',
+    checkedItems.length > 0
+      ? `      <ul class="coverage-list">${checkedItems.join('')}</ul>`
+      : '      <p class="muted">(none recorded)</p>',
+    '    </section>',
+    '    <section aria-labelledby="not-checked-heading">',
+    '      <h3 id="not-checked-heading">Not checked</h3>',
+    notCheckedItems.length > 0
+      ? `      <ul class="coverage-list">${notCheckedItems.join('')}</ul>`
+      : '      <p class="muted">(none recorded)</p>',
+    '    </section>',
+    '  </div>',
+    '</section>'
+  ].join('\n');
 }
 
 function htmlFinding(finding, index) {
@@ -629,6 +729,8 @@ function renderHtml(report) {
   const status = reportStatus(safeReport);
   const statusClass = htmlStatusClass(status);
   const commit = targetCommit(safeReport);
+  const coverage = reportCoverage(safeReport);
+  const explanation = successExplanation(safeReport, coverage.checked.length);
   const findingMarkup = findings.length > 0
     ? findings.map(htmlFinding).join('\n')
     : '<p class="muted">No findings recorded.</p>';
@@ -651,6 +753,7 @@ function renderHtml(report) {
     '    <section class="panel" aria-labelledby="summary-heading">',
     '      <h2 id="summary-heading">Summary</h2>',
     `      <p>Status: <span class="status status-${statusClass}">${htmlValue(status)}</span></p>`,
+    ...(explanation ? [`      <p class="report-explanation">${htmlValue(explanation)}</p>`] : []),
     '      <h3 id="counts-heading">Counts</h3>',
     '      <dl class="counts" aria-labelledby="counts-heading">',
     `        <dt>Total</dt><dd>${htmlValue(counts.total)}</dd>`,
@@ -660,6 +763,7 @@ function renderHtml(report) {
     `        <dt>Skipped</dt><dd>${htmlValue(counts.skipped)}</dd>`,
     '      </dl>',
     '    </section>',
+    htmlCoverage(safeReport),
     '    <section aria-labelledby="findings-heading">',
     `      <h2 id="findings-heading">Findings <span class="muted">(${findings.length})</span></h2>`,
     findingMarkup,
@@ -696,6 +800,11 @@ function exitCodeForReport(report) {
 }
 
 module.exports = {
+  CHECK_GROUPS,
+  CHECK_GROUP_IDS,
+  CHECK_GROUP_LABELS,
+  NOT_CHECKED,
+  NOT_CHECKED_LABELS,
   renderJson,
   renderText,
   renderHtml,

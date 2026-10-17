@@ -1,12 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { exitCodeForReport, renderHtml, renderJson, renderText } = require('../src/report/render');
+const { CHECK_GROUPS, NOT_CHECKED } = require('../src/report/coverage');
+
+const ALL_CHECK_GROUPS = Object.freeze(Object.values(CHECK_GROUPS));
 
 function reportFixture() {
   return {
     schemaVersion: 2,
+    mode: 'check',
     target: { name: 'sample-repository' },
     status: 'passed_with_warnings',
+    coverage: { checked: ALL_CHECK_GROUPS, notChecked: NOT_CHECKED },
     summary: { total: 4, passed: 1, failed: 1, warnings: 1, skipped: 1 },
     findings: [
       {
@@ -54,6 +59,70 @@ test('renderJson is parseable, pretty, stable, and newline terminated', () => {
   assert.match(rendered, /^\{\n  "a":/);
   assert.equal(rendered.endsWith('\n'), true);
   assert.equal(rendered.endsWith('\n\n'), false);
+});
+
+test('renderJson preserves schema-v2 report coverage', () => {
+  const report = reportFixture();
+  const rendered = renderJson(report);
+
+  assert.deepEqual(JSON.parse(rendered).coverage, {
+    checked: ALL_CHECK_GROUPS,
+    notChecked: NOT_CHECKED
+  });
+});
+
+test('renderText explains a passed static check and renders coverage sections', () => {
+  const report = {
+    schemaVersion: 2,
+    mode: 'check',
+    target: { kind: 'local', name: 'healthy-repository' },
+    status: 'passed',
+    coverage: { checked: ALL_CHECK_GROUPS, notChecked: NOT_CHECKED },
+    findings: [],
+    summary: { total: 0, passed: 0, failed: 0, warnings: 0, skipped: 0 }
+  };
+
+  const output = renderText(report, { color: false, isTTY: false });
+  const html = renderHtml(report);
+
+  assert.match(output, /Status: passed\nNo known setup problems were found \(12 checks\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(output, /What was checked:/);
+  assert.match(output, /Package manifest \(package-manifest\)/);
+  assert.match(output, /Not checked:/);
+  assert.match(output, /Build steps and generated output \(build-steps-generated-output\)/);
+  assert.match(html, /No known setup problems were found \(12 checks\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(html, /What was checked/);
+  assert.match(html, /Not checked/);
+});
+
+test('renderText and renderHtml explain a passed Docker verification', () => {
+  const report = {
+    schemaVersion: 2,
+    mode: 'verify',
+    target: { kind: 'local', name: 'healthy-repository' },
+    status: 'passed',
+    coverage: { checked: ALL_CHECK_GROUPS, notChecked: NOT_CHECKED },
+    findings: [],
+    summary: { total: 0, passed: 0, failed: 0, warnings: 0, skipped: 0 },
+    verification: {
+      outcome: 'passed',
+      networkMode: 'none',
+      networkConsent: false,
+      exitCode: 0,
+      cleanup: { completed: true }
+    }
+  };
+
+  const text = renderText(report, { color: false, isTTY: false });
+  const html = renderHtml(report);
+  const explanation = 'npm ci and npm test succeeded inside the controlled container.';
+
+  assert.match(text, new RegExp(`Status: passed\\n${explanation.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}`));
+  assert.match(html, new RegExp(explanation.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')));
+  assert.match(html, /What was checked/);
+  assert.match(html, /Not checked/);
+  assert.match(html, /Package manifest/);
+  assert.match(html, /Build steps and generated output/);
 });
 
 test('renderText includes the report summary and every finding status', () => {

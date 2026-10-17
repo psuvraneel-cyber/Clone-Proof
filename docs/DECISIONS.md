@@ -71,3 +71,9 @@
 - **Decision:** Make `INSTALL_SCRIPTS_SKIPPED` informational/skipped rather than a warning. Keep its package evidence and explain it when a test phase fails; do not enable lifecycle scripts.
 - **Field-test result:** The corrected first-run counts are 10 correct, 2 false failures, 1 false block, and 2 environment-limited failures. After the fixes, the counts are 13 correct and 2 environment-limited failures. Full run evidence and workflow references are in `docs/FIELD_TEST.md`.
 - **Current OmniRush session:** `ses_ebb440a63ffeifxYlQlOEyZBGL`.
+
+## 2026-10-17 — Add report coverage without changing schema version 2
+
+- **Decision:** Add the additive `report.coverage` object to schema-version-2 check and verify reports. It records stable IDs for the check groups actually attempted for the target and the fixed scope entries that CloneProof does not check.
+- **Why:** A passed report should explain the evidence boundary without implying that setup, services, platform behavior, credentials, or browser/native builds were proven. Centralized exported constants keep JSON, text, and HTML output aligned.
+- **Trade-off:** Unsupported, unavailable, and clone-failure reports contain only the check groups that had enough target data to be attempted; they do not claim the full static inventory. Verify retains the static scan coverage while leaving browser/native-build execution in the not-checked scope.

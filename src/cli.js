@@ -10,6 +10,7 @@ const {
 } = require('./input/github');
 const { scanRepository } = require('./scan/repository');
 const { exitCodeForReport, renderHtml, renderJson, renderText } = require('./report/render');
+const { createCoverage } = require('./report/coverage');
 const { verifyRepository } = require('./verify/docker');
 
 const COMMANDS = new Set(['check', 'verify']);
@@ -231,7 +232,8 @@ function cloneFailureReport(target, error, mode) {
       failed: findingStatus === 'failed' ? 1 : 0,
       warnings: 0,
       skipped: findingStatus === 'skipped' ? 1 : 0
-    }
+    },
+    coverage: createCoverage()
   };
 }
 

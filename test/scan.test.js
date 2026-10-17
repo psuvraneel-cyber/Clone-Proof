@@ -8,6 +8,7 @@ const test = require('node:test');
 
 const { classifyLstatFailure, scanRepository } = require('../src/scan/repository');
 const { exitCodeForReport } = require('../src/report/render');
+const { CHECK_GROUPS, NOT_CHECKED } = require('../src/report/coverage');
 
 function makeRepository() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-scan-'));
@@ -974,12 +975,26 @@ test('blocks a repository whose Node package is nested under another ecosystem',
   assert.match(unsupported.recommendation, /nested package/i);
 }));
 
+test('unsupported reports list only the static groups that were attempted', () => withRepository((root) => {
+  writeFile(root, 'README.md', '# Python project\n');
+  writeFile(root, 'main.py', 'print("hello")\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.status, 'blocked');
+  assert.deepEqual(report.coverage, {
+    checked: [CHECK_GROUPS.NESTED_PACKAGES, CHECK_GROUPS.PROJECT_CLASSIFICATION],
+    notChecked: NOT_CHECKED
+  });
+}));
+
 test('returns an incomplete report for a missing repository path', () => {
   const missing = path.join(os.tmpdir(), `cloneproof-does-not-exist-${Date.now()}`);
   const report = scanRepository(missing);
 
   assert.equal(report.status, 'incomplete');
   assert.equal(finding(report, 'SCAN_ROOT_UNAVAILABLE').status, 'failed');
+  assert.deepEqual(report.coverage.checked, []);
 });
 
 test('static inspection never executes package scripts, README commands, or Dockerfile instructions', () => withRepository((root) => {

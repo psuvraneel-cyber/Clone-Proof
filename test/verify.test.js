@@ -13,6 +13,8 @@ const {
   stageRepository,
   verifyRepository
 } = require('../src/verify/docker');
+const { scanRepository } = require('../src/scan/repository');
+const { CHECK_GROUPS, NOT_CHECKED } = require('../src/report/coverage');
 
 const healthyFixture = path.join(__dirname, '..', 'examples', 'healthy-node');
 const brokenFixture = path.join(__dirname, '..', 'examples', 'broken-node');
@@ -112,6 +114,7 @@ test('successful Docker verification records evidence and cleans staging', async
   assert.equal(report.verification.cleanup.completed, true);
   assert.equal(report.verification.imageAvailable, true);
   assert.equal(report.findings.find((finding) => finding.code === 'DOCKER_VERIFICATION_PASSED').status, 'passed');
+  assert.deepEqual(report.coverage, scanRepository(healthyFixture).coverage);
 
   const runCall = calls.find((call) => call.args[0] === 'run');
   assert.ok(runCall);
@@ -245,6 +248,25 @@ test('static failures block Docker execution', async () => {
   assert.equal(report.status, 'blocked');
   assert.equal(report.findings.find((finding) => finding.code === 'DOCKER_PREREQUISITES_FAILED').status, 'skipped');
   assert.equal(calls.length, 0);
+});
+
+test('unsupported verification keeps only its attempted static coverage', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-unsupported-verify-'));
+  try {
+    fs.writeFileSync(path.join(root, 'README.md'), '# Python project\n');
+    fs.writeFileSync(path.join(root, 'main.py'), 'print("hello")\n');
+    const { calls, runner } = makeRunner();
+    const report = await verifyRepository(root, { execute: true, runner });
+
+    assert.equal(report.status, 'blocked');
+    assert.deepEqual(report.coverage, {
+      checked: [CHECK_GROUPS.NESTED_PACKAGES, CHECK_GROUPS.PROJECT_CLASSIFICATION],
+      notChecked: NOT_CHECKED
+    });
+    assert.equal(calls.length, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('placeholder npm test scripts block Docker execution', async () => {

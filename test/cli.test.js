@@ -24,6 +24,8 @@ test('check emits machine-readable JSON for a local repository', () => {
   assert.equal(report.mode, 'check');
   assert.equal(report.target.kind, 'local');
   assert.equal(report.scan.complete, true);
+  assert.equal(Array.isArray(report.coverage.checked), true);
+  assert.equal(Array.isArray(report.coverage.notChecked), true);
 });
 
 test('broken fixture exits nonzero and missing paths exit incomplete', () => {
@@ -81,6 +83,7 @@ test('invalid GitHub URLs return a blocked machine-readable report without invok
   const report = JSON.parse(result.stdout);
   assert.equal(report.status, 'blocked');
   assert.equal(report.findings[0].code, 'GITHUB_URL_INVALID');
+  assert.deepEqual(report.coverage.checked, []);
 });
 
 test('GitHub-shaped targets without https are rejected with a canonical URL hint', () => {

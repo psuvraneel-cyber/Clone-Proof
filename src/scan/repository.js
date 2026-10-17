@@ -3,6 +3,12 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {
+  CHECK_GROUPS,
+  CHECK_GROUP_IDS,
+  NOT_CHECKED,
+  createCoverageTracker
+} = require('../report/coverage');
 
 const DEFAULT_LIMITS = Object.freeze({
   maxDepth: 25,
@@ -1450,14 +1456,30 @@ function scanRepository(rootPath, options) {
   const limits = normalizeLimits(options);
   const scanOptions = options && typeof options === 'object' ? options : {};
   const scanned = scanFiles(absoluteRoot, limits, scanOptions);
+  const coverage = createCoverageTracker();
   const findings = [];
   const packageState = stateFor('package.json', scanned.files, scanned.discovered, scanned.skipped);
   const nestedPackageFiles = nestedPackagePaths(scanned.discovered);
   const ecosystemMarker = rootEcosystemMarker(scanned.discovered);
   const projectType = inferProjectType(packageState, scanned.discovered, nestedPackageFiles, ecosystemMarker);
+  const supportedProject = projectType === 'node' || projectType === 'typescript';
   const packageText = packageState === 'scanned'
     ? decodeText(scanned.files.get('package.json'))
     : null;
+
+  if (scanned.rootState === 'ok') {
+    coverage.mark(CHECK_GROUPS.NESTED_PACKAGES);
+    coverage.mark(CHECK_GROUPS.PROJECT_CLASSIFICATION);
+  }
+  if (scanned.rootState === 'ok' && supportedProject) {
+    coverage.mark(CHECK_GROUPS.PACKAGE_MANIFEST);
+    coverage.mark(CHECK_GROUPS.LOCKFILE);
+    coverage.mark(CHECK_GROUPS.TEST_SCRIPT);
+    coverage.mark(CHECK_GROUPS.NODE_RUNTIME);
+    if (scanOptions.freshClone !== true) {
+      coverage.mark(CHECK_GROUPS.GITIGNORED_CORE_FILES);
+    }
+  }
 
   let packageData = null;
   let packageValid = false;
@@ -1490,6 +1512,9 @@ function scanRepository(rootPath, options) {
   }
 
   if (declaredPackageManager && lockfiles.length > 0) {
+    if (supportedProject && scanned.rootState === 'ok') {
+      coverage.mark(CHECK_GROUPS.PACKAGE_MANAGER);
+    }
     const lockfileManagers = [...new Set(lockfiles.map((lockfile) => lockfile.packageManager))].sort(compareStrings);
     if (!lockfileManagers.includes(declaredPackageManager.name)) {
       addFinding(
@@ -1731,6 +1756,7 @@ function scanRepository(rootPath, options) {
             'Regenerate the lockfile with the project package manager and commit the corrected file.'
           );
         } else if (packageValid) {
+          coverage.mark(CHECK_GROUPS.INSTALL_SCRIPTS);
           addLockfileSyncFinding(
             findings,
             packageText,
@@ -1812,6 +1838,7 @@ function scanRepository(rootPath, options) {
   }
 
   if (packageValid && typeof scripts.test === 'string' && scripts.test.trim() && !placeholderTestFinding) {
+    coverage.mark(CHECK_GROUPS.BROWSER_TESTS);
     const browserDependencies = browserTestDependencyNames(packageData);
     const browserWorkflow = browserTestWorkflow(scripts);
     if (browserDependencies.length > 0 && browserWorkflow.runners.length > 0) {
@@ -1860,6 +1887,13 @@ function scanRepository(rootPath, options) {
   const readmeState = readmePath
     ? stateFor(readmePath, scanned.files, scanned.discovered, scanned.skipped)
     : 'absent';
+  if (
+    supportedProject
+    && scanned.rootState === 'ok'
+    && ['scanned', 'unscanned', 'skipped'].includes(readmeState)
+  ) {
+    coverage.mark(CHECK_GROUPS.README_COMMANDS);
+  }
   let readmeReferences = [];
   if (readmeState === 'scanned') {
     readmeReferences = parseReadmeCommands(decodeText(scanned.files.get(readmePath)));
@@ -1997,6 +2031,9 @@ function scanRepository(rootPath, options) {
   const applicationSourceFiles = allSourceFiles.filter((relativePath) => (
     !isTestPath(relativePath) && !isUnderNestedPackage(relativePath, nestedPackageFiles)
   ));
+  if (supportedProject && scanned.rootState === 'ok' && applicationSourceFiles.length > 0) {
+    coverage.mark(CHECK_GROUPS.ENV_DOCUMENTATION);
+  }
   const environmentSourceFiles = applicationSourceFiles.filter((relativePath) => (
     !isEnvironmentAnalysisExcludedPath(relativePath)
   ));
@@ -2339,11 +2376,15 @@ function scanRepository(rootPath, options) {
     },
     project,
     findings,
-    summary
+    summary,
+    coverage: coverage.snapshot()
   };
 }
 
 module.exports = {
+  CHECK_GROUPS,
+  CHECK_GROUP_IDS,
+  NOT_CHECKED,
   classifyLstatFailure,
   isCoreFile,
   loadGitignoreMatcher,
