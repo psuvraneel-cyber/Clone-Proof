@@ -706,6 +706,39 @@ test('treats CLICOLOR_FORCE as a conventional environment key', () => withReposi
   assert.equal(finding(report, 'ENV_KEY_MISSING'), undefined);
 }));
 
+test('treats proxy variables as conventional but still warns for custom keys', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'const httpProxy = process.env.HTTP_PROXY;',
+    'const httpsProxy = process.env.HTTPS_PROXY;',
+    'const noProxy = process.env.NO_PROXY;',
+    'const allProxy = process.env.ALL_PROXY;',
+    'const lowerHttpProxy = process.env.http_proxy;',
+    'const lowerHttpsProxy = process.env.https_proxy;',
+    'const lowerNoProxy = process.env.no_proxy;',
+    'const lowerAllProxy = process.env.all_proxy;',
+    'const custom = process.env.CUSTOM_PROXY_SETTING;'
+  ].join('\n'));
+  writeFile(root, '.env.example', [
+    'HTTP_PROXY=placeholder',
+    'HTTPS_PROXY=placeholder',
+    'NO_PROXY=placeholder',
+    'ALL_PROXY=placeholder',
+    'http_proxy=placeholder',
+    'https_proxy=placeholder',
+    'no_proxy=placeholder',
+    'all_proxy=placeholder'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_KEY_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /CUSTOM_PROXY_SETTING/);
+  for (const key of ['HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'all_proxy']) {
+    assert.doesNotMatch(missing.message, new RegExp(`\\b${key}\\b`));
+  }
+}));
+
 test('does not treat an earlier object destructuring as environment access', () => withRepository((root) => {
   writeEnvironmentFixture(root, [
     "const { join, resolve } = require('path');",

@@ -117,7 +117,15 @@ const CONVENTIONAL_ENV_KEYS = new Set([
   'DEBUG',
   'NODE_DEBUG',
   'NODE_PATH',
-  'PATHEXT'
+  'PATHEXT',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'NO_PROXY',
+  'ALL_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'no_proxy',
+  'all_proxy'
 ]);
 const ENVIRONMENT_ANALYSIS_EXCLUDED_FIRST_SEGMENTS = new Set([
   'scripts',
