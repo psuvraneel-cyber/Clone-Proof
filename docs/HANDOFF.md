@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-17; `main` and `pre-submit` are fast-forwarded to the final submitted revision `a107b5c` and both are pushed. This file is the final handoff for the implementation session.
+Updated 2026-10-17; the final implementation and documentation are pushed on `pre-submit`, and `main` is fast-forwarded to the same submitted revision before handoff. This file is the final handoff for the implementation session.
 
 ## Goal
 
