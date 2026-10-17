@@ -1452,3 +1452,18 @@ test('marks a traversal that exceeds maxEntries incomplete', () => withRepositor
   assert.equal(limitFinding.evidence.length, 1);
   assert.equal(path.isAbsolute(limitFinding.evidence[0].path), false);
 }));
+
+test('reads root files before descending into a large hidden directory', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({ name: 'entry-order-fixture' }));
+  writeFile(root, 'README.md', 'Run `npm test` after installing dependencies.\n');
+  for (let index = 0; index < 50; index += 1) writeFile(root, `.venv/file-${String(index).padStart(2, '0')}.txt`, 'x');
+
+  const report = scanRepository(root, { maxEntries: 20 });
+
+  assert.equal(report.project.type, 'node');
+  assert.equal(finding(report, 'PACKAGE_JSON_PRESENT').status, 'passed');
+  assert.equal(finding(report, 'TEST_SCRIPT_MISSING').status, 'failed');
+  assert.equal(report.status, 'incomplete');
+  assert.equal(report.scan.complete, false);
+  assert.equal(finding(report, 'SCAN_ENTRY_LIMIT_EXCEEDED').status, 'skipped');
+}));

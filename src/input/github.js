@@ -349,8 +349,11 @@ function inspectCheckout(rootPath, options = {}) {
   function walk(directory, depth) {
     let entries;
     try {
-      entries = fs.readdirSync(directory, { withFileTypes: true })
-        .sort((left, right) => left.name.localeCompare(right.name));
+      entries = fs.readdirSync(directory, { withFileTypes: true });
+      entries = [
+        ...entries.filter((entry) => !entry.isDirectory()).sort((left, right) => left.name.localeCompare(right.name)),
+        ...entries.filter((entry) => entry.isDirectory()).sort((left, right) => left.name.localeCompare(right.name))
+      ];
     } catch (error) {
       throw new GithubSourceError(
         `Unable to inspect GitHub checkout at ${relativePath(root, directory)}: ${error.message}`,

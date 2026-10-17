@@ -1567,7 +1567,10 @@ function scanFiles(rootPath, limits, options = {}) {
       return;
     }
 
-    entries.sort((left, right) => compareStrings(left.name, right.name));
+    entries = [
+      ...entries.filter((entry) => !entry.isDirectory()).sort((left, right) => compareStrings(left.name, right.name)),
+      ...entries.filter((entry) => entry.isDirectory()).sort((left, right) => compareStrings(left.name, right.name))
+    ];
     const hasNestedPackageManifest = relativeDirectory !== '.'
       && entries.some((entry) => entry.isFile()
         && !gitSymlinkPaths.has(toRelativePath(rootPath, path.join(absoluteDirectory, entry.name)))
