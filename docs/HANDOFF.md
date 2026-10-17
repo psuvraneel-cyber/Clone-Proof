@@ -74,9 +74,9 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `npm test` — passed: 130 tests, 129 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
 - `git diff --check` — passed.
 - `docker image inspect node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` — passed after confirming/pulling the recorded digest.
-- `docker build -t cloneproof .` — passed.
+- `docker build -t cloneproof .` — passed after the four fixes and report corrections.
 - `docker run --rm --network none cloneproof` — passed, exit `0`.
-- `docker run --rm --network none cloneproof npm test` — passed, exit `0`, 124 tests passed in the Linux container.
+- `docker run --rm --network none cloneproof npm test` — passed, exit `0`, 130 tests passed and 0 skipped in the Linux container.
 - `node src/cli.js verify examples/healthy-node --docker --execute` — passed, exit `0`, network `none`, cleanup confirmed.
 - `node src/cli.js verify examples/broken-node --docker --execute` — blocked as intended, exit `2`, no target container started.
 - `node src/cli.js check examples/healthy-node` — passed, exit `0`.
@@ -97,7 +97,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Final GitHub verification with `--allow-network` — passed, exit `0`; preflight `checked`, container exit `0`, `verification.ignoredPaths: []`, and cleanup confirmed.
 - A random nonexistent public GitHub URL — blocked with `GITHUB_REPOSITORY_UNAVAILABLE`, exit `2`, no sign-in prompt.
 - Two JSON checks of the same fixture with `--output` — byte-identical.
-- Temporary-folder audit after GitHub checks — no `cloneproof-github-*` folders remained.
+- Temporary-folder audit after the reruns — no `cloneproof-*` temporary directories remained; `docker ps -a --filter name=cloneproof-verify` returned no containers.
 - Field test — 15 public repositories run with check/no-network/network-allowed modes where applicable; no CloneProof temporary folders or `cloneproof-verify` containers remained. Full results, target commits, exit codes, durations, and verdicts are in `docs/FIELD_TEST.md`.
 - Field-test fix `cb44146` — `INSTALL_SCRIPTS_SKIPPED` names npm lockfile packages whose install scripts are intentionally skipped; native test-phase failures explain the likely cause.
 - Field-test fix `8ca4fc3` — `BROWSER_TESTS_DETECTED` identifies browser tooling reachable from the test script; browser test-phase failures explain that the controlled image has no browser executable.
