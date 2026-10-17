@@ -115,6 +115,9 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `f0048dc docs: align static and GitHub modes`
 - `d4221e6 docs: keep demo reports ignored`
 - `dceb3dc fix: pin verifier image by digest`
+- `984e94e fix: treat ignored Docker paths as informational`
+- `2d435b0 fix: bound Git executable mode inspection`
+- `f5d15f9 feat: record GitHub commit metadata`
 - `dae16ec fix: allow executable workspace tools`
 - `e353364 fix: honor gitignore during Docker staging`
 - `596430a fix: preserve Git executable modes`
@@ -123,6 +126,8 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `d441827 docs: record field test expectations`
 - `cb44146 fix: explain skipped npm install scripts`
 - `8ca4fc3 fix: diagnose browser test dependencies`
+- `b41002e docs: record public repository field test`
+- `b84d066 docs: refresh container test evidence`
 
 ## OmniRush sessions for submission
 
