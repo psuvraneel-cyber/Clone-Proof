@@ -235,6 +235,49 @@ function writeEnvironmentFixture(root, source) {
   writeFile(root, 'index.js', source);
 }
 
+test('filters environment warnings by tooling, example, fixture, and root config path', () => {
+  const cases = [
+    ['scripts/build.js', false],
+    ['examples/a.js', false],
+    ['test/fixtures/x.js', false],
+    ['rollup.config.js', false],
+    ['src/index.js', true],
+    ['src/scripts/x.js', true]
+  ];
+
+  for (const [relativePath, shouldWarn] of cases) {
+    withRepository((root) => {
+      writeEnvironmentFixture(root, 'console.log("fixture");\n');
+      writeFile(root, relativePath, 'const value = process.env.TOOLING_ONLY;\n');
+
+      const report = scanRepository(root);
+      const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+      assert.equal(report.scan.fileCount, 4, relativePath);
+      assert.equal(report.scan.discoveredFileCount, 4, relativePath);
+      assert.equal(Boolean(missing), shouldWarn, relativePath);
+      if (shouldWarn) {
+        assert.equal(missing.evidence[0].path, relativePath);
+      } else {
+        assert.equal(report.findings
+          .filter((item) => item.code.startsWith('ENV_'))
+          .some((item) => item.evidence.some((evidence) => evidence.path === relativePath)), false);
+      }
+    });
+  }
+});
+
+test('treats CLICOLOR_FORCE as a conventional environment key', () => withRepository((root) => {
+  writeEnvironmentFixture(root, 'console.log("fixture");\n');
+  writeFile(root, 'lib/command.js', 'const forceColor = process.env.CLICOLOR_FORCE;\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.scan.fileCount, 4);
+  assert.equal(finding(report, 'ENV_EXAMPLE_MISSING'), undefined);
+  assert.equal(finding(report, 'ENV_KEY_MISSING'), undefined);
+}));
+
 test('does not treat an earlier object destructuring as environment access', () => withRepository((root) => {
   writeEnvironmentFixture(root, [
     "const { join, resolve } = require('path');",

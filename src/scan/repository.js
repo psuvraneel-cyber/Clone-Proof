@@ -82,7 +82,34 @@ const CONVENTIONAL_ENV_KEYS = new Set([
   'NODE_ENV',
   'NODE_OPTIONS',
   'NO_COLOR',
-  'FORCE_COLOR'
+  'FORCE_COLOR',
+  'CLICOLOR',
+  'CLICOLOR_FORCE',
+  'COLORTERM',
+  'TERM_PROGRAM',
+  'COLUMNS',
+  'DEBUG',
+  'NODE_DEBUG',
+  'NODE_PATH',
+  'PATHEXT'
+]);
+const ENVIRONMENT_ANALYSIS_EXCLUDED_FIRST_SEGMENTS = new Set([
+  'scripts',
+  'script',
+  'tools',
+  'examples',
+  'example',
+  'benchmark',
+  'benchmarks',
+  'bench',
+  'docs',
+  'doc',
+  'website'
+]);
+const ENVIRONMENT_ANALYSIS_EXCLUDED_SEGMENTS = new Set([
+  'fixtures',
+  '__fixtures__',
+  '__mocks__'
 ]);
 
 function isConventionalEnvironmentKey(key) {
@@ -90,6 +117,20 @@ function isConventionalEnvironmentKey(key) {
     || key.startsWith('npm_')
     || key.startsWith('GITHUB_')
     || key.startsWith('RUNNER_');
+}
+
+function isEnvironmentAnalysisExcludedPath(relativePath) {
+  const normalized = String(relativePath).split('\\').join('/');
+  const segments = normalized.split('/').filter(Boolean).map((segment) => segment.toLowerCase());
+  if (segments.length === 0) return false;
+  if (ENVIRONMENT_ANALYSIS_EXCLUDED_FIRST_SEGMENTS.has(segments[0])) return true;
+  if (segments.some((segment) => ENVIRONMENT_ANALYSIS_EXCLUDED_SEGMENTS.has(segment))) return true;
+  if (segments.length !== 1) return false;
+
+  return /^.+\.config\.(?:js|cjs|mjs|ts|cts|mts)$/.test(segments[0])
+    || /^\.eslintrc\..+$/.test(segments[0])
+    || /^gulpfile\..+$/.test(segments[0])
+    || /^gruntfile\..+$/.test(segments[0]);
 }
 
 function compareStrings(left, right) {
@@ -1956,8 +1997,11 @@ function scanRepository(rootPath, options) {
   const applicationSourceFiles = allSourceFiles.filter((relativePath) => (
     !isTestPath(relativePath) && !isUnderNestedPackage(relativePath, nestedPackageFiles)
   ));
-  const scannedSourceFiles = applicationSourceFiles.filter((relativePath) => scanned.files.has(relativePath));
-  const unscannedSourceFiles = applicationSourceFiles.filter((relativePath) => !scanned.files.has(relativePath));
+  const environmentSourceFiles = applicationSourceFiles.filter((relativePath) => (
+    !isEnvironmentAnalysisExcludedPath(relativePath)
+  ));
+  const scannedSourceFiles = environmentSourceFiles.filter((relativePath) => scanned.files.has(relativePath));
+  const unscannedSourceFiles = environmentSourceFiles.filter((relativePath) => !scanned.files.has(relativePath));
   const environmentReferences = new Map();
   for (const relativePath of scannedSourceFiles) {
     const references = extractEnvironmentReferences(
@@ -1983,7 +2027,9 @@ function scanRepository(rootPath, options) {
     }
   }
 
-  const depthSkippedEnvironmentPaths = [...scanned.depthSkipped].sort(compareStrings);
+  const depthSkippedEnvironmentPaths = [...scanned.depthSkipped]
+    .filter((relativePath) => !isEnvironmentAnalysisExcludedPath(relativePath))
+    .sort(compareStrings);
   const unscannedEnvironmentPaths = [
     ...unscannedSourceFiles,
     ...unscannedEnvTemplates,
