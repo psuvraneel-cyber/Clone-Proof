@@ -77,3 +77,34 @@
 - **Decision:** Add the additive `report.coverage` object to schema-version-2 check and verify reports. It records stable IDs for the check groups actually attempted for the target and the fixed scope entries that CloneProof does not check.
 - **Why:** A passed report should explain the evidence boundary without implying that setup, services, platform behavior, credentials, or browser/native builds were proven. Centralized exported constants keep JSON, text, and HTML output aligned.
 - **Trade-off:** Unsupported, unavailable, and clone-failure reports contain only the check groups that had enough target data to be attempted; they do not claim the full static inventory. Verify retains the static scan coverage while leaving browser/native-build execution in the not-checked scope.
+
+## 2026-10-17 — Reduce environment-warning noise by source scope
+
+- **Decision:** Exclude tooling, examples, benchmark/docs, fixture/mock, and root configuration paths from environment-documentation findings, and treat common terminal/tooling variables as conventional keys.
+- **Why:** These references describe developer tooling or process context rather than values a fresh clone must configure. The files remain part of traversal and other static checks.
+- **Evidence:** The eight-repository rerun improved warning precision from 2/7 (28.6%) to 4/6 (66.7%); the judgments are recorded in `docs/FIELD_TEST.md`.
+
+## 2026-10-17 — Validate README setup forms and registry host risk
+
+- **Decision:** Parse README setup and script aliases without executing them, report setup-manager mismatches only for explicit setup forms, and add `PRIVATE_REGISTRY` using host-only evidence from `.npmrc`, npm lockfiles, and Git dependency URLs.
+- **Why:** README commands are a user-facing setup contract, while registry credentials are a real reproducibility boundary that must be surfaced without leaking secrets.
+- **Trade-off:** Bare Yarn/pnpm package commands remain intentionally ambiguous, and reports never include registry values, userinfo, or tokens.
+
+## 2026-10-17 — Prepare the pinned Docker image explicitly
+
+- **Decision:** Add `cloneproof setup` as the only image-pull path; verification keeps `--pull=never` and blocks when the exact digest is absent.
+- **Why:** Users should not have to copy a long Docker command by hand, while verification must remain reproducible and must not change the image implicitly.
+- **Decision:** Accept `CLONEPROOF_GITHUB_TOKEN` or `GITHUB_TOKEN` only for the GitHub metadata preflight, record only `target.preflightAuthenticated`, and redact the token from fetch diagnostics.
+- **Why:** An optional authenticated size request reduces rate-limit friction without expanding credentials into Git, Docker, reports, or target execution.
+
+## 2026-10-17 — Add bounded build and service indicators
+
+- **Decision:** Report `BUILD_OUTPUT_MISSING` when a declared package output is absent and a build script exists without README build documentation; report `SERVICES_LIKELY_REQUIRED` as skipped informational evidence for compose files and common service dependencies.
+- **Why:** These signals identify practical fresh-clone friction while preserving the rule that CloneProof never runs target builds or starts external services.
+- **Trade-off:** Build generation, service health, and service credentials remain in `coverage.notChecked`.
+
+## 2026-10-17 — Pre-submission gap-closure session
+
+- **Current OmniRush session:** `ses_eb723d8b8ffeSyS1IT2hp9kfEw`.
+- **Branch:** `pre-submit`, created from `a3f5031`.
+- **Implementation commits:** `0b99b43`, `4926d4d`, `510c407`, `28dcc0d`, `59ec879`, `9c435aa`, `9929395`, followed by the documentation commit for the final handoff.

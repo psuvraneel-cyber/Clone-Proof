@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-17; use the latest Git commit on `field-test-fixes` as the authoritative revision until the final fast-forward to `main`.
+Updated 2026-10-17; use the latest Git commit on `pre-submit` as the authoritative revision until the final fast-forward to `main`.
 
 ## Goal
 
@@ -25,16 +25,22 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Static npm checks add informational/skipped `INSTALL_SCRIPTS_SKIPPED` and advisory `BROWSER_TESTS_DETECTED` findings. Test-phase Docker failures include targeted explanations when either limitation is present; install scripts and browsers remain disabled/not installed.
 - Every verification return is finalized through summary/cleanup normalization. `report.summary` matches `findings` on consent, prerequisite, network, Docker/image, symlink, staging-limit, source-change, execution, timeout, and cleanup paths.
 - Text and HTML verification output explain omitted lines and character shortening; HTML badges are static and contain no `role="status"`.
+- Schema version 2 reports now include additive `coverage.checked` and `coverage.notChecked` fields, with renderer explanations for what was and was not checked.
+- Environment warnings exclude documented tooling/example/fixture/config scopes and conventional process variables; the eight-repository rerun improved warning precision from 2/7 to 4/6.
+- README checks recognize npm install aliases, start/server.js behavior, package-manager setup mismatches, and script aliases without executing README commands. Root `.npmrc`, lockfile resolved URLs, and Git dependency hosts produce host-only `PRIVATE_REGISTRY` evidence.
+- `cloneproof setup` prepares the exact pinned verifier image through an isolated Docker client. Optional `CLONEPROOF_GITHUB_TOKEN`/`GITHUB_TOKEN` authentication is limited to the size preflight and records only `target.preflightAuthenticated`.
+- `BUILD_OUTPUT_MISSING` and informational/skipped `SERVICES_LIKELY_REQUIRED` cover build-output references and common service indicators without running builds or services.
 
 ### Remaining gaps
 
 - The symlink integration test is skipped on this Windows host because symlink creation returned `EPERM`; Git-listed mode `120000` handling and the Docker staging path are covered with injected results. Local `core.symlinks=false` checkouts cannot be recognized without Git metadata, and container symlink recreation is out of scope.
 - `make test` was not run because `make` is unavailable on this Windows host; `npm test` is the portable command and the Makefile remains for Linux.
-- The API preflight is intentionally unauthenticated and may be unavailable under GitHub rate limits; bounded clone limits remain the fallback.
+- GitHub preflight authentication is optional and still subject to rate limits; the token is never passed to Git or Docker, and unavailable preflight continues with bounded clone limits.
 - Docker verification remains an opt-in reproducibility experiment, not a complete hostile-code sandbox. `--allow-network` enables network for both install and test and should be used only for trusted repositories.
-- Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn, private registries, external services, monorepos, and custom setup remain blocked or unsupported.
-- Field results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, corrected first-run counts of 10 correct / 2 false failures / 1 false block / 2 environment-limited failures, and after-fix counts of 13 correct / 2 environment-limited failures. The rerun evidence includes exact commits, preflight states, durations, workflow evidence, and corrected verdicts.
-- No Buildathon dashboard submission or PR has been performed. The branch is ready for the approved merge/push sequence after the final checks below.
+- Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn profiles, external service health, OS-specific scripts, and custom setup remain outside the execution profile.
+- Field results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, corrected first-run counts of 10 correct / 2 false failures / 1 false block / 2 environment-limited failures, after-fix counts of 13 correct / 2 environment-limited failures, warning precision of 66.7%, and planted-bug detection of 13/13 offline plus 39/39 real-repository cases.
+- The Windows host still skips the real symlink-creation test because it returns `EPERM`; Linux CI is required to run it.
+- The final CI push/merge, Buildathon dashboard submission, demo video, and Submission ID in Unstop remain user-facing follow-ups until the final checks pass.
 
 ## Important files
 
@@ -44,8 +50,10 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `src/scan/repository.js` — deterministic scanner, bounded environment parser, project classification, Gitignore matcher, and findings.
 - `src/report/render.js` — canonical JSON, color-safe text, escaped self-contained HTML, bounded-output indicators, and exit-code mapping.
 - `src/verify/docker.js` — pinned Docker profile, staging, limits, cleanup, redaction, and verification summary finalization.
+- `src/report/coverage.js` — stable check-group IDs, labels, and not-checked scope.
 - `test/github.test.js` — URL, preflight, Git isolation, trusted executable, cleanup, and network-free clone tests.
 - `test/scan.test.js` — scanner, environment, classification, Gitignore, runtime, bounds, and non-execution tests.
+- `test/planted-bugs.test.js` — offline realistic base and 13 one-change mutations.
 - `test/report.test.js` — canonical renderers, escaping, output bounds, static badges, and exit codes.
 - `test/verify.test.js` — Docker arguments, injected runner, every summary path, staging, cleanup, phases, and timeout behavior.
 - `test/cli.test.js` — CLI reports, URL forms, output formats, nested output folders, and exit codes.
@@ -58,6 +66,10 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `src/input/github.js` / `src/cli.js`: GitHub source metadata now carries `symlinkPaths` alongside `executablePaths`; `target.repositorySizeKb`, `target.commit`, and `target.executableModes` remain relative, deterministic report metadata.
 - `src/scan/repository.js`: `scanRepository` accepts Git-listed symlink paths and skips them like `lstat` symlinks; `INSTALL_SCRIPTS_SKIPPED` is `skipped`/`info`.
 - `src/verify/docker.js`: `stageRepository` skips Git-listed symlinks and copies sensitive files only for `freshClone: true`; `DOCKER_SYMLINKS_BLOCKED` evidence is capped at 50 with the total in its message; local sensitive omissions remain warnings.
+- `src/scan/repository.js`: environment-warning path filters, README setup parsing, `PRIVATE_REGISTRY`, build-output references, and service indicators are deterministic and host-only.
+- `src/verify/docker.js` / `src/cli.js`: `cloneproof setup` probes, pulls, and confirms the pinned image without changing verify's `--pull=never` policy.
+- `src/input/github.js`: optional preflight-only Bearer token handling records a boolean authentication state and redacts fetch diagnostics.
+- `test/planted-bugs.test.js`: offline detection is 13/13; the documented real-repository extension detected 39/39 cases, including three whitespace-only README controls.
 - `docs/FIELD_TEST.md`: the pre-run expectations, original first-run columns, fixed verdicts, 16 rerun invocations, workflow evidence, counted summaries, and current limitations are recorded. React's rerun measured 7,260 checkout files and 41,784,802 checkout bytes (~39.85 MiB) against the 1,119,361 KiB full-history API value.
 
 ## Decisions to preserve
@@ -106,6 +118,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Field-test fix `22e0258` — fresh public GitHub clones stage committed sensitive fixtures while local folders retain omission protection.
 - Field-test fix `aeea9ac` — `INSTALL_SCRIPTS_SKIPPED` is informational/skipped and no longer downgrades an otherwise healthy check.
 - Field-test docs `2a35843` — rerun expectations were recorded before the affected repository commands.
+- Pre-submit implementation commits: `0b99b43`, `4926d4d`, `510c407`, `28dcc0d`, `59ec879`, `9c435aa`, `9929395`.
 - Field-test swap — `microsoft/TypeScript-Node-Starter` was unavailable from read-only `git ls-remote`; `typeorm/typeorm` was used as the documented TypeScript/external-service replacement.
 - Previous post-push check against `main` at `d57a465` — passed, exit `0`, target commit `d57a465e73e8`, complete scan, status `passed`; GitHub preflight was `unavailable` (the unauthenticated API limit), and the clone was cleaned.
 - Post-push check against `main` at `4c0900e` — passed, exit `0`, target commit `4c0900eb03fcb4f38e00486b4ef276fd40d56d30`, preflight `checked`, repository size `150 KiB`, complete scan, status `passed`, 10 passed / 1 skipped / 0 failed; the clone was cleaned and the temp/container audit was empty. The subsequent handoff-only commit changes documentation only.
@@ -156,18 +169,26 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Review scanner/report exploration session: `ses_ebb43817efferVqnNPYek8NqvZ`
 - Field-test session: `ses_ebb440a63ffeifxYlQlOEyZBGL`
 - Current field-test-fixes session: `ses_ebb440a63ffeifxYlQlOEyZBGL`
+- Current pre-submission gap-closure session: `ses_eb723d8b8ffeSyS1IT2hp9kfEw`
+- Part 4 implementation session: `ses_eb6f7fc5fffeBeCHmoHZzvPT3H`
 - Earlier workspace, architecture, scanner, report, Docker-review, and QA sessions remain in the prior handoff history if the dashboard requires them.
 
 ## Next step
 
-The final diff and checks must be complete before fast-forwarding `main` to `field-test-fixes`, pushing it, and performing the post-push GitHub check:
+The final diff and checks must be complete before fast-forwarding `main` to `pre-submit`, pushing it, confirming CI on both refs, and performing the post-push GitHub check:
 
 ```bash
 git status
 git diff --check
 git log --oneline -10
+docker build -t cloneproof .
+docker run --rm --network none cloneproof npm test
+node src/cli.js setup
+git push origin pre-submit
 git switch main
-git merge --ff-only field-test-fixes
+git merge --ff-only pre-submit
 git push origin main
 node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```
+
+After the merge, the user still needs to record the branch/main CI URLs, publish the demo video, submit the dashboard entry, and add the Submission ID from Unstop.

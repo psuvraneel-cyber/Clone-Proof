@@ -119,6 +119,53 @@ The container runs CloneProof's static inspection against the project copy. Targ
 
 Docker commands use the local default Docker endpoint. CloneProof creates an isolated temporary Docker CLI configuration and does not inherit the user's Docker context selection or silently honor a remote context.
 
+## Checks
+
+`check` and the static phase of `verify` report the following check groups. The JSON report's `coverage.checked` array records the groups actually attempted for that target; it does not claim that an unavailable or unsupported target was fully inspected.
+
+| ID | Check group |
+|---|---|
+| `package-manifest` | Package manifest |
+| `lockfile-presence-validity-sync` | Lockfile presence, validity, and synchronization |
+| `package-manager-consistency` | Package-manager consistency |
+| `test-script` | Test script |
+| `readme-npm-commands` | README npm commands and setup-manager consistency |
+| `env-documentation` | Environment documentation |
+| `node-runtime-declarations` | Node runtime declarations |
+| `gitignored-core-files` | Gitignored core files |
+| `install-scripts` | Install scripts that the Docker profile intentionally skips |
+| `browser-tests` | Browser tooling reachable from the test workflow |
+| `nested-packages` | Nested package boundaries |
+| `project-classification` | Project classification |
+
+Additional advisory findings are `BUILD_OUTPUT_MISSING` for missing package entrypoint/build files and `SERVICES_LIKELY_REQUIRED` for compose files or common database/cache/broker dependencies. They are bounded metadata signals: CloneProof does not run builds or start services.
+
+The fixed `coverage.notChecked` scope includes build steps and generated output, services such as databases and caches, OS-specific scripts, private registry credentials, commands in documentation other than the README, and browser/native-build tests during `verify`.
+
+## What a result means
+
+### `check`
+
+| Status | Meaning |
+|---|---|
+| `passed` | The scan completed and found no known problem in the check groups it actually ran. It is not proof that a fresh clone works. |
+| `passed_with_warnings` | The scan completed, but one or more advisory findings need review. The process exit code is still `0`. |
+| `failed` | A blocking static finding, such as an invalid manifest, missing test script, or out-of-sync lockfile, was found. Exit code `1`. |
+| `blocked` | CloneProof safely refused to proceed, for example for an unsupported root, private GitHub repository, invalid URL, or checkout limit. No target code was executed. Exit code `2`. |
+| `incomplete` | A required root, file, clone, or bounded scan operation could not be inspected completely. Treat the evidence as incomplete and rerun after fixing access or limits. Exit code `2`. |
+
+### `verify`
+
+| Status | Meaning |
+|---|---|
+| `passed` | `npm ci --ignore-scripts` and `npm test` succeeded inside the controlled pinned container without advisory warnings. |
+| `passed_with_warnings` | The controlled install/test workflow succeeded, but static warnings or intentionally omitted local files remain. |
+| `failed` | The controlled Docker setup or the target's install/test workflow failed, or cleanup could not be confirmed. Review the bounded output and failed phase. |
+| `blocked` | No target code was run because consent, static prerequisites, network consent, Docker, the pinned image, staging limits, or symlink policy prevented execution. |
+| `incomplete` | The source could not be scanned or staged completely, so verification could not provide a complete result. |
+
+For a passed static check, text and HTML reports say: “No known setup problems were found (N checks). This is not a guarantee that a fresh clone works; see Not checked.” For a passed verification, they say: “npm ci and npm test succeeded inside the controlled container.”
+
 ## Architecture
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and module plan. See [docs/DECISIONS.md](docs/DECISIONS.md) for important implementation decisions and the current OmniRush session record.
@@ -135,7 +182,29 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 - Field-tested against 15 public repositories (2026-10-17). First run: 10 correct, 2 false failures, 1 false block, 2 environment-limited failures. After fixes: 13 correct, 2 environment-limited failures. See docs/FIELD_TEST.md.
 - The verifier image is pinned to `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`; `cloneproof setup` prepares it and `--pull=never` refuses implicit image changes during verification.
 - GitHub input is limited to public `https://github.com/OWNER/REPOSITORY` URLs. An optional `CLONEPROOF_GITHUB_TOKEN` (falling back to `GITHUB_TOKEN`) is sent only to the GitHub API preflight; it is never passed to Git or Docker and never appears in reports, errors, or logs. Clone failures and checkout-limit failures are reported as `incomplete` or `blocked`.
+- `BUILD_OUTPUT_MISSING` checks package entrypoint references without running a build, and `SERVICES_LIKELY_REQUIRED` only reports compose/common-service indicators as skipped informational evidence. Neither finding starts a service or claims generated output was verified.
 - The first release focuses on the root package of Node.js/TypeScript repositories. Monorepos, pnpm/Yarn execution, private repositories, and external services may be reported as unsupported or blocked.
+
+## Evidence from the latest field work
+
+The full commands, repository commits, and per-finding judgments are in [docs/FIELD_TEST.md](docs/FIELD_TEST.md).
+
+| Measure | Result |
+|---|---:|
+| Public field test after fixes | 13 correct + 2 environment-limited failures / 15 repositories |
+| Warning precision before filtering | 2 real / 7 warnings = 28.6% |
+| Warning precision after filtering | 4 real / 6 warnings = 66.7% |
+| Offline planted-bug suite | 13 / 13 detected; whitespace control produced no new finding |
+| Real-repository planted-bug suite | 39 / 39 detected across three repositories |
+
+## Future work
+
+- Run a larger random-sample field test with pre-registered expectations.
+- Add a size watchdog during clones rather than relying only on the current bounded checkout.
+- Detect OS-specific setup and script requirements.
+- Strengthen hostile-code isolation with gVisor or a dedicated VM.
+- Add pnpm and Yarn verification profiles.
+- Recreate safe Git symlinks inside the verification container when the policy permits it.
 
 ## Buildathon
 
