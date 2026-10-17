@@ -7,10 +7,13 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  MAX_OUTPUT_BYTES,
   MAX_REPOSITORY_BYTES,
   buildGitCloneInvocation,
   cloneGithubRepository,
+  inspectCheckout,
   isGithubRepositoryUrl,
+  parseGitExecutableModes,
   validateGithubUrl
 } = require('../src/input/github');
 const { resolveGitExecutable } = require('../src/util/executable');
@@ -188,6 +191,7 @@ test('cleans a temporary checkout when the injected runner throws', async () => 
 });
 
 test('rejects a checkout that exceeds a bound and removes it', async () => {
+  const calls = [];
   let destination;
   await assert.rejects(
     cloneGithubRepository(VALID_URL, {
@@ -195,6 +199,7 @@ test('rejects a checkout that exceeds a bound and removes it', async () => {
       gitExecutable: process.execPath,
       fetcher: publicFetcher(),
       runner: async (command, args) => {
+        calls.push(args);
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
         if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
         destination = args.at(-1);
@@ -206,7 +211,26 @@ test('rejects a checkout that exceeds a bound and removes it', async () => {
     (error) => error && error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
   );
   assert.ok(destination);
+  assert.equal(calls.some((args) => args.includes('ls-files')), false);
   assert.equal(fs.existsSync(destination), false);
+});
+
+test('checkout limits ignore the root .git directory', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-checkout-limits-'));
+  try {
+    fs.mkdirSync(path.join(root, '.git', 'objects'), { recursive: true });
+    fs.writeFileSync(path.join(root, '.git', 'config'), 'metadata\n');
+    fs.writeFileSync(path.join(root, '.git', 'objects', 'pack'), 'metadata\n');
+    fs.writeFileSync(path.join(root, 'README.md'), '# fixture\n');
+
+    const metadata = inspectCheckout(root, { maxFiles: 1, maxEntries: 1 });
+
+    assert.equal(metadata.fileCount, 1);
+    assert.equal(metadata.entryCount, 1);
+    assert.equal(metadata.complete, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('builds an isolated git environment and command line policy', () => {
@@ -399,24 +423,84 @@ test('records executable Git modes before removing clone metadata', async () => 
     gitExecutable: process.execPath,
     platform: 'linux',
     fetcher: publicFetcher(),
-    runner: async (command, args) => {
-      calls.push({ command, args });
+    runner: async (command, args, options) => {
+      calls.push({ command, args, options });
       if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
       if (args.includes('clone')) {
         const checkout = args.at(-1);
+        fs.mkdirSync(path.join(checkout, '.git'));
         fs.mkdirSync(path.join(checkout, 'bin'));
         fs.writeFileSync(path.join(checkout, 'bin', 'run.js'), '#!/usr/bin/env node\n');
         fs.writeFileSync(path.join(checkout, 'README.md'), '# fixture\n');
         return successfulResult();
       }
       if (args.includes('ls-files')) {
-        return { ...successfulResult(), stdout: '100755 abc 0\tbin/run.js\n100644 def 0\tREADME.md\n' };
+        return {
+          ...successfulResult(),
+          stdout: [
+            '100755 abc 0\tbin/run.js',
+            '100644 def 0\tREADME.md'
+          ].join('\0') + '\0'
+        };
       }
       throw new Error(`unexpected git args: ${args.join(' ')}`);
     }
   });
 
   assert.deepEqual(result.executablePaths, ['bin/run.js']);
+  assert.equal(result.executableModes, 'checked');
   assert.equal(calls.some((call) => call.args.includes('ls-files')), true);
+  const modeCall = calls.find((call) => call.args.includes('ls-files'));
+  assert.deepEqual(modeCall.args.slice(modeCall.args.indexOf('ls-files')), ['ls-files', '-s', '-z']);
+  assert.equal(modeCall.options.maxOutputBytes, MAX_OUTPUT_BYTES);
   await result.cleanup();
+});
+
+test('NUL mode records preserve spaces and non-English paths and ignore non-executable modes', () => {
+  const output = [
+    '100644 aaa 0\treadme.md\0',
+    '100755 bbb 0\tbin/run file.js\0',
+    '100755 ccc 0\t日本語/実行.js\0',
+    '100755 ddd 0\tquotes "stay".js\0'
+  ].join('');
+
+  assert.deepEqual(parseGitExecutableModes(output), [
+    'bin/run file.js',
+    'quotes "stay".js',
+    '日本語/実行.js'
+  ]);
+});
+
+test('ls-files failures, timeouts, and oversized output are non-fatal', async () => {
+  const cases = [
+    { exitCode: 1, stderr: 'fatal: index unavailable\n' },
+    { exitCode: 0, timedOut: true },
+    { exitCode: 0, outputTruncated: true },
+    { throws: true }
+  ];
+
+  for (const modeFailure of cases) {
+    let destination;
+    const result = await cloneGithubRepository(VALID_URL, {
+      gitExecutable: process.execPath,
+      platform: 'linux',
+      fetcher: publicFetcher(),
+      runner: async (command, args) => {
+        if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        if (args.includes('ls-files')) {
+          if (modeFailure.throws) throw new Error('mode lookup failed');
+          return { ...successfulResult(), ...modeFailure, stdout: '' };
+        }
+        destination = args.at(-1);
+        fs.mkdirSync(path.join(destination, '.git'));
+        fs.writeFileSync(path.join(destination, 'README.md'), '# fixture\n');
+        return successfulResult();
+      }
+    });
+
+    assert.deepEqual(result.executablePaths, []);
+    assert.equal(result.executableModes, 'unavailable');
+    assert.equal(result.metadata.complete, true);
+    await result.cleanup();
+  }
 });

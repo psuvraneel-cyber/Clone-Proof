@@ -327,6 +327,7 @@ function inspectCheckout(rootPath, options = {}) {
     }
 
     for (const entry of entries) {
+      if (depth === 0 && entry.name === '.git') continue;
       const absolute = path.join(directory, entry.name);
       const relative = relativePath(root, absolute);
       metadata.entryCount += 1;
@@ -539,18 +540,13 @@ function gitVersionSupportsGlobalConfig(result) {
 
 function parseGitExecutableModes(output) {
   const executablePaths = [];
-  for (const line of String(output || '').split(/\r?\n/)) {
-    const match = /^(\d{6})\s+\S+\s+\d+\t(.+)$/.exec(line);
+  const records = Buffer.isBuffer(output)
+    ? output.toString('utf8').split('\0')
+    : String(output || '').split('\0');
+  for (const record of records) {
+    const match = /^(\d{6})\s+\S+\s+\d+\t([\s\S]*)$/.exec(record);
     if (!match || match[1] !== '100755') continue;
-    let relativePath = match[2];
-    if (relativePath.startsWith('"') && relativePath.endsWith('"')) {
-      try {
-        relativePath = JSON.parse(relativePath);
-      } catch {
-        continue;
-      }
-    }
-    executablePaths.push(relativePath.split('\\').join('/'));
+    if (match[2].length > 0) executablePaths.push(match[2]);
   }
   return [...new Set(executablePaths)].sort((left, right) => left.localeCompare(right));
 }
@@ -646,26 +642,29 @@ async function cloneGithubRepository(value, options = {}) {
       throw cloneFailure(result, maxOutputBytes);
     }
 
-    const modeArgs = invocation.args.slice(0, invocation.args.indexOf('clone'))
-      .concat(['-C', temporaryRoot, 'ls-files', '-s']);
-    const modeResult = await runner(gitExecutable, modeArgs, {
-      cwd: temporaryParent,
-      env: invocation.env,
-      shell: false,
-      windowsHide: true,
-      timeoutMs,
-      maxOutputBytes
-    });
-    if (!cloneSucceeded(modeResult, maxOutputBytes)) {
-      throw new GithubSourceError('Git could not read checkout file modes.', 'GITHUB_CHECKOUT_UNAVAILABLE');
+    const metadata = inspectCheckout(temporaryRoot, limits);
+    const gitPrefix = invocation.args.slice(0, invocation.args.indexOf('clone'));
+    const modeArgs = gitPrefix.concat(['-C', temporaryRoot, 'ls-files', '-s', '-z']);
+    let modeResult;
+    try {
+      modeResult = await runner(gitExecutable, modeArgs, {
+        cwd: temporaryParent,
+        env: invocation.env,
+        shell: false,
+        windowsHide: true,
+        timeoutMs,
+        maxOutputBytes: MAX_OUTPUT_BYTES
+      });
+    } catch {
+      modeResult = null;
     }
-    const executablePaths = parseGitExecutableModes(modeResult.stdout);
+    const modeAvailable = cloneSucceeded(modeResult, MAX_OUTPUT_BYTES);
+    const executablePaths = modeAvailable ? parseGitExecutableModes(modeResult.stdout) : [];
 
     // The scanner and verifier do not need Git metadata. Removing it keeps the
     // checkout bounds focused on repository content and prevents object data
     // from being handed to later stages.
     await removeTemporaryDirectory(path.join(temporaryRoot, '.git'));
-    const metadata = inspectCheckout(temporaryRoot, limits);
     let cleaned = false;
     const cleanup = async () => {
       if (cleaned) return;
@@ -681,6 +680,7 @@ async function cloneGithubRepository(value, options = {}) {
       preflight: preflight.state,
       ...(preflight.repositorySizeKb === undefined ? {} : { repositorySizeKb: preflight.repositorySizeKb }),
       executablePaths,
+      executableModes: modeAvailable ? 'checked' : 'unavailable',
       root: temporaryRoot,
       path: temporaryRoot,
       metadata,
@@ -713,6 +713,7 @@ async function cloneGithubRepository(value, options = {}) {
 
 module.exports = {
   DEFAULT_CLONE_LIMITS,
+  MAX_OUTPUT_BYTES,
   MAX_REPOSITORY_BYTES,
   buildGitCloneInvocation,
   cloneGithubRepository,
