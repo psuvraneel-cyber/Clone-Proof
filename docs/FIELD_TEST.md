@@ -70,6 +70,69 @@ The environment-warning rerun used the eight repositories named in the review re
 
 The “before” values are the original `reports/field/*-check.json` observations. The “after” values are the fresh JSON reruns saved locally as `reports/field/{commander,dotenv,axios,express,slugify,vue,react,jest}-check-after-env.json`; those generated reports remain ignored so the repository does not accumulate machine-specific checkout evidence. The after rerun commands were `node src/cli.js check <URL> --format json --output <report>` and all eight GitHub preflights were `checked`; no target repository code was executed.
 
+## Planted-bug test
+
+The offline suite in `test/planted-bugs.test.js` builds a realistic Node.js project in the operating-system temporary directory, confirms the healthy base is `passed`, then copies it for each single mutation. It covers the 13 requested mutations, including a whitespace-only README control. The suite runs `scanRepository` only; it never starts a target process.
+
+The real-repository extension used read-only `git clone --depth 1` for `psuvraneel-cyber/Clone-Proof`, `typestack/class-validator`, and `motdotla/dotenv`, removed each checkout's `.git` directory, copied each checkout for every mutation, and invoked `node src/cli.js check <copy> --format json`. No target `npm`, test, build, lifecycle, or Docker command was run. Adaptations were recorded rather than silently omitted:
+
+- Bug 1 seeded one `devDependencies.planted-dependency` entry in both the CloneProof manifest and lockfile root because that repository has no root dependency, then removed only the lockfile entry.
+- Bug 4 added an `npm run build` README line to class-validator and dotenv because their READMEs had no npm script line before the build-script rename.
+- Bug 5 added a minimal `.env.example` without the planted key to class-validator and dotenv because those repositories had no environment template.
+- Bug 6 added `engines.node: >=22.0.0` to class-validator because it had no engine declaration; dotenv used `.nvmrc: 10` against its existing `engines.node: >=12`.
+
+| Repository | Bug | Detected | Finding code | Adaptation / control note |
+|---|---:|:---:|---|---|
+| `psuvraneel-cyber/Clone-Proof` | 1 | yes | `LOCKFILE_OUT_OF_SYNC` | Seeded one root dev dependency, then removed its lock entry. |
+| `psuvraneel-cyber/Clone-Proof` | 2 | yes | `TEST_SCRIPT_MISSING` | — |
+| `psuvraneel-cyber/Clone-Proof` | 3 | yes | `TEST_SCRIPT_PLACEHOLDER` | — |
+| `psuvraneel-cyber/Clone-Proof` | 4 | yes | `README_SCRIPT_UNKNOWN` | — |
+| `psuvraneel-cyber/Clone-Proof` | 5 | yes | `ENV_KEY_MISSING` | — |
+| `psuvraneel-cyber/Clone-Proof` | 6 | yes | `RUNTIME_VERSION_MISMATCH`, `ENGINES_NODE_UNSATISFIED` | — |
+| `psuvraneel-cyber/Clone-Proof` | 7 | yes | `CORE_FILE_GITIGNORED` | — |
+| `psuvraneel-cyber/Clone-Proof` | 8 | yes | `LOCKFILE_MISSING` | — |
+| `psuvraneel-cyber/Clone-Proof` | 9 | yes | `PACKAGE_JSON_INVALID` | — |
+| `psuvraneel-cyber/Clone-Proof` | 10 | yes | `PRIVATE_REGISTRY` | Secret value was absent from the report. |
+| `psuvraneel-cyber/Clone-Proof` | 11 | yes | `README_PACKAGE_MANAGER_MISMATCH` | — |
+| `psuvraneel-cyber/Clone-Proof` | 12 | yes | `PACKAGE_MANAGER_LOCKFILE_MISMATCH` | — |
+| `psuvraneel-cyber/Clone-Proof` | 13 | yes | no new finding | Whitespace-only README control. |
+| `typestack/class-validator` | 1 | yes | `LOCKFILE_OUT_OF_SYNC` | — |
+| `typestack/class-validator` | 2 | yes | `TEST_SCRIPT_MISSING` | — |
+| `typestack/class-validator` | 3 | yes | `TEST_SCRIPT_PLACEHOLDER` | — |
+| `typestack/class-validator` | 4 | yes | `README_SCRIPT_UNKNOWN` | Added the needed `npm run build` line. |
+| `typestack/class-validator` | 5 | yes | `ENV_KEY_MISSING` | Added a template without the planted key. |
+| `typestack/class-validator` | 6 | yes | `ENGINES_NODE_UNSATISFIED` | Added `engines.node: >=22.0.0`, then pinned `.nvmrc` to 20. |
+| `typestack/class-validator` | 7 | yes | `CORE_FILE_GITIGNORED` | — |
+| `typestack/class-validator` | 8 | yes | `LOCKFILE_MISSING` | — |
+| `typestack/class-validator` | 9 | yes | `PACKAGE_JSON_INVALID` | — |
+| `typestack/class-validator` | 10 | yes | `PRIVATE_REGISTRY` | Secret value was absent from the report. |
+| `typestack/class-validator` | 11 | yes | `README_PACKAGE_MANAGER_MISMATCH` | — |
+| `typestack/class-validator` | 12 | yes | `PACKAGE_MANAGER_LOCKFILE_MISMATCH` | — |
+| `typestack/class-validator` | 13 | yes | no new finding | Whitespace-only README control. |
+| `motdotla/dotenv` | 1 | yes | `LOCKFILE_OUT_OF_SYNC` | — |
+| `motdotla/dotenv` | 2 | yes | `TEST_SCRIPT_MISSING` | — |
+| `motdotla/dotenv` | 3 | yes | `TEST_SCRIPT_PLACEHOLDER` | — |
+| `motdotla/dotenv` | 4 | yes | `README_SCRIPT_UNKNOWN` | Added the needed `npm run build` line. |
+| `motdotla/dotenv` | 5 | yes | `ENV_KEY_MISSING` | Added a template without the planted key. |
+| `motdotla/dotenv` | 6 | yes | `ENGINES_NODE_UNSATISFIED` | Used `.nvmrc: 10` against existing `engines.node: >=12`. |
+| `motdotla/dotenv` | 7 | yes | `CORE_FILE_GITIGNORED` | — |
+| `motdotla/dotenv` | 8 | yes | `LOCKFILE_MISSING` | — |
+| `motdotla/dotenv` | 9 | yes | `PACKAGE_JSON_INVALID` | — |
+| `motdotla/dotenv` | 10 | yes | `PRIVATE_REGISTRY` | Secret value was absent from the report. |
+| `motdotla/dotenv` | 11 | yes | `README_PACKAGE_MANAGER_MISMATCH` | — |
+| `motdotla/dotenv` | 12 | yes | `PACKAGE_MANAGER_LOCKFILE_MISMATCH` | — |
+| `motdotla/dotenv` | 13 | yes | no new finding | Whitespace-only README control. |
+
+| Scope | Detected | Total | Detection rate |
+|---|---:|---:|---:|
+| Offline suite | 13 | 13 | **100%** |
+| `psuvraneel-cyber/Clone-Proof` | 13 | 13 | **100%** |
+| `typestack/class-validator` | 13 | 13 | **100%** |
+| `motdotla/dotenv` | 13 | 13 | **100%** |
+| All real-repository cases | 39 | 39 | **100%** |
+
+There were no missed planted bugs after applying the documented adaptations. The control mutation produced no new finding for all three real repositories and in the offline suite, so it did not add a false positive.
+
 ## Results
 
 The first check for every repository was run from the pre-run plan above. For repositories whose check was not blocked, both verification modes were exercised. The first-run columns below preserve those original observations; the added rerun columns describe the post-fix runs. Durations are wall-clock milliseconds measured around each CLI invocation. A verdict is assigned once per repository per run from the fixed set `correct`, `false fail`, `false block`, `environment-limited failure`, or `tool error`.
