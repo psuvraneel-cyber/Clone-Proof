@@ -379,7 +379,9 @@ test('test-phase failures explain skipped install scripts for native packages', 
 
     assert.equal(report.status, 'failed');
     assert.equal(report.verification.failedPhase, 'test');
-    assert.ok(report.findings.some((item) => item.code === 'INSTALL_SCRIPTS_SKIPPED'));
+    const installScriptsFinding = report.findings.find((item) => item.code === 'INSTALL_SCRIPTS_SKIPPED');
+    assert.equal(installScriptsFinding.status, 'skipped');
+    assert.equal(installScriptsFinding.severity, 'info');
     const failure = report.findings.find((item) => item.code === 'DOCKER_VERIFICATION_FAILED');
     assert.match(failure.message, /CloneProof intentionally skips lifecycle\/install scripts/);
     assert.match(failure.message, /packages .* likely cause/i);

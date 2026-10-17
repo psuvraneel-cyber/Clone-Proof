@@ -596,8 +596,8 @@ function addInstallScriptsSkippedFinding(findings, lockfileName, lockfileData, p
   addFinding(
     findings,
     'INSTALL_SCRIPTS_SKIPPED',
-    'warning',
-    'warning',
+    'skipped',
+    'info',
     'npm install scripts will be skipped during Docker verification',
     `Affected packages: ${cappedNames(packageNames)}. CloneProof runs npm ci --ignore-scripts, so their lifecycle/install scripts will not run.`,
     [makeEvidence(lockfileName, `npm lockfile metadata marks ${packageNames.length} package${packageNames.length === 1 ? '' : 's'} with hasInstallScript:true.`)],
