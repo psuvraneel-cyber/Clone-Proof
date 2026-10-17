@@ -132,9 +132,9 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `node src/cli.js setup` — passed; the exact verifier image was already present and no pull was needed.
 - `node src/cli.js verify examples/healthy-node --docker --execute --format json` — passed, exit `0`, network `none`, cleanup complete.
 - `node src/cli.js verify examples/broken-node --docker --execute --format json` — blocked, exit `2`, `DOCKER_PREREQUISITES_FAILED`, no target container started.
-- `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` after push — passed, exit `0`, `target.commit: a107b5cfc8b0dcb57c0a2ede540f13c7500c5464`, preflight `checked`, authenticated `false`, 10 checked groups, 10 passed / 1 skipped / 0 failed.
+- `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` after the final implementation push — passed, exit `0`, `target.commit: 1b919eccaa43804addbc2fe47ba61e962862724a`, preflight `checked`, authenticated `false`, 10 checked groups, 10 passed / 1 skipped / 0 failed.
 - The preflight-redaction regression test covers a token-bearing GitHub API error: reports and stderr contain only `[REDACTED]`.
-- Pre-submit and main CI runs for the final revision are recorded in the final response; both must be green.
+- Pre-submit CI run `39028051301` and main CI run `39028381054` — passed for final implementation revision `1b919ec`; any later handoff-only commit changes documentation only.
 - Docker/container cleanup audit after the final checks — no `cloneproof-verify` containers and no CloneProof GitHub clone directories remained.
 
 ## Commits in this review pass
