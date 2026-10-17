@@ -24,6 +24,16 @@ The scanner returns data. Rules turn that data into evidence-backed findings. Re
 
 `report/coverage.js` exports the stable IDs for the twelve static check groups and the six `NOT_CHECKED` scope entries. `scan/repository.js` marks a group only when the corresponding static inspection is meaningful for the available target; missing roots and clone failures therefore use an empty checked list, while unsupported roots retain only classification and nested-package boundary checks that were attempted. The scanner adds `report.coverage` without changing schema version 2. `verify/docker.js` clones that static coverage into its verification report, so Docker execution does not overwrite or inflate the static inventory. Text and HTML renderers use the same constants to show “What was checked” and “Not checked,” and successful reports include the bounded explanation for the check or controlled npm workflow.
 
+### Environment warning scope
+
+Environment references still contribute to source discovery, project classification, and test-file detection, but they do not produce `ENV_EXAMPLE_MISSING` or `ENV_KEY_MISSING` findings when the source path is clearly tooling or fixture material. The excluded path lists are deterministic:
+
+- The first path segment is one of `scripts`, `script`, `tools`, `examples`, `example`, `benchmark`, `benchmarks`, `bench`, `docs`, `doc`, or `website`.
+- Any path segment is named `fixtures`, `__fixtures__`, or `__mocks__`.
+- A root file matches `*.config.js`, `*.config.cjs`, `*.config.mjs`, `*.config.ts`, `*.config.cts`, `*.config.mts`, `.eslintrc.*`, `gulpfile.*`, or `Gruntfile.*`.
+
+The conventional environment-key list also suppresses platform and tooling noise for `CLICOLOR`, `CLICOLOR_FORCE`, `COLORTERM`, `TERM_PROGRAM`, `COLUMNS`, `DEBUG`, `NODE_DEBUG`, `NODE_PATH`, and `PATHEXT`, in addition to the existing path, shell, CI, npm, GitHub, and runner keys. These exclusions affect only environment-documentation findings; they do not hide the files from the bounded scan.
+
 For a GitHub URL, `input/github.js` validates the exact public HTTPS origin, checks public visibility and repository size before cloning, then runs one isolated `git clone --depth 1 --no-tags` with an argument array and no shell. The clone uses no host Git config or credentials, bounds the temporary checkout, removes its `.git` metadata, and returns an owned cleanup handle. Clone and checkout errors become explicit `incomplete` or `blocked` reports; the subsequent scan is read-only.
 
 ## Security assumptions

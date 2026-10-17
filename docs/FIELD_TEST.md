@@ -48,6 +48,28 @@ This section was written before any rerun command below was started. The reruns 
 
 The other first-run repositories did not report `INSTALL_SCRIPTS_SKIPPED`; no additional check-only rerun is required beyond the repositories listed above.
 
+## Warning precision after environment filtering
+
+The environment-warning rerun used the eight repositories named in the review request. The “warning” unit below is a warning finding, not an individual environment key; keys are shown in brackets so the reason for each judgment is auditable. “Real” means that a person setting up or verifying the repository genuinely needs the information. “Noise” means that the reference is optional tooling/configuration, a conventional process variable, or a limitation already represented by a more direct finding.
+
+| Repository | Warnings before | Warnings after | Judgment and reason |
+|---|---|---|---|
+| `tj/commander.js` | `ENV_EXAMPLE_MISSING` [`CLICOLOR_FORCE`, `PORT`] — **noise** | none | `CLICOLOR_FORCE` is a conventional color variable and `PORT` is example-hook tooling, not required root setup. |
+| `motdotla/dotenv` | `ENV_EXAMPLE_MISSING` [`DEBUG`, `DOTENV_CONFIG_QUIET`, `DOTENV_QUIET`] — **noise** | `ENV_EXAMPLE_MISSING` [`DOTENV_CONFIG_QUIET`, `DOTENV_QUIET`] — **noise** | These are optional dotenv/configuration switches; the package does not require them to install or run its test workflow. `DEBUG` is removed as a conventional key. |
+| `axios/axios` | `ENV_EXAMPLE_MISSING` [`NO_PROXY`, `no_proxy`] — **noise** | `BROWSER_TESTS_DETECTED` — **real**; `ENV_EXAMPLE_MISSING` [`NO_PROXY`, `no_proxy`] — **noise** | Browser tooling is a real limitation of the controlled image; proxy bypass variables are conventional host configuration, not setup requirements. |
+| `expressjs/express` | `LOCKFILE_MISSING` — **real** | `LOCKFILE_MISSING` — **real** | A fresh clone cannot reproduce dependency versions without a root lockfile. |
+| `sindresorhus/slugify` | `LOCKFILE_MISSING` — **real** | `LOCKFILE_MISSING` — **real** | A fresh clone cannot reproduce dependency versions without a root lockfile. |
+| `vuejs/core` | `ENV_EXAMPLE_MISSING` [`COMMIT`, `FORMATS`, `PROD_ONLY`, `SOURCE_MAP`, `TARGET`, `TARGETS`, `__DEV__`] — **noise** | `BROWSER_TESTS_DETECTED` — **real** | The variables are root Rollup build configuration, excluded by the root-config rule; browser dependencies are relevant to verification limits. |
+| `facebook/react` | none (preflight blocked before scan) | none | No warning finding was produced in either run. |
+| `jestjs/jest` | `ENV_EXAMPLE_MISSING` [`GLOBALS_CLEANUP`] — **noise** | none | `GLOBALS_CLEANUP` is in `jest.config.mjs`, a root config file excluded from environment documentation checks. |
+
+| Run | Real warnings | All warnings | Noise warnings | Precision |
+|---|---:|---:|---:|---:|
+| Before filtering | 2 | 7 | 5 | 2 / 7 = **28.6%** |
+| After filtering | 4 | 6 | 2 | 4 / 6 = **66.7%** |
+
+The “before” values are the original `reports/field/*-check.json` observations. The “after” values are the fresh JSON reruns saved locally as `reports/field/{commander,dotenv,axios,express,slugify,vue,react,jest}-check-after-env.json`; those generated reports remain ignored so the repository does not accumulate machine-specific checkout evidence. The after rerun commands were `node src/cli.js check <URL> --format json --output <report>` and all eight GitHub preflights were `checked`; no target repository code was executed.
+
 ## Results
 
 The first check for every repository was run from the pre-run plan above. For repositories whose check was not blocked, both verification modes were exercised. The first-run columns below preserve those original observations; the added rerun columns describe the post-fix runs. Durations are wall-clock milliseconds measured around each CLI invocation. A verdict is assigned once per repository per run from the fixed set `correct`, `false fail`, `false block`, `environment-limited failure`, or `tool error`.
