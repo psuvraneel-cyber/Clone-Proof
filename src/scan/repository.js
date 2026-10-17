@@ -52,6 +52,10 @@ const LOCKFILES = [
   { name: 'pnpm-lock.yaml', packageManager: 'pnpm' },
   { name: 'yarn.lock', packageManager: 'yarn' }
 ];
+const PUBLIC_REGISTRY_HOSTNAMES = new Set([
+  'registry.npmjs.org',
+  'registry.yarnpkg.com'
+]);
 const OTHER_ECOSYSTEM_MARKERS = [
   { names: ['pyproject.toml', 'requirements.txt', 'setup.py', 'Pipfile'], ecosystem: 'Python' },
   { names: ['go.mod'], ecosystem: 'Go' },
@@ -751,6 +755,115 @@ function npmLockfileSummary(lockfiles, files) {
   };
 }
 
+function parseDependencyUrlHost(value) {
+  if (typeof value !== 'string') return null;
+  let text = value.trim().replace(/^['"]|['"]$/g, '');
+  if (!text) return null;
+  if (text.startsWith('//')) text = `https:${text}`;
+
+  let parsed;
+  try {
+    parsed = new URL(text);
+  } catch {
+    const fallback = /^[A-Za-z][A-Za-z0-9+.-]*:\/\/(?:[^@/?#\s]+@)?(\[[^\]]+\]|[^/?#:\s]+)(?::(\d+))?/i.exec(text);
+    if (!fallback) return null;
+    const hostname = fallback[1].toLowerCase();
+    return {
+      host: `${hostname}${fallback[2] ? `:${fallback[2]}` : ''}`,
+      hostname: hostname.replace(/^\[|\]$/g, '')
+    };
+  }
+
+  if (!parsed.hostname) return null;
+  return {
+    host: parsed.host.toLowerCase(),
+    hostname: parsed.hostname.toLowerCase()
+  };
+}
+
+function isNonPublicRegistryUrl(value) {
+  const parsed = parseDependencyUrlHost(value);
+  if (!parsed || PUBLIC_REGISTRY_HOSTNAMES.has(parsed.hostname)) return null;
+  return parsed.host;
+}
+
+function collectPrivateRegistryHosts(files, lockfiles, packageData) {
+  const hosts = new Set();
+  const evidence = new Map();
+
+  function record(value, relativePath, detail, line) {
+    const host = isNonPublicRegistryUrl(value);
+    if (!host) return;
+    hosts.add(host);
+    const key = `${relativePath}:${line || ''}:${detail}`;
+    if (!evidence.has(key)) evidence.set(key, makeEvidence(relativePath, detail, line));
+  }
+
+  if (files.has('.npmrc')) {
+    const npmrc = decodeText(files.get('.npmrc'));
+    const lines = npmrc.split(/\r?\n/);
+    for (let index = 0; index < lines.length; index += 1) {
+      const match = /^\s*(?:@[^:\s=]+:)?registry\s*=\s*(.*?)(?:\s+#.*)?$/i.exec(lines[index]);
+      if (!match) continue;
+      record(
+        match[1],
+        '.npmrc',
+        'A registry setting references a non-public host.',
+        index + 1
+      );
+    }
+  }
+
+  for (const lockfile of lockfiles.filter((candidate) => candidate.packageManager === 'npm')) {
+    if (!files.has(lockfile.name)) continue;
+    const parsed = parseReadableNpmLockfile(files.get(lockfile.name));
+    if (!parsed) continue;
+
+    function visit(value) {
+      if (Array.isArray(value)) {
+        for (const item of value) visit(item);
+        return;
+      }
+      if (!value || typeof value !== 'object') return;
+      for (const [key, child] of Object.entries(value)) {
+        if (key === 'resolved' && typeof child === 'string') {
+          record(child, lockfile.name, 'An npm lockfile resolved URL references a non-public host.');
+        }
+        visit(child);
+      }
+    }
+
+    visit(parsed);
+  }
+
+  for (const entry of dependencyEntries(packageData)) {
+    if (!/^git\+(?:ssh|https):/i.test(entry.specifier)) continue;
+    record(
+      entry.specifier,
+      'package.json',
+      'A Git dependency URL references a non-public host.',
+      undefined
+    );
+  }
+
+  return {
+    hosts: [...hosts].sort(compareStrings),
+    evidence: [...evidence.values()].sort((left, right) => (
+      compareStrings(left.path, right.path)
+      || (left.line || 0) - (right.line || 0)
+      || compareStrings(left.detail, right.detail)
+    ))
+  };
+}
+
+function cappedHosts(hosts) {
+  const visible = hosts.slice(0, 10);
+  const remaining = hosts.length - visible.length;
+  return remaining > 0
+    ? `${visible.join(', ')} (and ${remaining} more)`
+    : visible.join(', ');
+}
+
 function firstNonEmptyLine(text) {
   for (const line of text.split(/\r?\n/)) {
     const value = line.trim();
@@ -975,8 +1088,43 @@ function satisfiesEngineRange(pinned, range) {
   return results.length > 0 ? results.some(Boolean) : null;
 }
 
+function stripReadmeCommandPunctuation(value) {
+  return String(value)
+    .trim()
+    .replace(/^[`'"([{]+/, '')
+    .replace(/[`'"\])},.;:!?]+$/, '')
+    .trim();
+}
+
+function hasOnlyCommandFlags(value) {
+  const normalized = stripReadmeCommandPunctuation(value);
+  if (!normalized) return true;
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  return tokens.every((token) => token.startsWith('-'));
+}
+
+function setupCommandFromReadmeLine(line) {
+  let value = String(line).trim();
+  value = value.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, '');
+  value = value.replace(/^(?:[$>]\s*)/, '');
+  value = value.replace(/\s+#.*$/, '');
+  value = stripReadmeCommandPunctuation(value);
+  if (!value || value.startsWith('```')) return null;
+
+  const match = /^(npm\s+ci|yarn(?:\s+install)?|pnpm\s+(?:install|i))(?:\s+(.*))?$/i.exec(value);
+  if (!match || !hasOnlyCommandFlags(match[2] || '')) return null;
+
+  const command = match[1].toLowerCase();
+  return {
+    manager: command.startsWith('npm') ? 'npm' : command.startsWith('yarn') ? 'yarn' : 'pnpm',
+    line,
+    command: match[0]
+  };
+}
+
 function parseReadmeCommands(text) {
   const references = new Map();
+  const setupCommands = [];
   const lines = text.split(/\r?\n/);
 
   function addReference(key, kind, line, detail) {
@@ -988,32 +1136,50 @@ function parseReadmeCommands(text) {
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const line = lines[lineIndex];
     const lineNumber = lineIndex + 1;
+    const setupCommand = setupCommandFromReadmeLine(line);
+    if (setupCommand) setupCommands.push({ ...setupCommand, line: lineNumber });
 
     if (/\bnpm\s+test(?=$|[\s`'"),.;:!?])/i.test(line)) {
       addReference('test', 'test', lineNumber, 'README references npm test.');
     }
 
-    const installExpression = /\bnpm\s+(ci|install)(?=$|[\s`'"),.;:!?])/gi;
+    const installExpression = /\bnpm\s+(ci|install|i)(?=$|[\s`'"),.;:!?])/gi;
     let installMatch = installExpression.exec(line);
     while (installMatch) {
       const kind = installMatch[1].toLowerCase();
-      addReference(kind, kind, lineNumber, `README references npm ${kind}.`);
+      const suffix = line.slice(installMatch.index + installMatch[0].length);
+      if (kind !== 'i' || hasOnlyCommandFlags(suffix)) {
+        const normalizedKind = kind === 'i' ? 'install' : kind;
+        addReference(normalizedKind, normalizedKind, lineNumber, `README references npm ${normalizedKind}.`);
+      }
       installMatch = installExpression.exec(line);
     }
 
-    const runExpression = /\bnpm\s+run\s+([^\s`'"<>]+)/gi;
+    const startExpression = /\bnpm\s+start(?=$|[\s`'"),.;:!?])/gi;
+    let startMatch = startExpression.exec(line);
+    while (startMatch) {
+      addReference('start', 'start', lineNumber, 'README references npm start.');
+      startMatch = startExpression.exec(line);
+    }
+
+    const runExpression = /\b(npm|yarn|pnpm)\s+(run-script|run)\s+([^\s`'"<>]+)/gi;
     let runMatch = runExpression.exec(line);
     while (runMatch) {
-      const scriptName = runMatch[1].replace(/[),.;:!?]+$/g, '');
+      const manager = runMatch[1].toLowerCase();
+      const verb = runMatch[2].toLowerCase();
+      const scriptName = runMatch[3].replace(/[),.;:!?]+$/g, '');
       if (scriptName && !scriptName.startsWith('<')) {
-        addReference(`run:${scriptName}`, 'run', lineNumber, `README references npm run ${scriptName}.`);
+        addReference(`run:${scriptName}`, 'run', lineNumber, `README references ${manager} ${verb} ${scriptName}.`);
         references.get(`run:${scriptName}`).scriptName = scriptName;
       }
       runMatch = runExpression.exec(line);
     }
   }
 
-  return [...references.values()];
+  return {
+    references: [...references.values()],
+    setupCommands
+  };
 }
 
 function isCoreFile(relativePath) {
@@ -1024,6 +1190,7 @@ function isCoreFile(relativePath) {
     || lower === 'npm-shrinkwrap.json'
     || lower === 'pnpm-lock.yaml'
     || lower === 'yarn.lock'
+    || lower === '.npmrc'
     || lower === 'readme'
     || lower === 'readme.md'
     || lower === 'readme.markdown'
@@ -1775,6 +1942,22 @@ function scanRepository(rootPath, options) {
     }
   }
 
+  if (scanned.rootState === 'ok') {
+    const privateRegistry = collectPrivateRegistryHosts(scanned.files, lockfiles, packageData || {});
+    if (privateRegistry.hosts.length > 0) {
+      addFinding(
+        findings,
+        'PRIVATE_REGISTRY',
+        'warning',
+        'warning',
+        'Non-public package registry or Git dependency hosts were detected',
+        `Dependency metadata references non-public hosts: ${cappedHosts(privateRegistry.hosts)}.`,
+        privateRegistry.evidence,
+        'Provide registry credentials through the trusted verification environment and keep them out of repository files and reports.'
+      );
+    }
+  }
+
   let missingTestFinding = null;
   let placeholderTestFinding = null;
   if (packageValid) {
@@ -1895,8 +2078,11 @@ function scanRepository(rootPath, options) {
     coverage.mark(CHECK_GROUPS.README_COMMANDS);
   }
   let readmeReferences = [];
+  let readmeSetupCommands = [];
   if (readmeState === 'scanned') {
-    readmeReferences = parseReadmeCommands(decodeText(scanned.files.get(readmePath)));
+    const parsedReadme = parseReadmeCommands(decodeText(scanned.files.get(readmePath)));
+    readmeReferences = parsedReadme.references;
+    readmeSetupCommands = parsedReadme.setupCommands;
   } else if (readmeState === 'unscanned' || readmeState === 'skipped') {
     addFinding(
       findings,
@@ -1908,6 +2094,33 @@ function scanRepository(rootPath, options) {
       [makeEvidence(readmePath, 'README was not available to inspect.')],
       'Increase the scan bounds or make the README readable, then run the scan again.'
     );
+  }
+
+  if (
+    readmeSetupCommands.length > 0
+    && packageManagerInfo
+    && supportedProject
+    && scanned.rootState === 'ok'
+  ) {
+    const expectedManager = packageManagerInfo.name;
+    const hasCorrectSetup = readmeSetupCommands.some((command) => command.manager === expectedManager);
+    if (!hasCorrectSetup) {
+      const managers = [...new Set(readmeSetupCommands.map((command) => command.manager))].sort(compareStrings);
+      addFinding(
+        findings,
+        'README_PACKAGE_MANAGER_MISMATCH',
+        'warning',
+        'warning',
+        'README setup commands use a different package manager',
+        `README setup commands use ${managers.join(', ')}, but the project package manager is ${expectedManager}.`,
+        readmeSetupCommands.map((command) => makeEvidence(
+          readmePath,
+          `README uses a ${command.manager} setup command.`,
+          command.line
+        )),
+        `Document the ${expectedManager} setup command used by the project, or update the package metadata and lockfile consistently.`
+      );
+    }
   }
 
   for (const reference of readmeReferences) {
@@ -1984,6 +2197,48 @@ function scanRepository(rootPath, options) {
       continue;
     }
 
+    if (reference.kind === 'start') {
+      const hasStartScript = packageValid && Object.prototype.hasOwnProperty.call(scripts, 'start');
+      const hasRootServer = Boolean(findRootFile(['server.js'], scanned.discovered));
+      if (hasStartScript || hasRootServer) {
+        addFinding(
+          findings,
+          'README_SCRIPT_REFERENCE',
+          'passed',
+          'info',
+          'README references a valid npm start command',
+          hasStartScript
+            ? 'README references npm start and package.json defines scripts.start.'
+            : 'README references npm start and a root server.js entrypoint is present.',
+          evidence,
+          'Keep the README start command aligned with the package entrypoint.'
+        );
+      } else if (packageValid) {
+        addFinding(
+          findings,
+          'README_SCRIPT_UNKNOWN',
+          'failed',
+          'error',
+          'README references an unknown npm script',
+          'README references npm start, but package.json does not define scripts.start and no root server.js entrypoint is present.',
+          evidence,
+          'Define scripts.start, add a root server.js entrypoint, or update the README command.'
+        );
+      } else {
+        addFinding(
+          findings,
+          'README_SCRIPT_CHECK_SKIPPED',
+          'skipped',
+          'info',
+          'README npm start reference could not be checked',
+          'README references npm start, but package scripts were unavailable.',
+          evidence,
+          'Provide a readable package.json and run the scan again.'
+        );
+      }
+      continue;
+    }
+
     if (reference.kind === 'run') {
       const scriptName = reference.scriptName;
       if (packageValid) {
@@ -1994,7 +2249,7 @@ function scanRepository(rootPath, options) {
             'passed',
             'info',
             'README references a defined npm script',
-            `README references npm run ${scriptName}, which is defined in package.json.`,
+            `${reference.detail.replace(/\.$/, '')}, which is defined in package.json.`,
             evidence,
             'Keep README script names synchronized with package.json.'
           );
@@ -2007,7 +2262,7 @@ function scanRepository(rootPath, options) {
             'failed',
             'error',
             'README references an unknown npm script',
-            `README references npm run ${scriptName}, but package.json does not define that script.`,
+            `${reference.detail.replace(/\.$/, '')}, but package.json does not define that script.`,
             evidence,
             `Define scripts.${scriptName} or update the README command.`
           );
@@ -2019,7 +2274,7 @@ function scanRepository(rootPath, options) {
           'skipped',
           'info',
           'README npm script reference could not be checked',
-          `README references npm run ${scriptName}, but package scripts were unavailable.`,
+          `${reference.detail.replace(/\.$/, '')}, but package scripts were unavailable.`,
           evidence,
           'Provide a readable package.json and run the scan again.'
         );

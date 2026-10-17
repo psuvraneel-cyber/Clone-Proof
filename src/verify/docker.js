@@ -426,6 +426,15 @@ function verificationFinding(outcome, verification, staticReport) {
   ) {
     message += ' The controlled image has no browser executable or browser installation, which may cause this test failure.';
   }
+  if (
+    outcome === 'failed'
+    && phase === 'install'
+    && staticReport
+    && Array.isArray(staticReport.findings)
+    && staticReport.findings.some((finding) => finding.code === 'PRIVATE_REGISTRY')
+  ) {
+    message += ' Private registry credentials are probably needed for dependency installation.';
+  }
   return {
     code: 'DOCKER_VERIFICATION_FAILED',
     status: 'failed',
@@ -726,12 +735,15 @@ async function verifyRepository(rootPath, options = {}) {
       && /(?:ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|ENETUNREACH)/i.test(report.verification.stderr)
     ) {
       report.verification.outcome = 'blocked';
+      const privateRegistryNote = report.findings.some((finding) => finding.code === 'PRIVATE_REGISTRY')
+        ? ' Private registry credentials are probably needed for dependency installation.'
+        : '';
       addFinding(report, {
         code: 'DOCKER_NETWORK_REQUIRED',
         status: 'skipped',
         severity: 'warning',
         title: 'Docker verification requires network access',
-        message: 'npm ci failed while network access was disabled and reported a network error.',
+        message: `npm ci failed while network access was disabled and reported a network error.${privateRegistryNote}`,
         evidence: makeEvidence('verification.stderr', 'The install output contained a network error.'),
         recommendation: 'Review the repository, then rerun with --allow-network if you trust it.'
       });

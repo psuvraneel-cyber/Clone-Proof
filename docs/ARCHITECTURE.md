@@ -34,6 +34,10 @@ Environment references still contribute to source discovery, project classificat
 
 The conventional environment-key list also suppresses platform and tooling noise for `CLICOLOR`, `CLICOLOR_FORCE`, `COLORTERM`, `TERM_PROGRAM`, `COLUMNS`, `DEBUG`, `NODE_DEBUG`, `NODE_PATH`, and `PATHEXT`, in addition to the existing path, shell, CI, npm, GitHub, and runner keys. These exclusions affect only environment-documentation findings; they do not hide the files from the bounded scan.
 
+### README setup and registry metadata
+
+README command parsing recognizes npm install/test/start and script aliases (`npm run-script`, `yarn run`, and `pnpm run`) without executing them. `npm start` is accepted when `scripts.start` or a root `server.js` exists. Setup-manager mismatch warnings are limited to bare setup forms with flags (`yarn`, `yarn install`, `pnpm install`, `pnpm i`, and `npm ci`), compare against the declared or lockfile-inferred manager, and are suppressed when the README also documents the correct manager. Root `.npmrc` is a core file for bounded inspection. The `PRIVATE_REGISTRY` warning retains only a sorted, capped host list from non-public registry settings, npm lockfile `resolved` URLs, and Git dependency URLs; URL credentials and setting values are never copied into evidence.
+
 For a GitHub URL, `input/github.js` validates the exact public HTTPS origin, checks public visibility and repository size before cloning, then runs one isolated `git clone --depth 1 --no-tags` with an argument array and no shell. The clone uses no host Git config or credentials, bounds the temporary checkout, removes its `.git` metadata, and returns an owned cleanup handle. Clone and checkout errors become explicit `incomplete` or `blocked` reports; the subsequent scan is read-only.
 
 ## Security assumptions

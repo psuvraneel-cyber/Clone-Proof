@@ -7,7 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const { classifyLstatFailure, scanRepository } = require('../src/scan/repository');
-const { exitCodeForReport } = require('../src/report/render');
+const { exitCodeForReport, renderHtml, renderJson, renderText } = require('../src/report/render');
 const { CHECK_GROUPS, NOT_CHECKED } = require('../src/report/coverage');
 
 function makeRepository() {
@@ -172,6 +172,213 @@ test('reports an unknown npm script referenced by README', () => withRepository(
   assert.equal(unknown.status, 'failed');
   assert.match(unknown.message, /release/);
   assert.equal(unknown.evidence[0].path, 'README.md');
+}));
+
+test('recognizes bare npm i as a README install command', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', 'Install dependencies with `npm i`.\n');
+
+  const report = scanRepository(root);
+  const install = finding(report, 'README_INSTALL_COMMAND');
+
+  assert.equal(install.status, 'passed');
+  assert.equal(install.evidence[0].path, 'README.md');
+  assert.match(install.message, /npm install/);
+}));
+
+test('validates npm start against scripts.start or a root server.js', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.scripts.start = 'node src/server.js';
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, 'README.md', 'Start the app with `npm start`.\n');
+
+  const scripted = scanRepository(root);
+  assert.equal(finding(scripted, 'README_SCRIPT_UNKNOWN'), undefined);
+  assert.equal(finding(scripted, 'README_SCRIPT_REFERENCE').status, 'passed');
+
+  delete packageData.scripts.start;
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, 'server.js', 'console.log("server");\n');
+
+  const serverFile = scanRepository(root);
+  assert.equal(finding(serverFile, 'README_SCRIPT_UNKNOWN'), undefined);
+  assert.equal(finding(serverFile, 'README_SCRIPT_REFERENCE').status, 'passed');
+
+  fs.rmSync(path.join(root, 'server.js'));
+  const unknown = scanRepository(root);
+  const unknownStart = finding(unknown, 'README_SCRIPT_UNKNOWN');
+  assert.equal(unknownStart.status, 'failed');
+  assert.equal(unknownStart.evidence[0].path, 'README.md');
+  assert.match(unknownStart.message, /npm start/);
+}));
+
+test('checks npm run-script, yarn run, and pnpm run against package scripts', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.scripts.release = 'node release.js';
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+
+  for (const manager of ['npm', 'yarn', 'pnpm']) {
+    const runCommand = manager === 'npm' ? 'npm run-script release' : `${manager} run release`;
+    writeFile(root, 'README.md', `Run \`${runCommand}\`.\n`);
+    const valid = scanRepository(root);
+    assert.equal(finding(valid, 'README_SCRIPT_REFERENCE').status, 'passed', manager);
+    assert.equal(finding(valid, 'README_SCRIPT_UNKNOWN'), undefined, manager);
+
+    writeFile(root, 'README.md', `Run \`${manager === 'npm' ? 'npm run-script missing' : `${manager} run missing`}\`.\n`);
+    const invalid = scanRepository(root);
+    const unknown = finding(invalid, 'README_SCRIPT_UNKNOWN');
+    assert.equal(unknown.status, 'failed', manager);
+    assert.equal(unknown.evidence[0].path, 'README.md', manager);
+  }
+}));
+
+test('does not treat bare yarn or pnpm commands as script checks', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    'Run `yarn test` for tests.',
+    'Run `pnpm build` to build the app.'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'README_SCRIPT_UNKNOWN'), undefined);
+  assert.equal(finding(report, 'README_SCRIPT_REFERENCE'), undefined);
+}));
+
+test('warns on a README setup manager mismatch and suppresses it with a correct setup command', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    '```bash',
+    'yarn install --immutable',
+    '```'
+  ].join('\n'));
+
+  const mismatch = scanRepository(root);
+  const warning = finding(mismatch, 'README_PACKAGE_MANAGER_MISMATCH');
+  assert.equal(warning.status, 'warning');
+  assert.equal(warning.evidence[0].path, 'README.md');
+  assert.match(warning.message, /yarn/);
+  assert.match(warning.message, /npm/);
+
+  writeFile(root, 'README.md', [
+    '```bash',
+    'yarn install --immutable',
+    'npm ci --ignore-scripts',
+    '```'
+  ].join('\n'));
+  const suppressed = scanRepository(root);
+  assert.equal(finding(suppressed, 'README_PACKAGE_MANAGER_MISMATCH'), undefined);
+}));
+
+test('limits README package-manager mismatch checks to setup forms and ignores consumer commands', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const cases = [
+    ['yarn add axios', false],
+    ['pnpm add axios', false],
+    ['npm install axios', false],
+    ['yarn test', false],
+    ['pnpm build', false],
+    ['yarn --immutable', true],
+    ['pnpm i --frozen-lockfile', true],
+    ['npm ci --ignore-scripts', false]
+  ];
+
+  for (const [command, shouldWarn] of cases) {
+    writeFile(root, 'README.md', `\`${command}\`\n`);
+    const report = scanRepository(root);
+    assert.equal(Boolean(finding(report, 'README_PACKAGE_MANAGER_MISMATCH')), shouldWarn, command);
+  }
+}));
+
+test('treats root .npmrc as a core file and reports only sorted private hosts', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.dependencies = {
+    privateGit: 'git+https://git-user:git-password@git.example.invalid/team/pkg.git?token=git-token',
+    privateSsh: 'git+ssh://ssh-user:ssh-password@ssh.example.invalid/team/pkg.git'
+  };
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, '.npmrc', [
+    'registry=https://npm-user:npm-password@z-registry.example.invalid/npm/',
+    '@scope:registry=https://a-registry.example.invalid/npm/',
+    'registry=https://registry.npmjs.org/',
+    '@public:registry=https://registry.yarnpkg.com/',
+    '_authToken=do-not-report-this-token',
+    'username=do-not-report-this-username',
+    'password=do-not-report-this-password'
+  ].join('\n'));
+  writeFile(root, 'package-lock.json', `${JSON.stringify({
+    name: packageData.name,
+    lockfileVersion: 3,
+    packages: {
+      '': { name: packageData.name, dependencies: packageData.dependencies },
+      'node_modules/private': {
+        version: '1.0.0',
+        resolved: 'https://lock-user:lock-password@lock.example.invalid/private.tgz?token=lock-token'
+      }
+    }
+  }, null, 2)}\n`);
+
+  assert.equal(require('../src/scan/repository').isCoreFile('.npmrc'), true);
+  const report = scanRepository(root);
+  const privateRegistry = finding(report, 'PRIVATE_REGISTRY');
+
+  assert.equal(privateRegistry.status, 'warning');
+  assert.match(privateRegistry.message, /a-registry\.example\.invalid, git\.example\.invalid, lock\.example\.invalid, ssh\.example\.invalid, z-registry\.example\.invalid/);
+  for (const secret of [
+    'npm-user', 'npm-password', 'git-user', 'git-password', 'ssh-user', 'ssh-password',
+    'lock-user', 'lock-password', 'do-not-report-this-token', 'do-not-report-this-username',
+    'do-not-report-this-password', 'git-token', 'lock-token'
+  ]) {
+    assert.equal(JSON.stringify(report).includes(secret), false, secret);
+  }
+
+  const outputs = [
+    renderJson(report),
+    renderText(report, { color: false, isTTY: false }),
+    renderHtml(report)
+  ];
+  for (const output of outputs) {
+    assert.match(output, /a-registry\.example\.invalid/);
+    assert.doesNotMatch(output, /npm-user|npm-password|git-user|git-password|ssh-user|ssh-password|lock-user|lock-password|do-not-report-this|git-token|lock-token/);
+  }
+}));
+
+test('caps private registry host reporting at ten sorted hosts', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const entries = Array.from({ length: 12 }, (_, index) => `@scope${index}:registry=https://registry-${String(index).padStart(2, '0')}.example.invalid/`);
+  writeFile(root, '.npmrc', entries.join('\n'));
+
+  const report = scanRepository(root);
+  const privateRegistry = finding(report, 'PRIVATE_REGISTRY');
+
+  assert.equal(privateRegistry.status, 'warning');
+  assert.match(privateRegistry.message, /registry-00\.example\.invalid/);
+  assert.match(privateRegistry.message, /registry-09\.example\.invalid/);
+  assert.doesNotMatch(privateRegistry.message, /registry-10\.example\.invalid|registry-11\.example\.invalid/);
+  assert.match(privateRegistry.message, /and 2 more/);
+}));
+
+test('does not warn for public npm and Yarn registry hosts', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, '.npmrc', [
+    'registry=https://registry.npmjs.org/',
+    '@scope:registry=https://registry.yarnpkg.com/'
+  ].join('\n'));
+  writeFile(root, 'package-lock.json', `${JSON.stringify({
+    name: 'fixture-project',
+    lockfileVersion: 3,
+    packages: {
+      '': { name: 'fixture-project' },
+      'node_modules/public': { version: '1.0.0', resolved: 'https://registry.npmjs.org/public/-/public-1.0.0.tgz' }
+    }
+  }, null, 2)}\n`);
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'PRIVATE_REGISTRY'), undefined);
 }));
 
 test('warns when a referenced environment key is absent from the example', () => withRepository((root) => {

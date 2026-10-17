@@ -363,6 +363,49 @@ test('Docker install and test failures report the failed phase', async () => {
   }
 });
 
+test('install failures with a private registry explain that credentials are probably needed', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-private-registry-'));
+  try {
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+      name: 'private-registry-fixture',
+      scripts: { test: 'node --test' }
+    }, null, 2));
+    fs.writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({
+      name: 'private-registry-fixture',
+      lockfileVersion: 3,
+      packages: { '': { name: 'private-registry-fixture' } }
+    }));
+    fs.writeFileSync(path.join(root, '.npmrc'), 'registry=https://user:password@packages.example.invalid/npm/\n');
+    fs.writeFileSync(path.join(root, 'test.js'), 'test("fixture", () => {});\n');
+
+    const runner = async (command, args) => {
+      if (args[0] === 'version' || args[0] === 'image') {
+        return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+      return {
+        exitCode: 1,
+        signal: null,
+        stdout: 'CLONEPROOF_PHASE=install\n',
+        stderr: 'npm ERR! code E401\nnpm ERR! Unable to authenticate, need credentials',
+        timedOut: false,
+        outputTruncated: false,
+        error: null
+      };
+    };
+
+    const report = await verifyRepository(root, { execute: true, allowNetwork: true, runner });
+    assertSummaryMatchesFindings(report);
+
+    assert.equal(report.status, 'failed');
+    assert.equal(report.verification.failedPhase, 'install');
+    const failure = report.findings.find((item) => item.code === 'DOCKER_VERIFICATION_FAILED');
+    assert.match(failure.message, /registry credentials are probably needed/i);
+    assert.ok(report.findings.some((item) => item.code === 'PRIVATE_REGISTRY'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('test-phase failures explain skipped install scripts for native packages', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-install-script-'));
   try {
