@@ -9,7 +9,7 @@ const test = require('node:test');
 
 const cliPath = path.join(__dirname, '..', 'src', 'cli.js');
 const projectRoot = path.join(__dirname, '..');
-const { parseArguments, reportCleanupFailure } = require('../src/cli');
+const { parseArguments, reportCleanupFailure, reportPreflightNotice } = require('../src/cli');
 
 test('setup accepts no target and defaults to text output', () => {
   assert.deepEqual(parseArguments(['node', cliPath, 'setup']), {
@@ -99,6 +99,24 @@ test('cleanup failure keeps the report and stderr notice limited to the folder n
     'CloneProof: could not remove temporary folder cloneproof-github-abc123; it is safe to delete.\n'
   ]);
   assert.equal(writes.join('').includes('C:\\Users'), false);
+});
+
+test('configured token rejection notice contains no token value', () => {
+  const writes = [];
+  const originalWrite = process.stderr.write;
+  process.stderr.write = (value) => {
+    writes.push(String(value));
+    return true;
+  };
+  try {
+    reportPreflightNotice({ preflightReason: 'http-401', preflightAuthenticated: true });
+  } finally {
+    process.stderr.write = originalWrite;
+  }
+
+  assert.deepEqual(writes, [
+    'CloneProof: GitHub rejected the configured token (401); continuing without the size check.\n'
+  ]);
 });
 
 test('invalid GitHub URLs return a blocked machine-readable report without invoking git', () => {

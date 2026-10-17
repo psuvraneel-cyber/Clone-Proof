@@ -231,13 +231,14 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch, opt
     : process.env;
   const token = githubTokenFromEnvironment(hostEnvironment);
   const preflightAuthenticated = token !== null;
-  const unavailable = (error) => ({
+  const unavailable = (preflightReason, error) => ({
     state: 'unavailable',
     preflightAuthenticated,
+    preflightReason,
     ...(error ? { error: redactGithubToken(error, token) } : {})
   });
 
-  if (typeof fetcher !== 'function') return unavailable();
+  if (typeof fetcher !== 'function') return unavailable('no-fetch');
 
   const apiUrl = `https://api.github.com/repos/${source.owner}/${source.repo}`;
   try {
@@ -250,7 +251,16 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch, opt
       headers,
       signal: AbortSignal.timeout(GITHUB_PREFLIGHT_TIMEOUT_MS)
     });
-    if (!response || typeof response.status !== 'number') return unavailable();
+    if (!response || typeof response.status !== 'number') return unavailable('invalid-response');
+    if (response.status === 401) return unavailable('http-401');
+    if (response.status === 403 || response.status === 429) {
+      const remaining = response.headers && typeof response.headers.get === 'function'
+        ? response.headers.get('x-ratelimit-remaining')
+        : null;
+      return unavailable(
+        response.status === 403 && String(remaining) === '0' ? 'rate-limited' : `http-${response.status}`
+      );
+    }
     if (response.status === 404) {
       const error = new GithubSourceError(
         'GitHub repository is not found or not public.',
@@ -258,11 +268,17 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch, opt
       );
       error.preflight = 'checked';
       error.preflightAuthenticated = preflightAuthenticated;
+      error.preflightReason = 'http-404';
       throw error;
     }
-    if (response.status !== 200) return unavailable();
+    if (response.status !== 200) return unavailable(`http-${response.status}`);
 
-    const metadata = await response.json();
+    let metadata;
+    try {
+      metadata = await response.json();
+    } catch (error) {
+      return unavailable('invalid-response', error && error.message ? error.message : error);
+    }
     if (!metadata || metadata.private === true) {
       const error = new GithubSourceError(
         'GitHub repository is not found or not public.',
@@ -270,10 +286,11 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch, opt
       );
       error.preflight = 'checked';
       error.preflightAuthenticated = preflightAuthenticated;
+      error.preflightReason = 'checked';
       throw error;
     }
     if (metadata.private !== false || !Number.isFinite(metadata.size) || metadata.size < 0) {
-      return unavailable();
+      return unavailable('invalid-response');
     }
 
     const repositorySizeKb = metadata.size;
@@ -284,16 +301,20 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch, opt
       );
       error.preflight = 'checked';
       error.preflightAuthenticated = preflightAuthenticated;
+      error.preflightReason = 'checked';
       error.repositorySizeKb = repositorySizeKb;
       throw error;
     }
 
-    return { state: 'checked', repositorySizeKb, preflightAuthenticated };
+    return { state: 'checked', preflightReason: 'checked', repositorySizeKb, preflightAuthenticated };
   } catch (error) {
     if (error && (error.code === 'GITHUB_REPOSITORY_UNAVAILABLE' || error.code === 'GITHUB_REPOSITORY_TOO_LARGE')) {
       throw error;
     }
-    return unavailable(error && error.message ? error.message : error);
+    return unavailable(
+      error && error.name === 'AbortError' ? 'timeout' : 'network-error',
+      error && error.message ? error.message : error
+    );
   }
 }
 
@@ -645,8 +666,6 @@ async function cloneGithubRepository(value, options = {}) {
     config.fetcher || globalThis.fetch,
     { hostEnvironment }
   );
-  const preflightErrorRedacted = typeof preflight.error === 'string'
-    && preflight.error.includes('[REDACTED]');
   const gitExecutable = config.gitExecutable || resolveGitExecutable({
     platform: config.platform || process.platform,
     env: config.hostEnvironment || process.env,
@@ -658,8 +677,8 @@ async function cloneGithubRepository(value, options = {}) {
       'GITHUB_GIT_UNAVAILABLE'
     );
     error.preflight = preflight.state;
+    error.preflightReason = preflight.preflightReason;
     error.preflightAuthenticated = preflight.preflightAuthenticated === true;
-    error.preflightErrorRedacted = preflightErrorRedacted;
     if (preflight.repositorySizeKb !== undefined) error.repositorySizeKb = preflight.repositorySizeKb;
     throw error;
   }
@@ -712,7 +731,7 @@ async function cloneGithubRepository(value, options = {}) {
 
     if (!cloneSucceeded(result, maxOutputBytes)) {
       const error = cloneFailure(result, maxOutputBytes, githubToken);
-      error.preflightErrorRedacted = preflightErrorRedacted;
+      error.preflightReason = preflight.preflightReason;
       throw error;
     }
 
@@ -779,8 +798,8 @@ async function cloneGithubRepository(value, options = {}) {
       repo: source.repo,
       repository: source.repository,
       preflight: preflight.state,
+      preflightReason: preflight.preflightReason,
       preflightAuthenticated: preflight.preflightAuthenticated === true,
-      ...(preflightErrorRedacted ? { preflightErrorRedacted: true, preflightError: '[REDACTED]' } : {}),
       ...(preflight.repositorySizeKb === undefined ? {} : { repositorySizeKb: preflight.repositorySizeKb }),
       executablePaths: fileModes.executablePaths,
       symlinkPaths: fileModes.symlinkPaths,
@@ -801,9 +820,7 @@ async function cloneGithubRepository(value, options = {}) {
   } catch (error) {
     if (error && typeof error === 'object') {
       if (!error.preflight) error.preflight = preflight.state;
-      if (error.preflightErrorRedacted === undefined) {
-        error.preflightErrorRedacted = preflightErrorRedacted;
-      }
+      if (!error.preflightReason) error.preflightReason = preflight.preflightReason;
       if (error.preflightAuthenticated === undefined) {
         error.preflightAuthenticated = preflight.preflightAuthenticated === true;
       }

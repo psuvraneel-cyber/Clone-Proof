@@ -147,6 +147,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
   assert.equal(result.metadata.totalBytes, Buffer.byteLength('# fixture\n') + Buffer.byteLength('module.exports = 1;\n'));
   assert.equal(result.metadata.maxDepth, 1);
   assert.equal(result.preflight, 'checked');
+  assert.equal(result.preflightReason, 'checked');
   assert.equal(result.repositorySizeKb, 1);
   assert.equal(result.commit, COMMIT_SHA);
   assert.equal(fs.existsSync(result.root), true);
@@ -488,12 +489,13 @@ test('redacts a configured token from a GitHub fetch error', async () => {
   );
 
   assert.equal(result.state, 'unavailable');
+  assert.equal(result.preflightReason, 'network-error');
   assert.equal(result.preflightAuthenticated, true);
   assert.match(result.error, /Bearer \[REDACTED\]/);
   assert.equal(result.error.includes(token), false);
 });
 
-test('carries only a redaction marker from a token-bearing preflight error into clone metadata', async () => {
+test('carries a fixed preflight reason without exposing a token', async () => {
   const token = 'clone-fetch-token';
   const result = await cloneGithubRepository(VALID_URL, {
     gitExecutable: process.execPath,
@@ -511,8 +513,10 @@ test('carries only a redaction marker from a token-bearing preflight error into 
     }
   });
 
-  assert.equal(result.preflightErrorRedacted, true);
-  assert.equal(result.preflightError, '[REDACTED]');
+  assert.equal(result.preflight, 'unavailable');
+  assert.equal(result.preflightReason, 'network-error');
+  assert.equal('preflightErrorRedacted' in result, false);
+  assert.equal('preflightError' in result, false);
   assert.equal(JSON.stringify(result).includes(token), false);
   await result.cleanup();
 });
@@ -542,6 +546,47 @@ test('private repositories remain blocked when the optional token is present', a
       && error.preflightAuthenticated === true
   );
   assert.equal(runnerCalls, 0);
+});
+
+test('preflight returns fixed reasons for token, rate-limit, timeout, network, and valid responses', async () => {
+  const cases = [
+    {
+      name: '401',
+      environment: { CLONEPROOF_GITHUB_TOKEN: 'fake-token' },
+      fetcher: async () => ({ status: 401 }),
+      reason: 'http-401'
+    },
+    {
+      name: 'rate limit',
+      fetcher: async () => ({ status: 403, headers: { get: (name) => name === 'x-ratelimit-remaining' ? '0' : null } }),
+      reason: 'rate-limited'
+    },
+    {
+      name: 'timeout',
+      fetcher: async () => { const error = new Error('aborted'); error.name = 'AbortError'; throw error; },
+      reason: 'timeout'
+    },
+    {
+      name: 'network',
+      fetcher: async () => { throw new TypeError('fetch failed'); },
+      reason: 'network-error'
+    },
+    {
+      name: 'valid',
+      fetcher: publicFetcher(),
+      reason: 'checked'
+    }
+  ];
+
+  for (const item of cases) {
+    const result = await preflightGithubRepository(
+      { owner: 'example', repo: 'project' },
+      item.fetcher,
+      { hostEnvironment: item.environment || {} }
+    );
+    assert.equal(result.preflightReason, item.reason, item.name);
+    assert.equal(Boolean(result.error && result.error.includes('fake-token')), false, item.name);
+  }
 });
 
 test('allows field-tested repository sizes through 4 GiB and blocks larger repositories before git', async () => {
@@ -597,8 +642,9 @@ test('allows field-tested repository sizes through 4 GiB and blocks larger repos
           runner
         }),
         (error) => {
-          assert.equal(error.code, 'GITHUB_REPOSITORY_TOO_LARGE');
-          assert.equal(error.preflight, 'checked');
+           assert.equal(error.code, 'GITHUB_REPOSITORY_TOO_LARGE');
+           assert.equal(error.preflight, 'checked');
+           assert.equal(error.preflightReason, 'checked');
           assert.equal(error.repositorySizeKb, item.size);
           assert.match(error.message, new RegExp(`GitHub reports ${item.size} KiB for the repository's full history`));
           assert.match(error.message, /4 GiB sanity limit/);
@@ -614,15 +660,18 @@ test('blocks private, missing, and oversized repositories before invoking git', 
   const cases = [
     {
       response: { status: 404 },
-      code: 'GITHUB_REPOSITORY_UNAVAILABLE'
+      code: 'GITHUB_REPOSITORY_UNAVAILABLE',
+      reason: 'http-404'
     },
     {
       response: { status: 200, body: { private: true, size: 1 } },
-      code: 'GITHUB_REPOSITORY_UNAVAILABLE'
+      code: 'GITHUB_REPOSITORY_UNAVAILABLE',
+      reason: 'checked'
     },
     {
       response: { status: 200, body: { private: false, size: Math.floor(MAX_REPOSITORY_BYTES / 1024) + 1 } },
-      code: 'GITHUB_REPOSITORY_TOO_LARGE'
+      code: 'GITHUB_REPOSITORY_TOO_LARGE',
+      reason: 'checked'
     }
   ];
 
@@ -642,18 +691,20 @@ test('blocks private, missing, and oversized repositories before invoking git', 
         },
         gitExecutable: process.execPath
       }),
-      (error) => error && error.code === item.code && error.preflight === 'checked'
+      (error) => error && error.code === item.code
+        && error.preflight === 'checked'
+        && error.preflightReason === item.reason
     );
     assert.equal(runnerCalls, 0);
   }
 });
 
 test('continues cloning when the GitHub preflight is unavailable', async () => {
-  for (const response of [
-    { status: 403 },
-    { status: 429 },
-    { status: 500 },
-    new Error('network unavailable')
+  for (const [response, reason] of [
+    [{ status: 403 }, 'http-403'],
+    [{ status: 429 }, 'http-429'],
+    [{ status: 500 }, 'http-500'],
+    [new Error('network unavailable'), 'network-error']
   ]) {
     const calls = [];
     const result = await cloneGithubRepository(VALID_URL, {
@@ -673,6 +724,7 @@ test('continues cloning when the GitHub preflight is unavailable', async () => {
     });
 
     assert.equal(result.preflight, 'unavailable');
+    assert.equal(result.preflightReason, reason);
     assert.equal(calls.length, 4);
     await result.cleanup();
   }

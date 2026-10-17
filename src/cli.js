@@ -223,11 +223,9 @@ function cloneFailureReport(target, error, mode) {
     kind: 'github',
     name: targetName,
     preflightAuthenticated: Boolean(error && error.preflightAuthenticated === true),
+    ...(error && error.preflightReason ? { preflightReason: error.preflightReason } : {}),
     ...(error && error.cleanupError ? { cleanupFailed: true } : {})
   };
-  if (error && error.preflightErrorRedacted === true) {
-    reportTarget.preflightError = '[REDACTED]';
-  }
   if (error && error.preflight) reportTarget.preflight = error.preflight;
   if (error && Number.isFinite(error.repositorySizeKb)) reportTarget.repositorySizeKb = error.repositorySizeKb;
   return {
@@ -300,8 +298,8 @@ function applySourceTarget(report, source) {
     name: source.repository,
     url: source.url,
     preflight: source.preflight,
+    preflightReason: source.preflightReason,
     preflightAuthenticated: source.preflightAuthenticated === true,
-    ...(source.preflightErrorRedacted ? { preflightError: '[REDACTED]' } : {}),
     ...(source.repositorySizeKb === undefined ? {} : { repositorySizeKb: source.repositorySizeKb }),
     ...(source.executableModes === undefined ? {} : { executableModes: source.executableModes }),
     ...(typeof source.commit === 'string' && /^[0-9a-f]{40}$/i.test(source.commit)
@@ -311,9 +309,9 @@ function applySourceTarget(report, source) {
   return report;
 }
 
-function reportPreflightWarning(source) {
-  if (source && source.preflightErrorRedacted === true) {
-    process.stderr.write('CloneProof: GitHub API preflight error: [REDACTED]\n');
+function reportPreflightNotice(source) {
+  if (source && source.preflightReason === 'http-401' && source.preflightAuthenticated === true) {
+    process.stderr.write('CloneProof: GitHub rejected the configured token (401); continuing without the size check.\n');
   }
 }
 
@@ -322,7 +320,7 @@ async function runCheck(options) {
   try {
     resolved = await resolveTarget(options.target);
   } catch (error) {
-    reportPreflightWarning(error);
+    reportPreflightNotice(error);
     const report = cloneFailureReport(options.target, error, 'check');
     reportCleanupFailure(report, error.cleanupError || error);
     writeReport(report, options);
@@ -339,7 +337,7 @@ async function runCheck(options) {
       }),
       resolved.source
     );
-    reportPreflightWarning(resolved.source);
+    reportPreflightNotice(resolved.source);
   } finally {
     if (resolved.source) {
       try {
@@ -363,7 +361,7 @@ async function runVerify(options) {
   try {
     resolved = await resolveTarget(options.target);
   } catch (error) {
-    reportPreflightWarning(error);
+    reportPreflightNotice(error);
     const report = cloneFailureReport(options.target, error, 'verify');
     reportCleanupFailure(report, error.cleanupError || error);
     writeReport(report, options);
@@ -381,7 +379,7 @@ async function runVerify(options) {
       executablePaths: resolved.source ? resolved.source.executablePaths : [],
       symlinkPaths: resolved.source ? resolved.source.symlinkPaths : []
     }), resolved.source);
-    reportPreflightWarning(resolved.source);
+    reportPreflightNotice(resolved.source);
     if (report.verification && report.verification.cleanup && report.verification.cleanup.cleanupFailed) {
       reportCleanupFailure(report, report.verification.cleanup);
     }
@@ -444,4 +442,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseArguments, renderReport, reportCleanupFailure };
+module.exports = { parseArguments, renderReport, reportCleanupFailure, reportPreflightNotice };
