@@ -1498,6 +1498,7 @@ function scanFiles(rootPath, limits, options = {}) {
   let skippedPathsTruncated = false;
   let rootState = 'ok';
   let entryLimitExceeded = false;
+  let entryLimitPath = null;
   const gitSymlinkPaths = new Set(
     (Array.isArray(options.symlinkPaths) ? options.symlinkPaths : [])
       .map((relativePath) => String(relativePath).split('\\').join('/'))
@@ -1528,7 +1529,8 @@ function scanFiles(rootPath, limits, options = {}) {
       fileCount,
       discoveredFileCount,
       totalBytes,
-      rootState
+      rootState,
+      entryLimitPath
     };
   }
 
@@ -1577,6 +1579,7 @@ function scanFiles(rootPath, limits, options = {}) {
       if (entryCount > limits.maxEntries) {
         complete = false;
         entryLimitExceeded = true;
+        entryLimitPath = toRelativePath(rootPath, path.join(absoluteDirectory, entry.name));
         break;
       }
 
@@ -1876,6 +1879,20 @@ function scanRepository(rootPath, options) {
       'The requested local repository root is unavailable or is not a directory.',
       [makeEvidence('.', 'The repository root could not be read as a directory.')],
       'Provide an existing readable directory as the repository root.'
+    );
+  }
+
+  if (scanned.entryLimitPath) {
+    const formattedLimit = String(limits.maxEntries).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    addFinding(
+      findings,
+      'SCAN_ENTRY_LIMIT_EXCEEDED',
+      'skipped',
+      'warning',
+      'The repository scan entry limit was exceeded',
+      `Stopped after ${formattedLimit} directory entries; the folder is too large to inspect fully.`,
+      [makeEvidence(scanned.entryLimitPath, 'The entry limit was exceeded while inspecting this path.')],
+      'Point CloneProof at a single project folder.'
     );
   }
 

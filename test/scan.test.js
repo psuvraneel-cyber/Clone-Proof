@@ -1444,4 +1444,11 @@ test('marks a traversal that exceeds maxEntries incomplete', () => withRepositor
 
   assert.equal(report.status, 'incomplete');
   assert.equal(report.scan.complete, false);
+  const limitFinding = finding(report, 'SCAN_ENTRY_LIMIT_EXCEEDED');
+  assert.equal(limitFinding.status, 'skipped');
+  assert.equal(limitFinding.severity, 'warning');
+  assert.equal(limitFinding.message, 'Stopped after 5 directory entries; the folder is too large to inspect fully.');
+  assert.equal(limitFinding.recommendation, 'Point CloneProof at a single project folder.');
+  assert.equal(limitFinding.evidence.length, 1);
+  assert.equal(path.isAbsolute(limitFinding.evidence[0].path), false);
 }));
