@@ -68,7 +68,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `docker image inspect node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` — passed after confirming/pulling the recorded digest.
 - `docker build -t cloneproof .` — passed.
 - `docker run --rm --network none cloneproof` — passed, exit `0`.
-- `docker run --rm --network none cloneproof npm test` — passed, exit `0`, 112 tests passed in the Linux container.
+- `docker run --rm --network none cloneproof npm test` — passed, exit `0`, 124 tests passed in the Linux container.
 - `node src/cli.js verify examples/healthy-node --docker --execute` — passed, exit `0`, network `none`, cleanup confirmed.
 - `node src/cli.js verify examples/broken-node --docker --execute` — blocked as intended, exit `2`, no target container started.
 - `node src/cli.js check examples/healthy-node` — passed, exit `0`.
