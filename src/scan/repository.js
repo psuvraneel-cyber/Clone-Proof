@@ -56,6 +56,15 @@ const PUBLIC_REGISTRY_HOSTNAMES = new Set([
   'registry.npmjs.org',
   'registry.yarnpkg.com'
 ]);
+const LIKELY_SERVICE_DEPENDENCIES = new Set([
+  'pg',
+  'mysql2',
+  'mongoose',
+  'mongodb',
+  'redis',
+  'ioredis',
+  'amqplib'
+]);
 const OTHER_ECOSYSTEM_MARKERS = [
   { names: ['pyproject.toml', 'requirements.txt', 'setup.py', 'Pipfile'], ecosystem: 'Python' },
   { names: ['go.mod'], ecosystem: 'Go' },
@@ -862,6 +871,113 @@ function cappedHosts(hosts) {
   return remaining > 0
     ? `${visible.join(', ')} (and ${remaining} more)`
     : visible.join(', ');
+}
+
+function normalizePackageOutputPath(value) {
+  if (typeof value !== 'string') return null;
+  const raw = value.trim().replace(/\\/g, '/');
+  if (!raw || raw.startsWith('/') || /^[A-Za-z]:\//.test(raw) || raw.startsWith('#') || raw.includes(':')) return null;
+  if (/[*?\[\]]/.test(raw)) return null;
+
+  const withoutPrefix = raw.replace(/^\.\//, '');
+  const normalized = path.posix.normalize(withoutPrefix);
+  if (!normalized || normalized === '.' || normalized === '..' || normalized.startsWith('../')) return null;
+  return normalized;
+}
+
+function packageOutputPaths(packageData) {
+  const paths = new Set();
+  const add = (value) => {
+    const normalized = normalizePackageOutputPath(value);
+    if (normalized) paths.add(normalized);
+  };
+
+  add(packageData && packageData.main);
+  add(packageData && packageData.types);
+
+  const bin = packageData && packageData.bin;
+  if (typeof bin === 'string') add(bin);
+  else if (bin && typeof bin === 'object' && !Array.isArray(bin)) {
+    for (const value of Object.values(bin)) add(value);
+  }
+
+  function visitExports(value) {
+    if (typeof value === 'string') {
+      add(value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) visitExports(item);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    for (const child of Object.values(value)) visitExports(child);
+  }
+
+  visitExports(packageData && packageData.exports);
+  return [...paths].sort(compareStrings);
+}
+
+function repositoryFileExists(rootPath, relativePath) {
+  const segments = String(relativePath).split('/').filter(Boolean);
+  if (segments.length === 0 || segments.some((segment) => segment === '.' || segment === '..')) return false;
+
+  let current = path.resolve(rootPath);
+  for (let index = 0; index < segments.length; index += 1) {
+    current = path.join(current, segments[index]);
+    let stat;
+    try {
+      stat = fs.lstatSync(current);
+    } catch {
+      return false;
+    }
+    if (stat.isSymbolicLink()) return false;
+    if (index < segments.length - 1 && !stat.isDirectory()) return false;
+    if (index === segments.length - 1) return stat.isFile();
+  }
+  return false;
+}
+
+function packageBuildOutputFinding(rootPath, scanned, packageData, scripts, readmeState, readmeText) {
+  if (!packageData || typeof scripts.build !== 'string' || !scripts.build.trim()) return null;
+  if (readmeState === 'unscanned' || readmeState === 'skipped') return null;
+  if (readmeState === 'scanned' && /\bnpm\s+run(?:-script)?\s+build(?:\s|$|[`'"),.;!?])/i.test(readmeText)) return null;
+
+  const missingPaths = packageOutputPaths(packageData)
+    .filter((relativePath) => !scanned.discovered.has(relativePath) && !repositoryFileExists(rootPath, relativePath));
+  if (missingPaths.length === 0) return null;
+
+  return {
+    missingPaths,
+    message: `Build-related package metadata points to missing file${missingPaths.length === 1 ? '' : 's'}: ${missingPaths.join(', ')}.`,
+    evidence: [
+      makeEvidence('package.json', 'main, bin, exports, or types references a file outside the repository.'),
+      ...missingPaths.map((relativePath) => makeEvidence(relativePath, 'Referenced build output file was not found.'))
+    ]
+  };
+}
+
+function likelyServiceReferences(scanned, packageData) {
+  const references = [];
+  const composePath = findRootFile(['docker-compose.yml', 'compose.yaml'], scanned.discovered);
+  if (composePath) {
+    references.push({
+      label: composePath,
+      evidence: makeEvidence(composePath, 'Root compose configuration may define an external service.')
+    });
+  }
+
+  const dependencyNames = [...new Set(dependencyEntries(packageData)
+    .filter((entry) => LIKELY_SERVICE_DEPENDENCIES.has(entry.name.toLowerCase()))
+    .map((entry) => entry.name))].sort(compareStrings);
+  for (const name of dependencyNames) {
+    references.push({
+      label: name,
+      evidence: makeEvidence('package.json', `Dependency ${name} commonly connects to an external service.`)
+    });
+  }
+
+  return references.sort((left, right) => compareStrings(left.label, right.label));
 }
 
 function firstNonEmptyLine(text) {
@@ -1956,6 +2072,20 @@ function scanRepository(rootPath, options) {
         'Provide registry credentials through the trusted verification environment and keep them out of repository files and reports.'
       );
     }
+
+    const serviceReferences = likelyServiceReferences(scanned, packageData || {});
+    if (serviceReferences.length > 0) {
+      addFinding(
+        findings,
+        'SERVICES_LIKELY_REQUIRED',
+        'skipped',
+        'info',
+        'External services may be required',
+        `Found service indicators: ${serviceReferences.map((reference) => reference.label).join(', ')}.`,
+        serviceReferences.flatMap((reference) => reference.evidence),
+        'Confirm the required databases, caches, brokers, or compose services before relying on a fresh-clone setup.'
+      );
+    }
   }
 
   let missingTestFinding = null;
@@ -2079,8 +2209,10 @@ function scanRepository(rootPath, options) {
   }
   let readmeReferences = [];
   let readmeSetupCommands = [];
+  let readmeText = null;
   if (readmeState === 'scanned') {
-    const parsedReadme = parseReadmeCommands(decodeText(scanned.files.get(readmePath)));
+    readmeText = decodeText(scanned.files.get(readmePath));
+    const parsedReadme = parseReadmeCommands(readmeText);
     readmeReferences = parsedReadme.references;
     readmeSetupCommands = parsedReadme.setupCommands;
   } else if (readmeState === 'unscanned' || readmeState === 'skipped') {
@@ -2093,6 +2225,27 @@ function scanRepository(rootPath, options) {
       'A root README was discovered but was not included in the readable scan set.',
       [makeEvidence(readmePath, 'README was not available to inspect.')],
       'Increase the scan bounds or make the README readable, then run the scan again.'
+    );
+  }
+
+  const buildOutputFinding = packageBuildOutputFinding(
+    absoluteRoot,
+    scanned,
+    packageData,
+    scripts,
+    readmeState,
+    readmeText
+  );
+  if (buildOutputFinding) {
+    addFinding(
+      findings,
+      'BUILD_OUTPUT_MISSING',
+      'warning',
+      'warning',
+      'A declared build output file is missing',
+      buildOutputFinding.message,
+      buildOutputFinding.evidence,
+      'Run the documented build before relying on package entrypoints, or commit the generated output when the project requires it.'
     );
   }
 

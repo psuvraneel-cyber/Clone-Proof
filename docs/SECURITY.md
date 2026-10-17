@@ -15,6 +15,7 @@ CloneProof receives repository files as untrusted input. It is not a malware sca
 - Uses relative paths in reports and does not include host environment values.
 - Parses README setup and script commands as data only. It validates the supported command forms against package metadata, reports setup-manager mismatches, and never executes README commands.
 - Treats root `.npmrc` as core metadata and reports non-public registry, lockfile-resolved, and Git dependency hosts as a capped sorted list. It strips URL user/password components and does not report token, auth, password, username, or setting values.
+- Checks build output references with regular-file metadata only when a build script exists, and reports `BUILD_OUTPUT_MISSING` without executing the build. It also reports `SERVICES_LIKELY_REQUIRED` as skipped informational evidence for compose files and common service dependencies; neither signal starts a service or connects to a database.
 
 Static findings identify high-confidence setup inconsistencies. They are not a security verdict.
 

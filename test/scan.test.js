@@ -381,6 +381,87 @@ test('does not warn for public npm and Yarn registry hosts', () => withRepositor
   assert.equal(finding(report, 'PRIVATE_REGISTRY'), undefined);
 }));
 
+test('warns when a declared build output is missing and README omits npm run build', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.main = 'dist/index.js';
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, 'README.md', 'Run `npm ci` and `npm test`.\n');
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'BUILD_OUTPUT_MISSING');
+
+  assert.equal(report.status, 'passed_with_warnings');
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /dist\/index\.js/);
+}));
+
+test('does not warn about a missing build output when README documents npm run build', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.main = 'dist/index.js';
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, 'README.md', 'Run `npm ci`, `npm test`, and `npm run build`.\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'BUILD_OUTPUT_MISSING'), undefined);
+}));
+
+test('does not warn when a declared build output file exists', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.main = 'dist/index.js';
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, 'dist/index.js', 'module.exports = 1;\n');
+  writeFile(root, 'README.md', 'Run `npm ci` and `npm test`.\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'BUILD_OUTPUT_MISSING'), undefined);
+}));
+
+test('reports likely service requirements from compose files and dependency names', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'docker-compose.yml', 'services:\n  db:\n    image: postgres\n');
+
+  const composeReport = scanRepository(root);
+  const composeFinding = finding(composeReport, 'SERVICES_LIKELY_REQUIRED');
+  assert.equal(composeFinding.status, 'skipped');
+  assert.equal(composeFinding.severity, 'info');
+  assert.match(composeFinding.message, /docker-compose\.yml/);
+
+  for (const dependency of ['pg', 'mysql2', 'mongoose', 'mongodb', 'redis', 'ioredis', 'amqplib']) {
+    const dependencyRoot = makeRepository();
+    try {
+      writeHealthyRepository(dependencyRoot);
+      const packageData = JSON.parse(fs.readFileSync(path.join(dependencyRoot, 'package.json'), 'utf8'));
+      packageData.dependencies = { [dependency]: '^1.0.0' };
+      writeFile(dependencyRoot, 'package.json', JSON.stringify(packageData, null, 2));
+      const lockfile = JSON.parse(fs.readFileSync(path.join(dependencyRoot, 'package-lock.json'), 'utf8'));
+      lockfile.packages[''] = { name: packageData.name };
+      lockfile.packages[''].dependencies = { [dependency]: '^1.0.0' };
+      writeFile(dependencyRoot, 'package-lock.json', JSON.stringify(lockfile, null, 2));
+
+      const report = scanRepository(dependencyRoot);
+      const serviceFinding = finding(report, 'SERVICES_LIKELY_REQUIRED');
+      assert.equal(serviceFinding.status, 'skipped', dependency);
+      assert.equal(serviceFinding.severity, 'info', dependency);
+      assert.match(serviceFinding.message, new RegExp(dependency.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), dependency);
+    } finally {
+      fs.rmSync(dependencyRoot, { recursive: true, force: true });
+    }
+  }
+}));
+
+test('does not report likely services for a project without compose or service dependencies', () => withRepository((root) => {
+  writeHealthyRepository(root);
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'SERVICES_LIKELY_REQUIRED'), undefined);
+}));
+
 test('warns when a referenced environment key is absent from the example', () => withRepository((root) => {
   writeHealthyRepository(root);
   writeFile(root, '.env.example', 'API_URL=https://example.invalid\n');
