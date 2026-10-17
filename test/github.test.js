@@ -359,6 +359,72 @@ test('preflights repository visibility and size before cloning', async () => {
   await result.cleanup();
 });
 
+test('allows field-tested repository sizes through 4 GiB and blocks larger repositories before git', async () => {
+  const fourGiBInKiB = 4 * 1024 * 1024;
+  const cases = [
+    { size: 1119361, allowed: true },
+    { size: 6403300, allowed: false },
+    { size: fourGiBInKiB, allowed: true },
+    { size: fourGiBInKiB + 1, allowed: false }
+  ];
+
+  for (const item of cases) {
+    let runnerCalls = 0;
+    const runner = async (command, args) => {
+      runnerCalls += 1;
+      if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+      if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+      if (args.includes('rev-parse')) return commitResult();
+      const checkout = args.at(-1);
+      fs.mkdirSync(path.join(checkout, '.git'));
+      fs.writeFileSync(path.join(checkout, 'README.md'), '# fixture\n');
+      return successfulResult();
+    };
+
+    if (item.allowed) {
+      const result = await cloneGithubRepository(VALID_URL, {
+        gitExecutable: process.execPath,
+        platform: 'linux',
+        fetcher: async () => ({
+          status: 200,
+          async json() {
+            return { private: false, size: item.size };
+          }
+        }),
+        runner
+      });
+
+      assert.equal(result.preflight, 'checked');
+      assert.equal(result.repositorySizeKb, item.size);
+      assert.equal(runnerCalls, 4);
+      await result.cleanup();
+    } else {
+      await assert.rejects(
+        cloneGithubRepository(VALID_URL, {
+          gitExecutable: process.execPath,
+          platform: 'linux',
+          fetcher: async () => ({
+            status: 200,
+            async json() {
+              return { private: false, size: item.size };
+            }
+          }),
+          runner
+        }),
+        (error) => {
+          assert.equal(error.code, 'GITHUB_REPOSITORY_TOO_LARGE');
+          assert.equal(error.preflight, 'checked');
+          assert.equal(error.repositorySizeKb, item.size);
+          assert.match(error.message, new RegExp(`GitHub reports ${item.size} KiB for the repository's full history`));
+          assert.match(error.message, /4 GiB sanity limit/);
+          return true;
+        }
+      );
+      assert.equal(runnerCalls, 0);
+    }
+  }
+});
+
 test('blocks private, missing, and oversized repositories before invoking git', async () => {
   const cases = [
     {

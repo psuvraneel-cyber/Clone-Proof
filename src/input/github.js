@@ -18,7 +18,7 @@ const DEFAULT_CLONE_TIMEOUT_MS = 120000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
 const MAX_CLONE_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
-const MAX_REPOSITORY_BYTES = 1024 * 1024 * 1024;
+const MAX_REPOSITORY_BYTES = 4 * 1024 * 1024 * 1024;
 const GITHUB_PREFLIGHT_TIMEOUT_MS = 10 * 1000;
 
 function copyEnvironmentValue(environment, hostEnvironment, names) {
@@ -248,7 +248,7 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch) {
     const repositorySizeKb = metadata.size;
     if (repositorySizeKb * 1024 > MAX_REPOSITORY_BYTES) {
       const error = new GithubSourceError(
-        `GitHub repository is ${repositorySizeKb} KiB and exceeds the ${MAX_REPOSITORY_BYTES} byte limit.`,
+        `GitHub reports ${repositorySizeKb} KiB for the repository's full history, exceeding the 4 GiB sanity limit.`,
         'GITHUB_REPOSITORY_TOO_LARGE'
       );
       error.preflight = 'checked';
