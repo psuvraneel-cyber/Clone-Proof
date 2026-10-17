@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-17; the final implementation and documentation are pushed on `pre-submit`, and `main` is fast-forwarded to the same submitted revision before handoff. This file is the final handoff for the implementation session.
+Updated 2026-10-17; the target-guard fixes are implemented on `target-guard-fixes` from the latest `main` revision. This file records the implementation and verification state for the current OmniRush session.
 
 ## Goal
 
@@ -30,6 +30,11 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - README checks recognize npm install aliases, start/server.js behavior, package-manager setup mismatches, and script aliases without executing README commands. Root `.npmrc`, lockfile resolved URLs, and Git dependency hosts produce host-only `PRIVATE_REGISTRY` evidence.
 - `cloneproof setup` prepares the exact pinned verifier image through an isolated Docker client. Optional `CLONEPROOF_GITHUB_TOKEN`/`GITHUB_TOKEN` authentication is limited to the size preflight and records only `target.preflightAuthenticated`.
 - `BUILD_OUTPUT_MISSING` and informational/skipped `SERVICES_LIKELY_REQUIRED` cover build-output references and common service indicators without running builds or services.
+- Local `check` resolves the target before traversal and immediately blocks home folders and filesystem roots with `WRONG_TARGET`; the home value is injectable in tests and no directory walk occurs for this finding.
+- Bounded scans report `SCAN_ENTRY_LIMIT_EXCEEDED` with a relative stop path and the configured limit. Every scanner, GitHub checkout inspector, and Docker staging walker processes sorted files before sorted subdirectories.
+- Unsupported roots stop after classification. They emit only `UNSUPPORTED_ROOT`/`EMPTY_REPOSITORY`, nested-package, scan-limit, and read-error findings; coverage matches those attempted groups and no Node package checks run.
+- Text and HTML render at most ten evidence entries per finding with a JSON pointer. `ENV_CHECK_SKIPPED` JSON evidence is capped at 50 with its total in the message, and nested-package messages show the count plus five paths.
+- npm packaging now whitelists `src/`, `README.md`, and `LICENSE`; CI checks `npm pack --dry-run --json`, installs the archive globally in all three matrix operating systems, and runs `cloneproof --help`. `cloneproof --version` reports package.json's version.
 
 ### Remaining gaps
 
@@ -41,6 +46,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Field results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, corrected first-run counts of 10 correct / 2 false failures / 1 false block / 2 environment-limited failures, after-fix counts of 13 correct / 2 environment-limited failures, warning precision of 66.7%, and planted-bug detection of 13/13 offline plus 39/39 real-repository cases.
 - The Windows host still skips the real symlink-creation test because it returns `EPERM`; Linux CI is required to run it.
 - The final CI push/merge and checks are complete. Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop.
+- The target-guard field recheck ran 15 sequential GitHub `check --format json` attempts with a one-second delay. Thirteen check conclusions remained compatible with the recorded run-3 verdicts; Express currently reports an additional `README_SCRIPT_UNKNOWN` failure on the main baseline, and the Linux check timed out before producing JSON. These are recorded in `docs/FIELD_TEST.md` rather than being hidden.
 
 ## Important files
 
@@ -83,7 +89,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Historical checks observed
 
-- `npm test` — passed: 130 tests, 129 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
+- `npm test` before this change set — passed: 165 tests, 164 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
 - `git diff --check` — passed.
 - `docker image inspect node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` — passed after confirming/pulling the recorded digest.
 - `docker build -t cloneproof .` — passed after the four fixes and report corrections.
@@ -125,7 +131,8 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Final gap-closure checks
 
-- `npm test` — passed: 165 tests, 164 passed, 1 skipped on Windows; the skip is the expected symlink `EPERM` case.
+- `npm test` before the target-guard changes — passed: 165 tests, 164 passed, 1 skipped on Windows; the skip is the expected symlink `EPERM` case.
+- `npm test` after the target-guard changes and optional version/install work — passed: 174 tests, 173 passed, 1 skipped on Windows; the skip is the expected symlink `EPERM` case.
 - `git diff --check` — passed.
 - `docker build -t cloneproof .` — passed using the pinned base image.
 - `docker run --rm --network none cloneproof npm test` — passed: 165 tests, 165 passed, 0 skipped in Linux.
@@ -138,6 +145,14 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Docker/container cleanup audit after the final checks — no `cloneproof-verify` containers and no CloneProof GitHub clone directories remained.
 
 ## Commits in this review pass
+
+- `2e308e8 fix: explain scan entry limits`
+- `79d7b68 fix: prioritize root files during scans`
+- `0c3a6bd chore: harden npm package publishing`
+- `dd0db05 fix: bound rendered evidence lists`
+- `721bad1 fix: block home and root targets`
+- `e4e3170 fix: gate checks for unsupported roots`
+- `d9caefb feat: add version and install guidance`
 
 - `bdde31b fix: isolate GitHub clone configuration`
 - `4fa17f0 fix: resolve Git from trusted paths`
@@ -187,6 +202,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Field-test session: `ses_ebb440a63ffeifxYlQlOEyZBGL`
 - Current field-test-fixes session: `ses_ebb440a63ffeifxYlQlOEyZBGL`
 - Current pre-submission gap-closure session: `ses_eb723d8b8ffeSyS1IT2hp9kfEw`
+- Current target-guard-fixes session: `ses_eb723d8b8ffeSyS1IT2hp9kfEw`
 - Part 4 implementation session: `ses_eb6f7fc5fffeBeCHmoHZzvPT3H`
 - Earlier workspace, architecture, scanner, report, Docker-review, and QA sessions remain in the prior handoff history if the dashboard requires them.
 

@@ -108,3 +108,13 @@
 - **Current OmniRush session:** `ses_eb723d8b8ffeSyS1IT2hp9kfEw`.
 - **Branch:** `pre-submit`, created from `a3f5031`.
 - **Implementation commits:** `0b99b43`, `4926d4d`, `510c407`, `28dcc0d`, `59ec879`, `9c435aa`, `9929395`, followed by the documentation commit for the final handoff.
+
+## 2026-10-17 — Guard scan scope and bound report evidence
+
+- **Decision:** Reject a local target before traversal when it is the injected or actual home directory, or a filesystem root. Report `WRONG_TARGET` as a skipped warning and direct the user to one project folder or a public GitHub URL.
+- **Decision:** Preserve the reason for incomplete traversal with `SCAN_ENTRY_LIMIT_EXCEEDED`, process files before subdirectories in every bounded walker, and keep the entry-limit evidence relative and deterministic.
+- **Decision:** Do not run Node-oriented checks for an unsupported root. Unsupported reports contain only classification, nested-package, scan-limit, and read-error findings; their coverage lists only groups actually attempted.
+- **Decision:** Bound terminal/HTML evidence to ten entries, cap `ENV_CHECK_SKIPPED` JSON evidence at 50 with a total count in its message, and summarize nested packages with a count plus five paths.
+- **Decision:** Publish only `src/`, `README.md`, and `LICENSE`; CI validates the packed contents and installs the generated archive globally on Ubuntu, macOS, and Windows before running `cloneproof --help`.
+- **Optional:** Add `cloneproof --version` and explicit GitHub installation guidance, including the warning about the unrelated npm package named `cloneproof`.
+- **Current OmniRush session:** `ses_eb723d8b8ffeSyS1IT2hp9kfEw`.
