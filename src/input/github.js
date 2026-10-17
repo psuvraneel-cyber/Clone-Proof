@@ -627,6 +627,8 @@ async function cloneGithubRepository(value, options = {}) {
     config.fetcher || globalThis.fetch,
     { hostEnvironment }
   );
+  const preflightErrorRedacted = typeof preflight.error === 'string'
+    && preflight.error.includes('[REDACTED]');
   const gitExecutable = config.gitExecutable || resolveGitExecutable({
     platform: config.platform || process.platform,
     env: config.hostEnvironment || process.env,
@@ -639,6 +641,7 @@ async function cloneGithubRepository(value, options = {}) {
     );
     error.preflight = preflight.state;
     error.preflightAuthenticated = preflight.preflightAuthenticated === true;
+    error.preflightErrorRedacted = preflightErrorRedacted;
     if (preflight.repositorySizeKb !== undefined) error.repositorySizeKb = preflight.repositorySizeKb;
     throw error;
   }
@@ -690,7 +693,9 @@ async function cloneGithubRepository(value, options = {}) {
     });
 
     if (!cloneSucceeded(result, maxOutputBytes)) {
-      throw cloneFailure(result, maxOutputBytes, githubToken);
+      const error = cloneFailure(result, maxOutputBytes, githubToken);
+      error.preflightErrorRedacted = preflightErrorRedacted;
+      throw error;
     }
 
     const metadata = inspectCheckout(temporaryRoot, limits);
@@ -752,6 +757,7 @@ async function cloneGithubRepository(value, options = {}) {
       repository: source.repository,
       preflight: preflight.state,
       preflightAuthenticated: preflight.preflightAuthenticated === true,
+      ...(preflightErrorRedacted ? { preflightErrorRedacted: true, preflightError: '[REDACTED]' } : {}),
       ...(preflight.repositorySizeKb === undefined ? {} : { repositorySizeKb: preflight.repositorySizeKb }),
       executablePaths: fileModes.executablePaths,
       symlinkPaths: fileModes.symlinkPaths,
@@ -772,6 +778,9 @@ async function cloneGithubRepository(value, options = {}) {
   } catch (error) {
     if (error && typeof error === 'object') {
       if (!error.preflight) error.preflight = preflight.state;
+      if (error.preflightErrorRedacted === undefined) {
+        error.preflightErrorRedacted = preflightErrorRedacted;
+      }
       if (error.preflightAuthenticated === undefined) {
         error.preflightAuthenticated = preflight.preflightAuthenticated === true;
       }

@@ -444,6 +444,30 @@ test('redacts a configured token from a GitHub fetch error', async () => {
   assert.equal(result.error.includes(token), false);
 });
 
+test('carries only a redaction marker from a token-bearing preflight error into clone metadata', async () => {
+  const token = 'clone-fetch-token';
+  const result = await cloneGithubRepository(VALID_URL, {
+    gitExecutable: process.execPath,
+    platform: 'linux',
+    hostEnvironment: { PATH: '/usr/bin', CLONEPROOF_GITHUB_TOKEN: token },
+    fetcher: async () => {
+      throw new Error(`GitHub fetch failed for ${token}`);
+    },
+    runner: async (command, args) => {
+      if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+      if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+      if (args.includes('rev-parse')) return commitResult();
+      fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
+      return successfulResult();
+    }
+  });
+
+  assert.equal(result.preflightErrorRedacted, true);
+  assert.equal(result.preflightError, '[REDACTED]');
+  assert.equal(JSON.stringify(result).includes(token), false);
+  await result.cleanup();
+});
+
 test('private repositories remain blocked when the optional token is present', async () => {
   const token = 'private-token';
   let runnerCalls = 0;

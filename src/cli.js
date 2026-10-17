@@ -224,6 +224,9 @@ function cloneFailureReport(target, error, mode) {
     name: targetName,
     preflightAuthenticated: Boolean(error && error.preflightAuthenticated === true)
   };
+  if (error && error.preflightErrorRedacted === true) {
+    reportTarget.preflightError = '[REDACTED]';
+  }
   if (error && error.preflight) reportTarget.preflight = error.preflight;
   if (error && Number.isFinite(error.repositorySizeKb)) reportTarget.repositorySizeKb = error.repositorySizeKb;
   return {
@@ -276,6 +279,7 @@ function applySourceTarget(report, source) {
     url: source.url,
     preflight: source.preflight,
     preflightAuthenticated: source.preflightAuthenticated === true,
+    ...(source.preflightErrorRedacted ? { preflightError: '[REDACTED]' } : {}),
     ...(source.repositorySizeKb === undefined ? {} : { repositorySizeKb: source.repositorySizeKb }),
     ...(source.executableModes === undefined ? {} : { executableModes: source.executableModes }),
     ...(typeof source.commit === 'string' && /^[0-9a-f]{40}$/i.test(source.commit)
@@ -285,11 +289,18 @@ function applySourceTarget(report, source) {
   return report;
 }
 
+function reportPreflightWarning(source) {
+  if (source && source.preflightErrorRedacted === true) {
+    process.stderr.write('CloneProof: GitHub API preflight error: [REDACTED]\n');
+  }
+}
+
 async function runCheck(options) {
   let resolved;
   try {
     resolved = await resolveTarget(options.target);
   } catch (error) {
+    reportPreflightWarning(error);
     const report = cloneFailureReport(options.target, error, 'check');
     writeReport(report, options);
     return exitCodeForReport(report);
@@ -303,6 +314,7 @@ async function runCheck(options) {
       }),
       resolved.source
     );
+    reportPreflightWarning(resolved.source);
     writeReport(report, options);
     return exitCodeForReport(report);
   } finally {
@@ -320,6 +332,7 @@ async function runVerify(options) {
   try {
     resolved = await resolveTarget(options.target);
   } catch (error) {
+    reportPreflightWarning(error);
     const report = cloneFailureReport(options.target, error, 'verify');
     writeReport(report, options);
     return exitCodeForReport(report);
@@ -334,6 +347,7 @@ async function runVerify(options) {
       executablePaths: resolved.source ? resolved.source.executablePaths : [],
       symlinkPaths: resolved.source ? resolved.source.symlinkPaths : []
     }), resolved.source);
+    reportPreflightWarning(resolved.source);
     writeReport(report, options);
     return exitCodeForReport(report);
   } finally {
