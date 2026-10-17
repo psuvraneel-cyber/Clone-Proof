@@ -63,10 +63,11 @@
 - **Decision:** Pin the verifier and project base image to `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`; no resource-limit adjustment was needed in the Jest Phase 7 run.
 - **Review session references:** `ses_ebf503317ffe255TeXPMMfCKMW`, `ses_ebb438187fferFPUplMV8TQS7B`, `ses_ebb43817efferVqnNPYek8NqvZ`.
 
-## 2026-10-17 — Field-test diagnostics stay advisory and bounded
+## 2026-10-17 — Correct the field-test boundary findings
 
-- **Decision:** Keep `INSTALL_SCRIPTS_SKIPPED` and `BROWSER_TESTS_DETECTED` as warning findings. They explain why the npm-only, no-lifecycle-script Node image may not reproduce native or browser suites, but they do not silently enable install scripts, browser downloads, or broader Docker privileges.
-- **Decision:** Preserve the sensitive-file staging policy after dotenv and Axios field runs failed on committed `.env`/TLS fixtures. These are documented false-failure limitations rather than a reason to copy potentially secret-bearing files into the container.
-- **Decision:** Preserve symlink skipping after Commander’s symlink-dependent tests failed. Following or staging symlinks would weaken the untrusted-input boundary.
-- **Field-test result:** 15 public repositories were run; 13 had the expected high-level outcome, 2 diagnostics were fixed (`cb44146`, `8ca4fc3`), and 5 issue-level limitations are documented in `docs/FIELD_TEST.md`.
+- **Decision:** Raise `MAX_REPOSITORY_BYTES` to 4 GiB. The GitHub API `size` value is a whole-history sanity signal, not the size of CloneProof's latest `--depth 1` checkout; independent checkout limits remain in force.
+- **Decision:** Parse Git index modes `100755` and `120000` before removing `.git`. Git-listed symlinks are skipped by static scanning and block Docker staging consistently on every OS; if mode inspection is unavailable, local `lstat` is the only fallback. Symlink recreation inside the container remains out of scope.
+- **Decision:** Apply sensitive-file omission only to local folders. Fresh public GitHub clones copy committed `.env*`, npm configuration, credentials, and certificate/key fixtures because those files are already public repository content. The controlled command still forces `npm ci --ignore-scripts`, overriding any committed `.npmrc` behavior.
+- **Decision:** Make `INSTALL_SCRIPTS_SKIPPED` informational/skipped rather than a warning. Keep its package evidence and explain it when a test phase fails; do not enable lifecycle scripts.
+- **Field-test result:** The corrected first-run counts are 10 correct, 2 false failures, 1 false block, and 2 environment-limited failures. After the fixes, the counts are 13 correct and 2 environment-limited failures. Full run evidence and workflow references are in `docs/FIELD_TEST.md`.
 - **Current OmniRush session:** `ses_ebb440a63ffeifxYlQlOEyZBGL`.

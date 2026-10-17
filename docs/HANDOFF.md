@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-17; use the latest Git commit on `field-test` as the authoritative revision.
+Updated 2026-10-17; use the latest Git commit on `field-test-fixes` as the authoritative revision until the final fast-forward to `main`.
 
 ## Goal
 
@@ -17,23 +17,23 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Project classification checks a root package manifest first, then other-ecosystem markers, then supported root/application source locations.
 - Partial `.nvmrc`, `.node-version`, and Docker Node pins use prefix/existential engine-range semantics; full versions retain exact comparison.
 - Partial `>` engine ranges follow npm release semantics: `>X` is treated as `>=X+1.0.0` and `>X.Y` as `>=X.Y+1.0`.
-- GitHub input performs a ten-second unauthenticated public visibility/size preflight. Repositories over `MAX_REPOSITORY_BYTES` (1 GiB), private repositories, and missing repositories are blocked before cloning; unavailable/rate-limited preflight continues with bounded clone limits and records `target.preflight: "unavailable"`.
-- GitHub cloning resolves a trusted absolute Git executable, uses an allow-listed environment and empty Git config, disables credential helpers/LFS smudging, uses no shell, records `100755` paths with `git ls-files -s` before deleting `.git`, and cleans its parent directory on success and failure.
-- GitHub checkout limits are enforced before the non-fatal `git ls-files -s -z` mode read. NUL-delimited parsing preserves executable paths with spaces and non-English characters; `target.commit` records a valid 40-character `rev-parse HEAD` result when available, and `target.executableModes` records `checked` or `unavailable`.
+- GitHub input performs a ten-second unauthenticated public visibility/size preflight. Repositories over `MAX_REPOSITORY_BYTES` (4 GiB), private repositories, and missing repositories are blocked before cloning; the GitHub `size` value and `target.repositorySizeKb` describe full history, not the shallow checkout. Unavailable/rate-limited preflight continues with bounded clone limits and records `target.preflight: "unavailable"`.
+- GitHub cloning resolves a trusted absolute Git executable, uses an allow-listed environment and empty Git config, disables credential helpers/LFS smudging, uses no shell, records `100755` and `120000` paths with `git ls-files -s -z` before deleting `.git`, and cleans its parent directory on success and failure.
+- GitHub checkout limits are enforced before the non-fatal Git mode read. `parseGitFileModes` returns sorted `executablePaths` and `symlinkPaths`; NUL-delimited parsing preserves paths with spaces and non-English characters. `target.commit` records a valid 40-character `rev-parse HEAD` result when available, and `target.executableModes` records `checked` or `unavailable`. Git-listed symlinks skip static reads and block Docker staging consistently on every OS.
 - Docker verification uses the pinned image `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`, `--pull=never`, a read-only source mount, non-root UID/GID 1000, dropped capabilities, no-new-privileges, no network by default, and bounded CPU/memory/PID/tmpfs/output/time policies.
-- Docker staging honors the root `.gitignore` and root `.git/info/exclude` for local targets, keeps ignored core files, reports skipped ignored paths, and does not read nested `.gitignore` files. Ignored-path findings are informational/skipped, evidence is capped at 50, and verification metadata is capped at 500 paths with `ignoredPathCount` and `ignoredPathsTruncated`. Local Windows scans cannot detect repository execute bits.
-- Static npm checks add advisory `INSTALL_SCRIPTS_SKIPPED` and `BROWSER_TESTS_DETECTED` findings. Test-phase Docker failures include targeted explanations when either limitation is present; install scripts and browsers remain disabled/not installed.
+- Docker staging honors the root `.gitignore` and root `.git/info/exclude` for local targets, keeps ignored core files, reports skipped ignored paths, and does not read nested `.gitignore` files. Ignored-path findings are informational/skipped, evidence is capped at 50, and verification metadata is capped at 500 paths with `ignoredPathCount` and `ignoredPathsTruncated`. GitHub fresh clones copy committed sensitive fixtures; local staging still omits them and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Command-line `npm ci --ignore-scripts` remains authoritative.
+- Static npm checks add informational/skipped `INSTALL_SCRIPTS_SKIPPED` and advisory `BROWSER_TESTS_DETECTED` findings. Test-phase Docker failures include targeted explanations when either limitation is present; install scripts and browsers remain disabled/not installed.
 - Every verification return is finalized through summary/cleanup normalization. `report.summary` matches `findings` on consent, prerequisite, network, Docker/image, symlink, staging-limit, source-change, execution, timeout, and cleanup paths.
 - Text and HTML verification output explain omitted lines and character shortening; HTML badges are static and contain no `role="status"`.
 
 ### Remaining gaps
 
-- The symlink integration test is skipped on this Windows host because symlink creation returned `EPERM`; the decision helper is unit-tested and the Docker staging path is covered with injected results.
+- The symlink integration test is skipped on this Windows host because symlink creation returned `EPERM`; Git-listed mode `120000` handling and the Docker staging path are covered with injected results. Local `core.symlinks=false` checkouts cannot be recognized without Git metadata, and container symlink recreation is out of scope.
 - `make test` was not run because `make` is unavailable on this Windows host; `npm test` is the portable command and the Makefile remains for Linux.
 - The API preflight is intentionally unauthenticated and may be unavailable under GitHub rate limits; bounded clone limits remain the fallback.
 - Docker verification remains an opt-in reproducibility experiment, not a complete hostile-code sandbox. `--allow-network` enables network for both install and test and should be used only for trusted repositories.
 - Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn, private registries, external services, monorepos, and custom setup remain blocked or unsupported.
-- Field results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, 13 expected high-level outcomes, 2 diagnostics fixed, and 5 issue-level limitations documented. Dotenv/Axios committed sensitive fixtures and Commander symlink fixtures remain intentionally unsupported.
+- Field results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, corrected first-run counts of 10 correct / 2 false failures / 1 false block / 2 environment-limited failures, and after-fix counts of 13 correct / 2 environment-limited failures. The rerun evidence includes exact commits, preflight states, durations, workflow evidence, and corrected verdicts.
 - No Buildathon dashboard submission or PR has been performed. The branch is ready for the approved merge/push sequence after the final checks below.
 
 ## Important files
@@ -52,6 +52,14 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `Dockerfile`, `.dockerignore`, `.nvmrc`, `package-lock.json`, `Makefile`, `.env.example` — clean rebuild artifacts.
 - `docs/SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/DEMO.md`, `docs/DECISIONS.md`, `docs/FIELD_TEST.md`, `docs/BUILDATHON_CHECKLIST.md` — trust boundary, usage, decisions, field evidence, and submission evidence.
 
+## Field-test-fix changes and fields
+
+- `src/input/github.js`: `MAX_REPOSITORY_BYTES = 4 * 1024 * 1024 * 1024`; oversized messages identify the GitHub full-history size and 4 GiB sanity bound; `parseGitFileModes` returns sorted `executablePaths` and `symlinkPaths`.
+- `src/input/github.js` / `src/cli.js`: GitHub source metadata now carries `symlinkPaths` alongside `executablePaths`; `target.repositorySizeKb`, `target.commit`, and `target.executableModes` remain relative, deterministic report metadata.
+- `src/scan/repository.js`: `scanRepository` accepts Git-listed symlink paths and skips them like `lstat` symlinks; `INSTALL_SCRIPTS_SKIPPED` is `skipped`/`info`.
+- `src/verify/docker.js`: `stageRepository` skips Git-listed symlinks and copies sensitive files only for `freshClone: true`; `DOCKER_SYMLINKS_BLOCKED` evidence is capped at 50 with the total in its message; local sensitive omissions remain warnings.
+- `docs/FIELD_TEST.md`: the pre-run expectations, original first-run columns, fixed verdicts, 16 rerun invocations, workflow evidence, counted summaries, and current limitations are recorded. React's rerun measured 7,260 checkout files and 41,784,802 checkout bytes (~39.85 MiB) against the 1,119,361 KiB full-history API value.
+
 ## Decisions to preserve
 
 - Keep static inspection separate from execution. Never run repository scripts, README commands, lifecycle hooks, or target Dockerfiles.
@@ -63,7 +71,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Checks observed
 
-- `npm test` — passed: 124 tests, 123 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
+- `npm test` — passed: 130 tests, 129 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
 - `git diff --check` — passed.
 - `docker image inspect node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` — passed after confirming/pulling the recorded digest.
 - `docker build -t cloneproof .` — passed.
@@ -93,8 +101,13 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Field test — 15 public repositories run with check/no-network/network-allowed modes where applicable; no CloneProof temporary folders or `cloneproof-verify` containers remained. Full results, target commits, exit codes, durations, and verdicts are in `docs/FIELD_TEST.md`.
 - Field-test fix `cb44146` — `INSTALL_SCRIPTS_SKIPPED` names npm lockfile packages whose install scripts are intentionally skipped; native test-phase failures explain the likely cause.
 - Field-test fix `8ca4fc3` — `BROWSER_TESTS_DETECTED` identifies browser tooling reachable from the test script; browser test-phase failures explain that the controlled image has no browser executable.
+- Field-test fix `a8d1dc1` — the GitHub full-history sanity limit is 4 GiB, with exact-boundary tests and a measured React shallow checkout of 7,260 files / 41,784,802 bytes.
+- Field-test fix `cf02646` — Git-listed mode `120000` symlinks propagate through check and verify; Commander now blocks with `DOCKER_SYMLINKS_BLOCKED` on Windows as it would on Linux.
+- Field-test fix `22e0258` — fresh public GitHub clones stage committed sensitive fixtures while local folders retain omission protection.
+- Field-test fix `aeea9ac` — `INSTALL_SCRIPTS_SKIPPED` is informational/skipped and no longer downgrades an otherwise healthy check.
+- Field-test docs `2a35843` — rerun expectations were recorded before the affected repository commands.
 - Field-test swap — `microsoft/TypeScript-Node-Starter` was unavailable from read-only `git ls-remote`; `typeorm/typeorm` was used as the documented TypeScript/external-service replacement.
-- Post-push check against `main` at `d57a465` — passed, exit `0`, target commit `d57a465e73e8`, complete scan, status `passed`; GitHub preflight was `unavailable` (the unauthenticated API limit), and the clone was cleaned.
+- Previous post-push check against `main` at `d57a465` — passed, exit `0`, target commit `d57a465e73e8`, complete scan, status `passed`; GitHub preflight was `unavailable` (the unauthenticated API limit), and the clone was cleaned.
 
 ## Commits in this review pass
 
@@ -129,6 +142,11 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `8ca4fc3 fix: diagnose browser test dependencies`
 - `b41002e docs: record public repository field test`
 - `b84d066 docs: refresh container test evidence`
+- `a8d1dc1 fix: raise GitHub repository size limit`
+- `cf02646 fix: handle Git-listed symlinks`
+- `22e0258 fix: copy sensitive files for fresh clones`
+- `aeea9ac fix: treat skipped install scripts as informational`
+- `2a35843 docs: record field-test rerun expectations`
 
 ## OmniRush sessions for submission
 
@@ -136,18 +154,19 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Review exploration session: `ses_ebb438187fferFPUplMV8TQS7B`
 - Review scanner/report exploration session: `ses_ebb43817efferVqnNPYek8NqvZ`
 - Field-test session: `ses_ebb440a63ffeifxYlQlOEyZBGL`
+- Current field-test-fixes session: `ses_ebb440a63ffeifxYlQlOEyZBGL`
 - Earlier workspace, architecture, scanner, report, Docker-review, and QA sessions remain in the prior handoff history if the dashboard requires them.
 
 ## Next step
 
-The final diff and checks are complete. Fast-forward `main` to `field-test`, push it, then perform the post-push GitHub check:
+The final diff and checks must be complete before fast-forwarding `main` to `field-test-fixes`, pushing it, and performing the post-push GitHub check:
 
 ```bash
 git status
 git diff --check
 git log --oneline -10
 git switch main
-git merge --ff-only field-test
+git merge --ff-only field-test-fixes
 git push origin main
 node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```

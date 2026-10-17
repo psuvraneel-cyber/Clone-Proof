@@ -30,7 +30,7 @@ Inspect a repository without executing its code:
 node src/cli.js check ./path/to/repository
 ```
 
-The first remote-input profile accepts only a public HTTPS GitHub repository URL and performs a public GitHub API size/visibility preflight before the shallow, bounded clone. Repositories over 1 GiB, private repositories, and missing repositories are blocked without cloning. If the API is unavailable or rate-limited, CloneProof records an unavailable preflight and continues with the existing clone limits. Git runs from a CloneProof-owned temporary parent with an empty Git config, an allow-listed environment, credential helpers disabled, and Git LFS smudging disabled. CloneProof resolves Git from known absolute installation paths or absolute `PATH` entries; if none is available, the report is incomplete and no clone directory is created:
+The first remote-input profile accepts only a public HTTPS GitHub repository URL and performs a public GitHub API size/visibility preflight before the shallow, bounded clone. Repositories over the 4 GiB sanity limit, private repositories, and missing repositories are blocked without cloning. GitHub's `size` value describes the repository's full history, not the latest shallow checkout that CloneProof downloads. If the API is unavailable or rate-limited, CloneProof records an unavailable preflight and continues with the existing clone limits. Git runs from a CloneProof-owned temporary parent with an empty Git config, an allow-listed environment, credential helpers disabled, and Git LFS smudging disabled. CloneProof resolves Git from known absolute installation paths or absolute `PATH` entries; if none is available, the report is incomplete and no clone directory is created:
 
 ```bash
 node src/cli.js check https://github.com/owner/repository
@@ -68,7 +68,7 @@ node src/cli.js verify ./path/to/repository --docker --execute --allow-network
 
 Use `--timeout-ms N` to override the bounded verification timeout when a trusted project needs more time. The default is five minutes and the value is capped internally at ten minutes.
 
-CloneProof uses a fixed Node 22.19.0 image, refuses to pull it implicitly, ignores npm lifecycle scripts during `npm ci`, runs the declared `npm test` script only after explicit authorization, and never falls back to host execution. The controlled container defaults to one CPU, 2 GiB memory/swap, 512 PIDs, a 512 MiB `/tmp`, and a 1 GiB `/workspace`. Make the image available first:
+CloneProof uses a fixed Node 22.19.0 image, refuses to pull it implicitly, ignores npm lifecycle scripts during `npm ci`, runs the declared `npm test` script only after explicit authorization, and never falls back to host execution. The controlled container defaults to one CPU, 2 GiB memory/swap, 512 PIDs, a 512 MiB `/tmp`, and a 1024 MiB `/workspace`. Make the image available first:
 
 ```bash
 docker pull node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90
@@ -119,10 +119,10 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 - Target repositories are untrusted input. Symlinks, malformed files, large files, and incomplete scans are handled explicitly.
 - Docker is not a complete security boundary. Execution verification is opt-in, bounded, and a reproducibility experiment rather than a safety certification.
 - Gitignore matching reads only the repository-root `.gitignore` and, for local repositories with a real `.git` directory, the root `.git/info/exclude`; nested `.gitignore` files are not read.
-- Real `.env` files, npm configuration files, and other sensitive environment configuration are excluded from the staged container snapshot. The host environment and Docker socket are not mounted.
-- For GitHub clones, executable file modes are read from the Git index before `.git` is removed and preserved in the Docker staging snapshot. Local Windows filesystem scans cannot detect repository execute bits and do not infer them.
+- Sensitive `.env` files, npm configuration files, credentials, and certificate/key files are excluded from local folders before Docker staging. For a fresh public GitHub clone, those committed files are copied because they are already public repository content; the command-line `npm ci --ignore-scripts` policy still overrides any committed `.npmrc`. The host environment and Docker socket are not mounted.
+- For GitHub clones, executable file modes and Git-listed symlinks are read from the Git index before `.git` is removed. Executable modes are preserved; symlink paths are skipped during static scanning and block Docker verification consistently on every host OS. Local Windows filesystem scans cannot detect repository execute bits, and a `core.symlinks=false` checkout has no Git metadata available to recover its symlink identity.
 - Scan reports use schema version 2 and record bounded-scan completeness, discovered/read file counts, skipped paths, and npm lockfile package metadata.
-- Field-tested against 15 public repositories on 2026-10-17: 13 correct, 2 fixed, 5 documented limitations. See [docs/FIELD_TEST.md](docs/FIELD_TEST.md).
+- Field-tested against 15 public repositories (2026-10-17). First run: 10 correct, 2 false failures, 1 false block, 2 environment-limited failures. After fixes: 13 correct, 2 environment-limited failures. See docs/FIELD_TEST.md.
 - The verifier image is pinned to `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`; `--pull=never` refuses implicit image changes.
 - GitHub input is limited to public `https://github.com/OWNER/REPOSITORY` URLs. Clone failures and checkout-limit failures are reported as `incomplete` or `blocked`; CloneProof does not request credentials.
 - The first release focuses on the root package of Node.js/TypeScript repositories. Monorepos, pnpm/Yarn execution, private repositories, and external services may be reported as unsupported or blocked.
