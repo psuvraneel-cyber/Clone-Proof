@@ -453,17 +453,81 @@ function parseReadableNpmLockfile(bytes) {
   }
 }
 
+function npmPackageName(packagePath, packageMetadata, packageData) {
+  if (packageMetadata && typeof packageMetadata.name === 'string' && packageMetadata.name.trim()) {
+    return packageMetadata.name.trim();
+  }
+  if (packagePath === '' && packageData && typeof packageData.name === 'string' && packageData.name.trim()) {
+    return packageData.name.trim();
+  }
+  if (typeof packagePath !== 'string') return null;
+  const marker = 'node_modules/';
+  const markerIndex = packagePath.lastIndexOf(marker);
+  if (markerIndex === -1) return null;
+  const name = packagePath.slice(markerIndex + marker.length);
+  return name || null;
+}
+
+function npmInstallScriptPackageNames(lockfileData, packageData) {
+  if (
+    !lockfileData
+    || ![2, 3].includes(lockfileData.lockfileVersion)
+    || !lockfileData.packages
+    || typeof lockfileData.packages !== 'object'
+    || Array.isArray(lockfileData.packages)
+  ) {
+    return [];
+  }
+
+  const names = [];
+  for (const packagePath of Object.keys(lockfileData.packages).sort(compareStrings)) {
+    const packageMetadata = lockfileData.packages[packagePath];
+    if (
+      !packageMetadata
+      || typeof packageMetadata !== 'object'
+      || Array.isArray(packageMetadata)
+      || packageMetadata.hasInstallScript !== true
+    ) {
+      continue;
+    }
+    const name = npmPackageName(packagePath, packageMetadata, packageData);
+    if (name) names.push(name);
+  }
+
+  return [...new Set(names)].sort(compareStrings);
+}
+
 function regexForPackageName(name) {
   return new RegExp(`"${String(name).replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}"\\s*:`);
 }
 
-function cappedDifferenceNames(differences) {
-  const names = [...new Set(differences.map((item) => item.name))].sort(compareStrings);
-  const visible = names.slice(0, 20);
-  const remaining = names.length - visible.length;
+function cappedNames(names) {
+  const sortedNames = [...new Set(names)].sort(compareStrings);
+  const visible = sortedNames.slice(0, 20);
+  const remaining = sortedNames.length - visible.length;
   return remaining > 0
     ? `${visible.join(', ')} (and ${remaining} more)`
     : visible.join(', ');
+}
+
+function cappedDifferenceNames(differences) {
+  return cappedNames(differences.map((item) => item.name));
+}
+
+function addInstallScriptsSkippedFinding(findings, lockfileName, lockfileData, packageData) {
+  const packageNames = npmInstallScriptPackageNames(lockfileData, packageData);
+  if (packageNames.length === 0) return;
+
+  addFinding(
+    findings,
+    'INSTALL_SCRIPTS_SKIPPED',
+    'warning',
+    'warning',
+    'npm install scripts will be skipped during Docker verification',
+    `Affected packages: ${cappedNames(packageNames)}. CloneProof runs npm ci --ignore-scripts, so their lifecycle/install scripts will not run.`,
+    [makeEvidence(lockfileName, `npm lockfile metadata marks ${packageNames.length} package${packageNames.length === 1 ? '' : 's'} with hasInstallScript:true.`)],
+    'Review whether these packages need native builds or generated artifacts before relying on Docker verification.'
+  );
 }
 
 function compareNpmLockfile(packageData, lockfileData) {
@@ -1516,18 +1580,8 @@ function scanRepository(rootPath, options) {
 
       for (const lockfile of lockfiles.filter((candidate) => candidate.packageManager === 'npm')) {
         if (!scanned.files.has(lockfile.name)) continue;
-        let lockfileValid = false;
-        try {
-          const parsedLockfile = JSON.parse(decodeText(scanned.files.get(lockfile.name)));
-          lockfileValid = Boolean(
-            parsedLockfile
-            && typeof parsedLockfile === 'object'
-            && !Array.isArray(parsedLockfile)
-            && Number.isInteger(parsedLockfile.lockfileVersion)
-          );
-        } catch {
-          lockfileValid = false;
-        }
+        const parsedLockfile = parseReadableNpmLockfile(scanned.files.get(lockfile.name));
+        const lockfileValid = Boolean(parsedLockfile);
 
         if (!lockfileValid) {
           addFinding(
@@ -1546,6 +1600,12 @@ function scanRepository(rootPath, options) {
             packageText,
             lockfile.name,
             scanned.files.get(lockfile.name),
+            packageData
+          );
+          addInstallScriptsSkippedFinding(
+            findings,
+            lockfile.name,
+            parsedLockfile,
             packageData
           );
         }

@@ -369,7 +369,7 @@ function staticPrerequisiteFailure(report) {
   return null;
 }
 
-function verificationFinding(outcome, verification) {
+function verificationFinding(outcome, verification, staticReport) {
   if (outcome === 'passed') {
     return {
       code: 'DOCKER_VERIFICATION_PASSED',
@@ -389,6 +389,15 @@ function verificationFinding(outcome, verification) {
     : `${phaseTitle}. The controlled verification exited with code ${verification.exitCode === null ? 'unknown' : verification.exitCode}.`;
   if (verification.exitCode === 137 && !verification.timedOut) {
     message += ' The container was killed, probably by the memory limit.';
+  }
+  if (
+    outcome === 'failed'
+    && phase === 'test'
+    && staticReport
+    && Array.isArray(staticReport.findings)
+    && staticReport.findings.some((finding) => finding.code === 'INSTALL_SCRIPTS_SKIPPED')
+  ) {
+    message += ' CloneProof intentionally skips lifecycle/install scripts, so the affected packages are a likely cause of this test failure.';
   }
   return {
     code: 'DOCKER_VERIFICATION_FAILED',
@@ -714,7 +723,7 @@ async function verifyRepository(rootPath, options = {}) {
       report.verification.outcome = 'failed';
     }
     if (report.verification.outcome !== 'blocked') {
-      addFinding(report, verificationFinding(report.verification.outcome, report.verification));
+      addFinding(report, verificationFinding(report.verification.outcome, report.verification, report));
     }
     recomputeSummary(report);
     report.status = report.verification.outcome === 'passed'

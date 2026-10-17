@@ -533,6 +533,44 @@ test('fails when package-lock.json is malformed', () => withRepository((root) =>
   assert.equal(finding(report, 'LOCKFILE_INVALID').status, 'failed');
 }));
 
+test('warns for npm v2/v3 packages whose install scripts Docker verification skips', () => withRepository((root) => {
+  const packageNames = Array.from({ length: 25 }, (_, index) => `native-${String(index + 1).padStart(2, '0')}`);
+  const packages = Object.fromEntries([
+    ['', { name: 'install-script-fixture' }],
+    ...[...packageNames].reverse().map((name) => [
+      `node_modules/${name}`,
+      { version: '1.0.0', hasInstallScript: true }
+    ]),
+    ['node_modules/no-install-script', { version: '1.0.0', hasInstallScript: false }]
+  ]);
+
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'install-script-fixture',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'test/index.test.js', 'test("fixture", () => {});\n');
+
+  for (const lockfileVersion of [2, 3]) {
+    writeFile(root, 'package-lock.json', `${JSON.stringify({
+      name: 'install-script-fixture',
+      lockfileVersion,
+      packages
+    }, null, 2)}\n`);
+
+    const report = scanRepository(root);
+    const skipped = finding(report, 'INSTALL_SCRIPTS_SKIPPED');
+    const visibleNames = packageNames.slice(0, 20);
+
+    assert.equal(report.status, 'passed_with_warnings');
+    assert.equal(skipped.status, 'warning');
+    assert.equal(skipped.severity, 'warning');
+    assert.match(skipped.message, new RegExp(`Affected packages: ${visibleNames.join(', ')}`));
+    assert.match(skipped.message, /and 5 more/);
+    assert.doesNotMatch(skipped.message, /native-21, native-22/);
+    assert.doesNotMatch(skipped.message, /no-install-script/);
+  }
+}));
+
 test('fails when packageManager disagrees with the root lockfile', () => withRepository((root) => {
   writeFile(root, 'package.json', JSON.stringify({
     name: 'mismatch',
