@@ -56,6 +56,12 @@ const PUBLIC_REGISTRY_HOSTNAMES = new Set([
   'registry.npmjs.org',
   'registry.yarnpkg.com'
 ]);
+const PUBLIC_GIT_HOSTNAMES = new Set([
+  'github.com',
+  'codeload.github.com',
+  'gitlab.com',
+  'bitbucket.org'
+]);
 const LIKELY_SERVICE_DEPENDENCIES = new Set([
   'pg',
   'mysql2',
@@ -790,22 +796,42 @@ function parseDependencyUrlHost(value) {
   };
 }
 
-function isNonPublicRegistryUrl(value) {
-  const parsed = parseDependencyUrlHost(value);
-  if (!parsed || PUBLIC_REGISTRY_HOSTNAMES.has(parsed.hostname)) return null;
-  return parsed.host;
-}
-
 function collectPrivateRegistryHosts(files, lockfiles, packageData) {
-  const hosts = new Set();
-  const evidence = new Map();
+  const privateHosts = new Set();
+  const privateEvidence = new Map();
+  const gitHosts = new Set();
+  const gitEvidence = new Map();
+  let gitUsesSsh = false;
 
-  function record(value, relativePath, detail, line) {
-    const host = isNonPublicRegistryUrl(value);
-    if (!host) return;
-    hosts.add(host);
+  function recordEvidence(collection, value, relativePath, detail, line) {
+    collection.hosts.add(value);
     const key = `${relativePath}:${line || ''}:${detail}`;
-    if (!evidence.has(key)) evidence.set(key, makeEvidence(relativePath, detail, line));
+    if (!collection.evidence.has(key)) collection.evidence.set(key, makeEvidence(relativePath, detail, line));
+  }
+
+  function recordPrivate(value, relativePath, detail, line) {
+    const parsed = parseDependencyUrlHost(value);
+    if (!parsed || PUBLIC_REGISTRY_HOSTNAMES.has(parsed.hostname) || PUBLIC_GIT_HOSTNAMES.has(parsed.hostname)) return;
+    recordEvidence({ hosts: privateHosts, evidence: privateEvidence }, parsed.host, relativePath, detail, line);
+  }
+
+  function recordGit(value, relativePath, detail, line) {
+    const text = typeof value === 'string' ? value.trim() : '';
+    let host = null;
+    let ssh = false;
+    if (/^(?:github|gitlab|bitbucket):/i.test(text)) {
+      const provider = text.slice(0, text.indexOf(':')).toLowerCase();
+      host = provider === 'github' ? 'github.com' : provider === 'gitlab' ? 'gitlab.com' : 'bitbucket.org';
+    } else if (/^[^@/\s]+\/[^/\s]+(?:#.*)?$/.test(text) && !text.startsWith('@')) {
+      host = 'github.com';
+    } else {
+      const parsed = parseDependencyUrlHost(text);
+      if (!parsed || !PUBLIC_GIT_HOSTNAMES.has(parsed.hostname)) return;
+      host = parsed.host;
+      ssh = /^git\+ssh:/i.test(text);
+    }
+    recordEvidence({ hosts: gitHosts, evidence: gitEvidence }, host, relativePath, detail, line);
+    gitUsesSsh = gitUsesSsh || ssh;
   }
 
   if (files.has('.npmrc')) {
@@ -814,7 +840,7 @@ function collectPrivateRegistryHosts(files, lockfiles, packageData) {
     for (let index = 0; index < lines.length; index += 1) {
       const match = /^\s*(?:@[^:\s=]+:)?registry\s*=\s*(.*?)(?:\s+#.*)?$/i.exec(lines[index]);
       if (!match) continue;
-      record(
+      recordPrivate(
         match[1],
         '.npmrc',
         'A registry setting references a non-public host.',
@@ -836,7 +862,12 @@ function collectPrivateRegistryHosts(files, lockfiles, packageData) {
       if (!value || typeof value !== 'object') return;
       for (const [key, child] of Object.entries(value)) {
         if (key === 'resolved' && typeof child === 'string') {
-          record(child, lockfile.name, 'An npm lockfile resolved URL references a non-public host.');
+          const parsed = parseDependencyUrlHost(child);
+          if (parsed && PUBLIC_GIT_HOSTNAMES.has(parsed.hostname)) {
+            recordGit(child, lockfile.name, 'An npm lockfile resolved URL references a public Git host.');
+          } else {
+            recordPrivate(child, lockfile.name, 'An npm lockfile resolved URL references a non-public host.');
+          }
         }
         visit(child);
       }
@@ -846,22 +877,34 @@ function collectPrivateRegistryHosts(files, lockfiles, packageData) {
   }
 
   for (const entry of dependencyEntries(packageData)) {
-    if (!/^git\+(?:ssh|https):/i.test(entry.specifier)) continue;
-    record(
-      entry.specifier,
-      'package.json',
-      'A Git dependency URL references a non-public host.',
-      undefined
-    );
+    const specifier = entry.specifier;
+    const isShorthand = /^(?:github|gitlab|bitbucket):/i.test(specifier)
+      || (/^[^@/\s]+\/[^/\s]+(?:#.*)?$/.test(specifier) && !specifier.startsWith('@'));
+    if (!/^git\+(?:ssh|https):/i.test(specifier) && !isShorthand) continue;
+    const parsed = parseDependencyUrlHost(specifier);
+    const isPublicGit = isShorthand
+      || (parsed && PUBLIC_GIT_HOSTNAMES.has(parsed.hostname));
+    if (isPublicGit) {
+      recordGit(specifier, 'package.json', 'A package dependency references a public Git host.');
+    } else {
+      recordPrivate(specifier, 'package.json', 'A Git dependency URL references a non-public host.');
+    }
   }
 
   return {
-    hosts: [...hosts].sort(compareStrings),
-    evidence: [...evidence.values()].sort((left, right) => (
+    hosts: [...privateHosts].sort(compareStrings),
+    evidence: [...privateEvidence.values()].sort((left, right) => (
       compareStrings(left.path, right.path)
       || (left.line || 0) - (right.line || 0)
       || compareStrings(left.detail, right.detail)
-    ))
+    )),
+    gitHosts: [...gitHosts].sort(compareStrings),
+    gitEvidence: [...gitEvidence.values()].sort((left, right) => (
+      compareStrings(left.path, right.path)
+      || (left.line || 0) - (right.line || 0)
+      || compareStrings(left.detail, right.detail)
+    )),
+    gitUsesSsh
   };
 }
 
@@ -2112,10 +2155,22 @@ function scanRepository(rootPath, options) {
         'PRIVATE_REGISTRY',
         'warning',
         'warning',
-        'Non-public package registry or Git dependency hosts were detected',
+        'Non-public package registry or dependency hosts were detected',
         `Dependency metadata references non-public hosts: ${cappedHosts(privateRegistry.hosts)}.`,
         privateRegistry.evidence,
         'Provide registry credentials through the trusted verification environment and keep them out of repository files and reports.'
+      );
+    }
+    if (privateRegistry.gitHosts.length > 0) {
+      addFinding(
+        findings,
+        'GIT_DEPENDENCIES',
+        'skipped',
+        'info',
+        'Public Git dependencies were detected',
+        `Installing dependencies needs network access to public Git hosts: ${cappedHosts(privateRegistry.gitHosts)}.${privateRegistry.gitUsesSsh ? ' SSH access may be needed.' : ''}`,
+        privateRegistry.gitEvidence,
+        'Allow network access only when the verification environment needs to fetch these dependencies.'
       );
     }
 

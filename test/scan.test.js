@@ -447,6 +447,65 @@ test('does not warn for public npm and Yarn registry hosts', () => withRepositor
   assert.equal(finding(report, 'PRIVATE_REGISTRY'), undefined);
 }));
 
+test('classifies public Git dependencies separately from private registries', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.dependencies = {
+    githubUrl: 'git+https://github.com/someone/public-lib.git',
+    githubShorthand: 'github:someone/another-lib',
+    userRepoShorthand: 'someone/third-lib'
+  };
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  const lockfile = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
+  lockfile.packages[''] = { name: packageData.name, dependencies: packageData.dependencies };
+  writeFile(root, 'package-lock.json', JSON.stringify(lockfile, null, 2));
+
+  const report = scanRepository(root);
+  const gitDependencies = finding(report, 'GIT_DEPENDENCIES');
+
+  assert.equal(report.status, 'passed');
+  assert.equal(gitDependencies.status, 'skipped');
+  assert.equal(gitDependencies.severity, 'info');
+  assert.match(gitDependencies.message, /github\.com/);
+  assert.equal(finding(report, 'PRIVATE_REGISTRY'), undefined);
+}));
+
+test('classifies public Git SSH lockfile URLs and explains SSH access', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.dependencies = { sshLib: 'git+ssh://git@github.com/someone/ssh-lib.git' };
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  const lockfile = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
+  lockfile.packages[''] = { name: packageData.name, dependencies: packageData.dependencies };
+  lockfile.packages['node_modules/sshLib'] = {
+    resolved: 'git+ssh://git@github.com/someone/ssh-lib.git'
+  };
+  writeFile(root, 'package-lock.json', JSON.stringify(lockfile, null, 2));
+
+  const report = scanRepository(root);
+  const gitDependencies = finding(report, 'GIT_DEPENDENCIES');
+
+  assert.equal(gitDependencies.status, 'skipped');
+  assert.match(gitDependencies.message, /github\.com/);
+  assert.match(gitDependencies.message, /SSH/);
+  assert.equal(finding(report, 'PRIVATE_REGISTRY'), undefined);
+}));
+
+test('keeps internal Git dependencies under PRIVATE_REGISTRY', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.dependencies = { internal: 'git+https://git.internal.example/team/lib.git' };
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  const lockfile = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
+  lockfile.packages[''] = { name: packageData.name, dependencies: packageData.dependencies };
+  writeFile(root, 'package-lock.json', JSON.stringify(lockfile, null, 2));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'PRIVATE_REGISTRY').status, 'warning');
+  assert.equal(finding(report, 'GIT_DEPENDENCIES'), undefined);
+}));
+
 test('reports missing library build output as informational and skipped', () => withRepository((root) => {
   writeHealthyRepository(root);
   const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
