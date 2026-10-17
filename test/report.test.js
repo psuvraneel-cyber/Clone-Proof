@@ -78,6 +78,23 @@ test('renderText includes the report summary and every finding status', () => {
   assert.doesNotMatch(output, /\u001b/);
 });
 
+test('render headers show only the first 12 characters of a Git commit', () => {
+  const commit = '0123456789abcdef0123456789abcdef01234567';
+  const report = {
+    target: { kind: 'github', name: 'example/project', commit },
+    status: 'passed',
+    findings: []
+  };
+
+  const text = renderText(report, { color: false, isTTY: false });
+  const html = renderHtml(report);
+
+  assert.match(text, /^Commit: 0123456789ab$/m);
+  assert.doesNotMatch(text, new RegExp(commit));
+  assert.match(html, /<strong>Commit:<\/strong> 0123456789ab/);
+  assert.doesNotMatch(html, new RegExp(commit));
+});
+
 test('renderText never emits terminal controls from report metadata', () => {
   const report = {
     target: { name: 'repo\u001b[31m\nname' },

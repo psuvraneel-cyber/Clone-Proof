@@ -218,6 +218,16 @@ function targetName(report) {
   return 'unknown';
 }
 
+function targetCommit(report) {
+  if (!report || typeof report !== 'object') return '';
+  const target = report.target;
+  if (!target || typeof target !== 'object' || Array.isArray(target)) return '';
+  const commit = target.commit;
+  return typeof commit === 'string' && /^[0-9a-f]{40}$/i.test(commit)
+    ? commit.slice(0, 12)
+    : '';
+}
+
 function findingText(finding, key, fallback = '') {
   if (!finding || typeof finding !== 'object') {
     return fallback;
@@ -363,9 +373,11 @@ function renderText(report, options = {}) {
   const findings = findingsFor(safeReport);
   const counts = reportCounts(safeReport, findings);
   const status = escapeControlCharacters(reportStatus(safeReport));
+  const commit = targetCommit(safeReport);
   const lines = [
     paint('CloneProof — repository setup verification', ANSI.bold, enabled),
     `Target: ${escapeControlCharacters(targetName(safeReport))}`,
+    ...(commit ? [`Commit: ${escapeControlCharacters(commit)}`] : []),
     `Status: ${status}`,
     '',
     'Counts:',
@@ -616,6 +628,7 @@ function renderHtml(report) {
   const counts = reportCounts(safeReport, findings);
   const status = reportStatus(safeReport);
   const statusClass = htmlStatusClass(status);
+  const commit = targetCommit(safeReport);
   const findingMarkup = findings.length > 0
     ? findings.map(htmlFinding).join('\n')
     : '<p class="muted">No findings recorded.</p>';
@@ -633,7 +646,7 @@ function renderHtml(report) {
     '  <main>',
     '    <header class="report-header">',
     '      <h1>CloneProof — repository setup verification</h1>',
-    `      <p class="report-subtitle"><strong>Target:</strong> ${htmlValue(targetName(safeReport))} <span aria-hidden="true">·</span> ${htmlValue(targetKind(safeReport))}</p>`,
+    `      <p class="report-subtitle"><strong>Target:</strong> ${htmlValue(targetName(safeReport))} <span aria-hidden="true">·</span> ${htmlValue(targetKind(safeReport))}${commit ? ` <span aria-hidden="true">·</span> <strong>Commit:</strong> ${htmlValue(commit)}` : ''}</p>`,
     '    </header>',
     '    <section class="panel" aria-labelledby="summary-heading">',
     '      <h2 id="summary-heading">Summary</h2>',

@@ -256,7 +256,11 @@ function applySourceTarget(report, source) {
     name: source.repository,
     url: source.url,
     preflight: source.preflight,
-    ...(source.repositorySizeKb === undefined ? {} : { repositorySizeKb: source.repositorySizeKb })
+    ...(source.repositorySizeKb === undefined ? {} : { repositorySizeKb: source.repositorySizeKb }),
+    ...(source.executableModes === undefined ? {} : { executableModes: source.executableModes }),
+    ...(typeof source.commit === 'string' && /^[0-9a-f]{40}$/i.test(source.commit)
+      ? { commit: source.commit }
+      : {})
   };
   return report;
 }

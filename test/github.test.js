@@ -19,6 +19,7 @@ const {
 const { resolveGitExecutable } = require('../src/util/executable');
 
 const VALID_URL = 'https://github.com/example/project';
+const COMMIT_SHA = '0123456789abcdef0123456789abcdef01234567';
 
 function successfulResult() {
   return {
@@ -30,6 +31,10 @@ function successfulResult() {
     outputTruncated: false,
     error: null
   };
+}
+
+function commitResult() {
+  return { ...successfulResult(), stdout: `${COMMIT_SHA}\n` };
 }
 
 function publicFetcher(size = 1) {
@@ -96,6 +101,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
         return { ...successfulResult(), stdout: 'git version 2.47.0.windows.1\n' };
       }
       if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+      if (args.includes('rev-parse')) return commitResult();
       const destination = args.at(-1);
       fs.writeFileSync(path.join(destination, 'README.md'), '# fixture\n');
       fs.mkdirSync(path.join(destination, 'src'));
@@ -104,7 +110,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
     }
   });
 
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.equal(calls[0].command, process.execPath);
   assert.deepEqual(calls[0].args, ['--version']);
   assert.equal(calls[1].command, process.execPath);
@@ -128,6 +134,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
   assert.equal(calls[1].options.timeoutMs, 4321);
   assert.equal(calls[1].options.maxOutputBytes, 8192);
   assert.equal(calls[2].args.includes('ls-files'), true);
+  assert.equal(calls[3].args.includes('rev-parse'), true);
 
   assert.equal(result.root, calls[1].args.at(-1));
   assert.equal(result.path, result.root);
@@ -137,6 +144,7 @@ test('clones with safe git arguments and an injected no-network runner', async (
   assert.equal(result.metadata.maxDepth, 1);
   assert.equal(result.preflight, 'checked');
   assert.equal(result.repositorySizeKb, 1);
+  assert.equal(result.commit, COMMIT_SHA);
   assert.equal(fs.existsSync(result.root), true);
 
   await result.cleanup();
@@ -331,6 +339,7 @@ test('preflights repository visibility and size before cloning', async () => {
         calls.push({ command, args });
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
         if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+        if (args.includes('rev-parse')) return commitResult();
         fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
       return successfulResult();
     }
@@ -346,7 +355,7 @@ test('preflights repository visibility and size before cloning', async () => {
   });
   assert.equal(fetchCalls[0].options.headers.Authorization, undefined);
   assert.equal(typeof fetchCalls[0].options.signal.aborted, 'boolean');
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   await result.cleanup();
 });
 
@@ -406,13 +415,14 @@ test('continues cloning when the GitHub preflight is unavailable', async () => {
         calls.push(args);
         if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
         if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+        if (args.includes('rev-parse')) return commitResult();
         fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
         return successfulResult();
       }
     });
 
     assert.equal(result.preflight, 'unavailable');
-    assert.equal(calls.length, 3);
+    assert.equal(calls.length, 4);
     await result.cleanup();
   }
 });
@@ -443,12 +453,19 @@ test('records executable Git modes before removing clone metadata', async () => 
           ].join('\0') + '\0'
         };
       }
+      if (args.includes('rev-parse')) {
+        const checkout = args[args.indexOf('-C') + 1];
+        assert.equal(fs.existsSync(path.join(checkout, '.git')), true);
+        return commitResult();
+      }
       throw new Error(`unexpected git args: ${args.join(' ')}`);
     }
   });
 
   assert.deepEqual(result.executablePaths, ['bin/run.js']);
   assert.equal(result.executableModes, 'checked');
+  assert.equal(result.commit, COMMIT_SHA);
+  assert.equal(fs.existsSync(path.join(result.root, '.git')), false);
   assert.equal(calls.some((call) => call.args.includes('ls-files')), true);
   const modeCall = calls.find((call) => call.args.includes('ls-files'));
   assert.deepEqual(modeCall.args.slice(modeCall.args.indexOf('ls-files')), ['ls-files', '-s', '-z']);
@@ -491,6 +508,7 @@ test('ls-files failures, timeouts, and oversized output are non-fatal', async ()
           if (modeFailure.throws) throw new Error('mode lookup failed');
           return { ...successfulResult(), ...modeFailure, stdout: '' };
         }
+        if (args.includes('rev-parse')) return commitResult();
         destination = args.at(-1);
         fs.mkdirSync(path.join(destination, '.git'));
         fs.writeFileSync(path.join(destination, 'README.md'), '# fixture\n');
@@ -500,7 +518,38 @@ test('ls-files failures, timeouts, and oversized output are non-fatal', async ()
 
     assert.deepEqual(result.executablePaths, []);
     assert.equal(result.executableModes, 'unavailable');
+    assert.equal(result.commit, COMMIT_SHA);
     assert.equal(result.metadata.complete, true);
+    await result.cleanup();
+  }
+});
+
+test('rev-parse failures and invalid output are non-fatal', async () => {
+  const cases = [
+    { exitCode: 128, stderr: 'fatal: not a repository\n' },
+    { exitCode: 0, timedOut: true },
+    { exitCode: 0, outputTruncated: true },
+    { exitCode: 0, stdout: 'not-a-commit\n' }
+  ];
+
+  for (const commitFailure of cases) {
+    const result = await cloneGithubRepository(VALID_URL, {
+      gitExecutable: process.execPath,
+      platform: 'linux',
+      fetcher: publicFetcher(),
+      runner: async (command, args) => {
+        if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+        if (args.includes('rev-parse')) return { ...successfulResult(), ...commitFailure };
+        const destination = args.at(-1);
+        fs.mkdirSync(path.join(destination, '.git'));
+        fs.writeFileSync(path.join(destination, 'README.md'), '# fixture\n');
+        return successfulResult();
+      }
+    });
+
+    assert.equal(result.commit, undefined);
+    assert.equal(result.executableModes, 'checked');
     await result.cleanup();
   }
 });

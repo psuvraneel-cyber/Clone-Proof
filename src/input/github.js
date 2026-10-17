@@ -661,6 +661,26 @@ async function cloneGithubRepository(value, options = {}) {
     const modeAvailable = cloneSucceeded(modeResult, MAX_OUTPUT_BYTES);
     const executablePaths = modeAvailable ? parseGitExecutableModes(modeResult.stdout) : [];
 
+    const commitArgs = gitPrefix.concat(['-C', temporaryRoot, 'rev-parse', 'HEAD']);
+    let commitResult;
+    try {
+      commitResult = await runner(gitExecutable, commitArgs, {
+        cwd: temporaryParent,
+        env: invocation.env,
+        shell: false,
+        windowsHide: true,
+        timeoutMs,
+        maxOutputBytes: MAX_OUTPUT_BYTES
+      });
+    } catch {
+      commitResult = null;
+    }
+    let commit;
+    if (cloneSucceeded(commitResult, MAX_OUTPUT_BYTES)) {
+      const candidate = outputString(commitResult.stdout, MAX_OUTPUT_BYTES).trim();
+      if (/^[0-9a-f]{40}$/i.test(candidate)) commit = candidate;
+    }
+
     // The scanner and verifier do not need Git metadata. Removing it keeps the
     // checkout bounds focused on repository content and prevents object data
     // from being handed to later stages.
@@ -681,6 +701,7 @@ async function cloneGithubRepository(value, options = {}) {
       ...(preflight.repositorySizeKb === undefined ? {} : { repositorySizeKb: preflight.repositorySizeKb }),
       executablePaths,
       executableModes: modeAvailable ? 'checked' : 'unavailable',
+      ...(commit === undefined ? {} : { commit }),
       root: temporaryRoot,
       path: temporaryRoot,
       metadata,
