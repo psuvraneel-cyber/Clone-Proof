@@ -122,6 +122,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 - Real `.env` files, npm configuration files, and other sensitive environment configuration are excluded from the staged container snapshot. The host environment and Docker socket are not mounted.
 - For GitHub clones, executable file modes are read from the Git index before `.git` is removed and preserved in the Docker staging snapshot. Local Windows filesystem scans cannot detect repository execute bits and do not infer them.
 - Scan reports use schema version 2 and record bounded-scan completeness, discovered/read file counts, skipped paths, and npm lockfile package metadata.
+- Field-tested against 15 public repositories on 2026-10-17: 13 correct, 2 fixed, 5 documented limitations. See [docs/FIELD_TEST.md](docs/FIELD_TEST.md).
 - The verifier image is pinned to `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`; `--pull=never` refuses implicit image changes.
 - GitHub input is limited to public `https://github.com/OWNER/REPOSITORY` URLs. Clone failures and checkout-limit failures are reported as `incomplete` or `blocked`; CloneProof does not request credentials.
 - The first release focuses on the root package of Node.js/TypeScript repositories. Monorepos, pnpm/Yarn execution, private repositories, and external services may be reported as unsupported or blocked.

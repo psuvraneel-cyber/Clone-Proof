@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-16; use the latest Git commit on `fix/accuracy-and-verification` as the authoritative revision.
+Updated 2026-10-17; use the latest Git commit on `field-test` as the authoritative revision.
 
 ## Goal
 
@@ -19,8 +19,10 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Partial `>` engine ranges follow npm release semantics: `>X` is treated as `>=X+1.0.0` and `>X.Y` as `>=X.Y+1.0`.
 - GitHub input performs a ten-second unauthenticated public visibility/size preflight. Repositories over `MAX_REPOSITORY_BYTES` (1 GiB), private repositories, and missing repositories are blocked before cloning; unavailable/rate-limited preflight continues with bounded clone limits and records `target.preflight: "unavailable"`.
 - GitHub cloning resolves a trusted absolute Git executable, uses an allow-listed environment and empty Git config, disables credential helpers/LFS smudging, uses no shell, records `100755` paths with `git ls-files -s` before deleting `.git`, and cleans its parent directory on success and failure.
+- GitHub checkout limits are enforced before the non-fatal `git ls-files -s -z` mode read. NUL-delimited parsing preserves executable paths with spaces and non-English characters; `target.commit` records a valid 40-character `rev-parse HEAD` result when available, and `target.executableModes` records `checked` or `unavailable`.
 - Docker verification uses the pinned image `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`, `--pull=never`, a read-only source mount, non-root UID/GID 1000, dropped capabilities, no-new-privileges, no network by default, and bounded CPU/memory/PID/tmpfs/output/time policies.
-- Docker staging honors the root `.gitignore` and root `.git/info/exclude` for local targets, keeps ignored core files, reports skipped ignored paths, and does not read nested `.gitignore` files. Local Windows scans cannot detect repository execute bits.
+- Docker staging honors the root `.gitignore` and root `.git/info/exclude` for local targets, keeps ignored core files, reports skipped ignored paths, and does not read nested `.gitignore` files. Ignored-path findings are informational/skipped, evidence is capped at 50, and verification metadata is capped at 500 paths with `ignoredPathCount` and `ignoredPathsTruncated`. Local Windows scans cannot detect repository execute bits.
+- Static npm checks add advisory `INSTALL_SCRIPTS_SKIPPED` and `BROWSER_TESTS_DETECTED` findings. Test-phase Docker failures include targeted explanations when either limitation is present; install scripts and browsers remain disabled/not installed.
 - Every verification return is finalized through summary/cleanup normalization. `report.summary` matches `findings` on consent, prerequisite, network, Docker/image, symlink, staging-limit, source-change, execution, timeout, and cleanup paths.
 - Text and HTML verification output explain omitted lines and character shortening; HTML badges are static and contain no `role="status"`.
 
@@ -31,6 +33,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - The API preflight is intentionally unauthenticated and may be unavailable under GitHub rate limits; bounded clone limits remain the fallback.
 - Docker verification remains an opt-in reproducibility experiment, not a complete hostile-code sandbox. `--allow-network` enables network for both install and test and should be used only for trusted repositories.
 - Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn, private registries, external services, monorepos, and custom setup remain blocked or unsupported.
+- Field results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, 13 expected high-level outcomes, 2 diagnostics fixed, and 5 issue-level limitations documented. Dotenv/Axios committed sensitive fixtures and Commander symlink fixtures remain intentionally unsupported.
 - No Buildathon dashboard submission or PR has been performed. The branch is ready for the approved merge/push sequence after the final checks below.
 
 ## Important files
@@ -47,7 +50,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `test/verify.test.js` — Docker arguments, injected runner, every summary path, staging, cleanup, phases, and timeout behavior.
 - `test/cli.test.js` — CLI reports, URL forms, output formats, nested output folders, and exit codes.
 - `Dockerfile`, `.dockerignore`, `.nvmrc`, `package-lock.json`, `Makefile`, `.env.example` — clean rebuild artifacts.
-- `docs/SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/DEMO.md`, `docs/DECISIONS.md`, `docs/BUILDATHON_CHECKLIST.md` — trust boundary, usage, decisions, and submission evidence.
+- `docs/SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/DEMO.md`, `docs/DECISIONS.md`, `docs/FIELD_TEST.md`, `docs/BUILDATHON_CHECKLIST.md` — trust boundary, usage, decisions, field evidence, and submission evidence.
 
 ## Decisions to preserve
 
@@ -60,7 +63,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Checks observed
 
-- `npm test` — passed: 112 tests, 111 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
+- `npm test` — passed: 124 tests, 123 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
 - `git diff --check` — passed.
 - `docker image inspect node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` — passed after confirming/pulling the recorded digest.
 - `docker build -t cloneproof .` — passed.
@@ -87,6 +90,10 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - A random nonexistent public GitHub URL — blocked with `GITHUB_REPOSITORY_UNAVAILABLE`, exit `2`, no sign-in prompt.
 - Two JSON checks of the same fixture with `--output` — byte-identical.
 - Temporary-folder audit after GitHub checks — no `cloneproof-github-*` folders remained.
+- Field test — 15 public repositories run with check/no-network/network-allowed modes where applicable; no CloneProof temporary folders or `cloneproof-verify` containers remained. Full results, target commits, exit codes, durations, and verdicts are in `docs/FIELD_TEST.md`.
+- Field-test fix `cb44146` — `INSTALL_SCRIPTS_SKIPPED` names npm lockfile packages whose install scripts are intentionally skipped; native test-phase failures explain the likely cause.
+- Field-test fix `8ca4fc3` — `BROWSER_TESTS_DETECTED` identifies browser tooling reachable from the test script; browser test-phase failures explain that the controlled image has no browser executable.
+- Field-test swap — `microsoft/TypeScript-Node-Starter` was unavailable from read-only `git ls-remote`; `typeorm/typeorm` was used as the documented TypeScript/external-service replacement.
 
 ## Commits in this review pass
 
@@ -113,24 +120,28 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `596430a fix: preserve Git executable modes`
 - `6d1c787 fix: normalize partial greater-than engine ranges`
 - `f821456 docs: clarify gitignore source limits`
+- `d441827 docs: record field test expectations`
+- `cb44146 fix: explain skipped npm install scripts`
+- `8ca4fc3 fix: diagnose browser test dependencies`
 
 ## OmniRush sessions for submission
 
 - Main build session: `ses_ebf503317ffe255TeXPMMfCKMW`
 - Review exploration session: `ses_ebb438187fferFPUplMV8TQS7B`
 - Review scanner/report exploration session: `ses_ebb43817efferVqnNPYek8NqvZ`
+- Field-test session: `ses_ebb440a63ffeifxYlQlOEyZBGL`
 - Earlier workspace, architecture, scanner, report, Docker-review, and QA sessions remain in the prior handoff history if the dashboard requires them.
 
 ## Next step
 
-The final diff and checks are complete. The user approved the merge/push sequence; run these commands from the clean branch, then perform the post-push GitHub check:
+The final diff and checks are complete. Fast-forward `main` to `field-test`, push it, then perform the post-push GitHub check:
 
 ```bash
 git status
 git diff --check
 git log --oneline -10
 git switch main
-git merge --ff-only fix/accuracy-and-verification
+git merge --ff-only field-test
 git push origin main
 node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```

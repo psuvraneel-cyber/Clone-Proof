@@ -62,3 +62,11 @@
 - **Decision:** Finalize every Docker verification return through one summary/cleanup helper so stored counts always match findings.
 - **Decision:** Pin the verifier and project base image to `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`; no resource-limit adjustment was needed in the Jest Phase 7 run.
 - **Review session references:** `ses_ebf503317ffe255TeXPMMfCKMW`, `ses_ebb438187fferFPUplMV8TQS7B`, `ses_ebb43817efferVqnNPYek8NqvZ`.
+
+## 2026-10-17 — Field-test diagnostics stay advisory and bounded
+
+- **Decision:** Keep `INSTALL_SCRIPTS_SKIPPED` and `BROWSER_TESTS_DETECTED` as warning findings. They explain why the npm-only, no-lifecycle-script Node image may not reproduce native or browser suites, but they do not silently enable install scripts, browser downloads, or broader Docker privileges.
+- **Decision:** Preserve the sensitive-file staging policy after dotenv and Axios field runs failed on committed `.env`/TLS fixtures. These are documented false-failure limitations rather than a reason to copy potentially secret-bearing files into the container.
+- **Decision:** Preserve symlink skipping after Commander’s symlink-dependent tests failed. Following or staging symlinks would weaken the untrusted-input boundary.
+- **Field-test result:** 15 public repositories were run; 13 had the expected high-level outcome, 2 diagnostics were fixed (`cb44146`, `8ca4fc3`), and 5 issue-level limitations are documented in `docs/FIELD_TEST.md`.
+- **Current OmniRush session:** `ses_ebb440a63ffeifxYlQlOEyZBGL`.
