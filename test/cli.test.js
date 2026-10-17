@@ -25,6 +25,17 @@ test('setup accepts no target and defaults to text output', () => {
   });
 });
 
+test('version prints the package version and exits successfully', () => {
+  const result = spawnSync(process.execPath, [cliPath, '--version'], {
+    cwd: projectRoot,
+    encoding: 'utf8'
+  });
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /^0\.1\.0\n$/);
+  assert.equal(result.stderr, '');
+});
+
 test('check emits machine-readable JSON for a local repository', () => {
   const result = spawnSync(process.execPath, [cliPath, 'check', projectRoot, '--format', 'json'], {
     cwd: projectRoot,

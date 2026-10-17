@@ -16,6 +16,17 @@ The project is being built as an OmniRush Frontier Buildathon submission. The cu
 - npm.
 - Docker is only required for the optional execution-verification workflow; the Docker end-to-end CI job runs on Linux.
 
+## Install
+
+Install this CloneProof CLI directly from the GitHub repository:
+
+```bash
+npm install -g github:psuvraneel-cyber/Clone-Proof
+npx github:psuvraneel-cyber/Clone-Proof --help
+```
+
+Do not run `npm install -g cloneproof`: that installs a different, unrelated npm package. Run `cloneproof check <project-folder>` from inside a project folder, not from your home folder or a drive root.
+
 ## Setup
 
 ```bash
@@ -31,6 +42,8 @@ Inspect a repository without executing its code:
 ```bash
 node src/cli.js check ./path/to/repository
 ```
+
+CloneProof blocks home folders and filesystem roots immediately as `WRONG_TARGET`; pointing it at one project folder keeps the scan bounded and focused. A scan that reaches its directory-entry limit reports `SCAN_ENTRY_LIMIT_EXCEEDED` with the path where traversal stopped. Terminal and HTML findings show at most ten evidence items; use JSON for the complete bounded evidence list.
 
 The first remote-input profile accepts only a public HTTPS GitHub repository URL and performs a GitHub API size/visibility preflight before the shallow, bounded clone. If `CLONEPROOF_GITHUB_TOKEN` is present, or otherwise `GITHUB_TOKEN` is present, CloneProof sends it as a Bearer token only on that API request. The report records `target.preflightAuthenticated: true` or `false`, but never records the token. Private repositories remain blocked even when a token is supplied. Repositories over the 4 GiB sanity limit, private repositories, and missing repositories are blocked without cloning. GitHub's `size` value describes the repository's full history, not the latest shallow checkout that CloneProof downloads. If the API is unavailable or rate-limited, CloneProof records an unavailable preflight and continues with the existing clone limits. Git runs from a CloneProof-owned temporary parent with an empty Git config, an allow-listed environment, credential helpers disabled, and Git LFS smudging disabled. CloneProof resolves Git from known absolute installation paths or absolute `PATH` entries; if none is available, the report is incomplete and no clone directory is created:
 
