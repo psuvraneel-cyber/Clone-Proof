@@ -48,19 +48,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Pull pinned verifier image
-        run: docker pull "$VERIFY_IMAGE"
-      - name: Run setup
-        shell: bash
-        run: |
-          set +e
-          node src/cli.js setup
-          setup_status=$?
-          set -e
-          if [ "$setup_status" -ne 0 ] && [ "$setup_status" -ne 2 ]; then
-            echo "node src/cli.js setup failed with unexpected exit ${setup_status}" >&2
-            exit "$setup_status"
-          fi
+      - name: Set up pinned verifier image
+        run: node src/cli.js setup
       - name: Verify healthy example
         shell: bash
         run: |

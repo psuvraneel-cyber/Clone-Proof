@@ -47,7 +47,7 @@ For the optional remote-input demonstration, use a public repository URL:
 node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```
 
-CloneProof performs the public size/visibility preflight, then one isolated shallow bounded clone with no host Git config or credentials, and cleans the temporary clone parent after producing the report. Do not use private URLs or provide credentials.
+CloneProof performs the GitHub size/visibility preflight, then one isolated shallow bounded clone with no host Git config or credentials, and cleans the temporary clone parent after producing the report. An optional `CLONEPROOF_GITHUB_TOKEN` is used only for that API request; it is never passed to Git or included in reports. Private URLs remain blocked.
 
 ## 5. Show execution safety
 
@@ -55,10 +55,10 @@ CloneProof performs the public size/visibility preflight, then one isolated shal
 node src/cli.js verify examples/healthy-node
 ```
 
-This must refuse to execute because `--docker --execute` is missing. On a Docker-capable machine, first make the fixed image available and then run:
+This must refuse to execute because `--docker --execute` is missing. On a Docker-capable machine, first prepare the fixed image with CloneProof and then run:
 
 ```bash
-docker pull node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90
+node src/cli.js setup
 node src/cli.js verify examples/healthy-node --docker --execute
 ```
 

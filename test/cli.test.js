@@ -9,6 +9,21 @@ const test = require('node:test');
 
 const cliPath = path.join(__dirname, '..', 'src', 'cli.js');
 const projectRoot = path.join(__dirname, '..');
+const { parseArguments } = require('../src/cli');
+
+test('setup accepts no target and defaults to text output', () => {
+  assert.deepEqual(parseArguments(['node', cliPath, 'setup']), {
+    command: 'setup',
+    target: null,
+    format: 'text',
+    color: undefined,
+    docker: false,
+    execute: false,
+    allowNetwork: false,
+    timeoutMs: undefined,
+    outputPath: null
+  });
+});
 
 test('check emits machine-readable JSON for a local repository', () => {
   const result = spawnSync(process.execPath, [cliPath, 'check', projectRoot, '--format', 'json'], {

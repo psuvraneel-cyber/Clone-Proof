@@ -209,28 +209,58 @@ function isGithubRepositoryUrl(value) {
   }
 }
 
-async function preflightGithubRepository(source, fetcher = globalThis.fetch) {
-  if (typeof fetcher !== 'function') return { state: 'unavailable' };
+function githubTokenFromEnvironment(environment = process.env) {
+  const preferred = environment.CLONEPROOF_GITHUB_TOKEN;
+  const fallback = environment.GITHUB_TOKEN;
+  const value = preferred === undefined || preferred === null || String(preferred).length === 0
+    ? fallback
+    : preferred;
+  if (value === undefined || value === null || String(value).length === 0) return null;
+  return String(value);
+}
+
+function redactGithubToken(value, token) {
+  const text = value === undefined || value === null ? '' : String(value);
+  if (!token) return text;
+  return text.split(token).join('[REDACTED]');
+}
+
+async function preflightGithubRepository(source, fetcher = globalThis.fetch, options = {}) {
+  const hostEnvironment = options && (options.hostEnvironment || options.environment)
+    ? (options.hostEnvironment || options.environment)
+    : process.env;
+  const token = githubTokenFromEnvironment(hostEnvironment);
+  const preflightAuthenticated = token !== null;
+  const unavailable = (error) => ({
+    state: 'unavailable',
+    preflightAuthenticated,
+    ...(error ? { error: redactGithubToken(error, token) } : {})
+  });
+
+  if (typeof fetcher !== 'function') return unavailable();
 
   const apiUrl = `https://api.github.com/repos/${source.owner}/${source.repo}`;
   try {
+    const headers = {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'cloneproof'
+    };
+    if (token !== null) headers.Authorization = `Bearer ${token}`;
     const response = await fetcher(apiUrl, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'cloneproof'
-      },
+      headers,
       signal: AbortSignal.timeout(GITHUB_PREFLIGHT_TIMEOUT_MS)
     });
-    if (!response || typeof response.status !== 'number') return { state: 'unavailable' };
+    if (!response || typeof response.status !== 'number') return unavailable();
     if (response.status === 404) {
       const error = new GithubSourceError(
         'GitHub repository is not found or not public.',
         'GITHUB_REPOSITORY_UNAVAILABLE'
       );
       error.preflight = 'checked';
+      error.preflightAuthenticated = preflightAuthenticated;
       throw error;
     }
-    if (response.status !== 200) return { state: 'unavailable' };
+    if (response.status !== 200) return unavailable();
 
     const metadata = await response.json();
     if (!metadata || metadata.private === true) {
@@ -239,10 +269,11 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch) {
         'GITHUB_REPOSITORY_UNAVAILABLE'
       );
       error.preflight = 'checked';
+      error.preflightAuthenticated = preflightAuthenticated;
       throw error;
     }
     if (metadata.private !== false || !Number.isFinite(metadata.size) || metadata.size < 0) {
-      return { state: 'unavailable' };
+      return unavailable();
     }
 
     const repositorySizeKb = metadata.size;
@@ -252,16 +283,17 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch) {
         'GITHUB_REPOSITORY_TOO_LARGE'
       );
       error.preflight = 'checked';
+      error.preflightAuthenticated = preflightAuthenticated;
       error.repositorySizeKb = repositorySizeKb;
       throw error;
     }
 
-    return { state: 'checked', repositorySizeKb };
+    return { state: 'checked', repositorySizeKb, preflightAuthenticated };
   } catch (error) {
     if (error && (error.code === 'GITHUB_REPOSITORY_UNAVAILABLE' || error.code === 'GITHUB_REPOSITORY_TOO_LARGE')) {
       throw error;
     }
-    return { state: 'unavailable' };
+    return unavailable(error && error.message ? error.message : error);
   }
 }
 
@@ -497,23 +529,30 @@ function outputString(value, maxBytes) {
   return bytes.subarray(0, maxBytes).toString('utf8');
 }
 
-function cloneFailure(result, maxOutputBytes) {
+function cloneFailure(result, maxOutputBytes, token) {
   const exitCode = resultExitCode(result);
   const reason = result && result.timedOut
     ? 'timed out'
     : result && result.outputTruncated
       ? 'produced too much output'
       : result && result.error
-        ? String(result.error)
+        ? redactGithubToken(result.error, token)
         : `exited with code ${exitCode === null ? 'unknown' : exitCode}`;
   const stderr = outputString(result && result.stderr, maxOutputBytes);
   const stdout = outputString(result && result.stdout, maxOutputBytes);
-  const details = stderr || stdout;
+  const details = redactGithubToken(stderr || stdout, token);
   const error = new GithubSourceError(
     `GitHub clone failed: ${reason}${details ? `: ${details.trim()}` : ''}`,
     'GITHUB_CLONE_FAILED'
   );
-  error.result = result;
+  error.result = token
+    ? {
+      ...result,
+      stdout: redactGithubToken(result && result.stdout, token),
+      stderr: redactGithubToken(result && result.stderr, token),
+      error: redactGithubToken(result && result.error, token)
+    }
+    : result;
   return error;
 }
 
@@ -581,7 +620,13 @@ async function cloneGithubRepository(value, options = {}) {
   const limits = normalizeCloneLimits(config);
   const timeoutMs = normalizePositiveInteger(config.timeoutMs, DEFAULT_CLONE_TIMEOUT_MS, MAX_CLONE_TIMEOUT_MS);
   const maxOutputBytes = normalizePositiveInteger(config.maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES, MAX_OUTPUT_BYTES);
-  const preflight = await preflightGithubRepository(source, config.fetcher || globalThis.fetch);
+  const hostEnvironment = config.hostEnvironment || process.env;
+  const githubToken = githubTokenFromEnvironment(hostEnvironment);
+  const preflight = await preflightGithubRepository(
+    source,
+    config.fetcher || globalThis.fetch,
+    { hostEnvironment }
+  );
   const gitExecutable = config.gitExecutable || resolveGitExecutable({
     platform: config.platform || process.platform,
     env: config.hostEnvironment || process.env,
@@ -593,6 +638,7 @@ async function cloneGithubRepository(value, options = {}) {
       'GITHUB_GIT_UNAVAILABLE'
     );
     error.preflight = preflight.state;
+    error.preflightAuthenticated = preflight.preflightAuthenticated === true;
     if (preflight.repositorySizeKb !== undefined) error.repositorySizeKb = preflight.repositorySizeKb;
     throw error;
   }
@@ -611,7 +657,7 @@ async function cloneGithubRepository(value, options = {}) {
       checkoutPath: temporaryRoot,
       parentPath: temporaryParent,
       platform: config.platform || process.platform,
-      hostEnvironment: config.hostEnvironment || process.env,
+      hostEnvironment,
       useGlobalConfig: false
     });
     const versionResult = await runner(gitExecutable, ['--version'], {
@@ -631,7 +677,7 @@ async function cloneGithubRepository(value, options = {}) {
       checkoutPath: temporaryRoot,
       parentPath: temporaryParent,
       platform: config.platform || process.platform,
-      hostEnvironment: config.hostEnvironment || process.env,
+      hostEnvironment,
       useGlobalConfig: gitVersionSupportsGlobalConfig(versionResult)
     });
     const result = await runner(gitExecutable, invocation.args, {
@@ -644,7 +690,7 @@ async function cloneGithubRepository(value, options = {}) {
     });
 
     if (!cloneSucceeded(result, maxOutputBytes)) {
-      throw cloneFailure(result, maxOutputBytes);
+      throw cloneFailure(result, maxOutputBytes, githubToken);
     }
 
     const metadata = inspectCheckout(temporaryRoot, limits);
@@ -705,6 +751,7 @@ async function cloneGithubRepository(value, options = {}) {
       repo: source.repo,
       repository: source.repository,
       preflight: preflight.state,
+      preflightAuthenticated: preflight.preflightAuthenticated === true,
       ...(preflight.repositorySizeKb === undefined ? {} : { repositorySizeKb: preflight.repositorySizeKb }),
       executablePaths: fileModes.executablePaths,
       symlinkPaths: fileModes.symlinkPaths,
@@ -725,9 +772,14 @@ async function cloneGithubRepository(value, options = {}) {
   } catch (error) {
     if (error && typeof error === 'object') {
       if (!error.preflight) error.preflight = preflight.state;
+      if (error.preflightAuthenticated === undefined) {
+        error.preflightAuthenticated = preflight.preflightAuthenticated === true;
+      }
       if (error.repositorySizeKb === undefined && preflight.repositorySizeKb !== undefined) {
         error.repositorySizeKb = preflight.repositorySizeKb;
       }
+      if (error.message) error.message = redactGithubToken(error.message, githubToken);
+      if (error.stack) error.stack = redactGithubToken(error.stack, githubToken);
     }
     if (temporaryParent) {
       try {
@@ -750,5 +802,6 @@ module.exports = {
   isGithubRepositoryUrl,
   parseGitFileModes,
   preflightGithubRepository,
+  redactGithubToken,
   validateGithubUrl
 };

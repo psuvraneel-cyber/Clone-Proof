@@ -14,6 +14,7 @@ const {
   inspectCheckout,
   isGithubRepositoryUrl,
   parseGitFileModes,
+  preflightGithubRepository,
   validateGithubUrl
 } = require('../src/input/github');
 const { scanRepository } = require('../src/scan/repository');
@@ -287,6 +288,29 @@ test('builds an isolated git environment and command line policy', () => {
   }
 });
 
+test('optional GitHub tokens are never copied into the isolated Git environment', () => {
+  const parentPath = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-git-token-'));
+  try {
+    const invocation = buildGitCloneInvocation({
+      url: VALID_URL,
+      checkoutPath: path.join(parentPath, 'checkout'),
+      parentPath,
+      platform: 'linux',
+      hostEnvironment: {
+        PATH: '/usr/bin',
+        CLONEPROOF_GITHUB_TOKEN: 'cloneproof-secret',
+        GITHUB_TOKEN: 'fallback-secret'
+      }
+    });
+
+    assert.equal(invocation.env.CLONEPROOF_GITHUB_TOKEN, undefined);
+    assert.equal(invocation.env.GITHUB_TOKEN, undefined);
+    assert.equal(invocation.env.Authorization, undefined);
+  } finally {
+    fs.rmSync(parentPath, { recursive: true, force: true });
+  }
+});
+
 test('resolves git only from trusted absolute candidates', () => {
   const candidates = [];
   const resolved = resolveGitExecutable({
@@ -359,6 +383,92 @@ test('preflights repository visibility and size before cloning', async () => {
   assert.equal(typeof fetchCalls[0].options.signal.aborted, 'boolean');
   assert.equal(calls.length, 4);
   await result.cleanup();
+});
+
+test('uses the configured GitHub token only on the API preflight and records authentication state', async () => {
+  for (const [environment, expectedToken] of [
+    [{}, undefined],
+    [{ GITHUB_TOKEN: 'fallback-token' }, 'fallback-token'],
+    [{ GITHUB_TOKEN: 'fallback-token', CLONEPROOF_GITHUB_TOKEN: 'preferred-token' }, 'preferred-token']
+  ]) {
+    const fetchCalls = [];
+    const gitCalls = [];
+    const result = await cloneGithubRepository(VALID_URL, {
+      gitExecutable: process.execPath,
+      platform: 'linux',
+      hostEnvironment: { PATH: '/usr/bin', ...environment },
+      fetcher: async (url, options) => {
+        fetchCalls.push({ url, options });
+        return {
+          status: 200,
+          async json() {
+            return { private: false, size: 1 };
+          }
+        };
+      },
+      runner: async (command, args, options) => {
+        gitCalls.push({ command, args, options });
+        if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+        if (args.includes('rev-parse')) return commitResult();
+        fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
+        return successfulResult();
+      }
+    });
+
+    assert.equal(result.preflightAuthenticated, expectedToken !== undefined);
+    assert.equal(fetchCalls[0].options.headers.Authorization, expectedToken
+      ? `Bearer ${expectedToken}`
+      : undefined);
+    for (const call of gitCalls) {
+      assert.equal(call.options.env.CLONEPROOF_GITHUB_TOKEN, undefined);
+      assert.equal(call.options.env.GITHUB_TOKEN, undefined);
+    }
+    await result.cleanup();
+  }
+});
+
+test('redacts a configured token from a GitHub fetch error', async () => {
+  const token = 'fetch-token-value';
+  const result = await preflightGithubRepository(
+    { owner: 'example', repo: 'project' },
+    async () => {
+      throw new Error(`fetch failed for Bearer ${token}`);
+    },
+    { hostEnvironment: { CLONEPROOF_GITHUB_TOKEN: token } }
+  );
+
+  assert.equal(result.state, 'unavailable');
+  assert.equal(result.preflightAuthenticated, true);
+  assert.match(result.error, /Bearer \[REDACTED\]/);
+  assert.equal(result.error.includes(token), false);
+});
+
+test('private repositories remain blocked when the optional token is present', async () => {
+  const token = 'private-token';
+  let runnerCalls = 0;
+  await assert.rejects(
+    cloneGithubRepository(VALID_URL, {
+      gitExecutable: process.execPath,
+      hostEnvironment: { CLONEPROOF_GITHUB_TOKEN: token },
+      fetcher: async (url, options) => {
+        assert.equal(options.headers.Authorization, `Bearer ${token}`);
+        return {
+          status: 200,
+          async json() {
+            return { private: true, size: 1 };
+          }
+        };
+      },
+      runner: async () => {
+        runnerCalls += 1;
+        return successfulResult();
+      }
+    }),
+    (error) => error && error.code === 'GITHUB_REPOSITORY_UNAVAILABLE'
+      && error.preflightAuthenticated === true
+  );
+  assert.equal(runnerCalls, 0);
 });
 
 test('allows field-tested repository sizes through 4 GiB and blocks larger repositories before git', async () => {

@@ -10,6 +10,7 @@ const { resolveDockerExecutable } = require('../util/executable');
 
 const DEFAULT_VERIFY_IMAGE = 'node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90';
 const DEFAULT_TIMEOUT_MS = 300000;
+const DEFAULT_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
 const DEFAULT_CONTAINER_MEMORY = '2g';
 const DEFAULT_CONTAINER_MEMORY_SWAP = '2g';
@@ -33,10 +34,10 @@ const SENSITIVE_FILE_NAMES = new Set([
   '.yarnrc.yml'
 ]);
 
-function dockerClientEnvironment(configDirectory) {
+function dockerClientEnvironment(configDirectory, hostEnvironment = process.env) {
   const environment = {};
   for (const name of ['PATH', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'USERPROFILE']) {
-    const value = process.env[name] ?? process.env[name.toLowerCase()];
+    const value = hostEnvironment[name] ?? hostEnvironment[name.toLowerCase()];
     if (value) environment[name] = value;
   }
   environment.DOCKER_CONFIG = configDirectory;
@@ -476,6 +477,163 @@ function makeContainerName() {
   return `cloneproof-verify-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function resultSucceeded(result) {
+  return Boolean(
+    result
+    && result.exitCode === 0
+    && !result.error
+    && !result.timedOut
+    && !result.outputTruncated
+  );
+}
+
+function processFailureDetail(result, fallback) {
+  const value = result && (result.error || result.stderr || result.stdout);
+  if (!value) return fallback;
+  return String(value)
+    .replace(/[\u0000-\u001f\u007f\u0080-\u009f]+/g, ' ')
+    .trim()
+    .slice(0, 4000) || fallback;
+}
+
+/**
+ * Make the pinned verifier image available without ever changing the image
+ * used by verifyRepository. The caller can inject a runner and executable for
+ * offline tests; real calls still resolve Docker from trusted absolute paths.
+ */
+async function setupDockerImage(options = {}) {
+  const runner = options.runner || runProcess;
+  if (typeof runner !== 'function') {
+    throw new TypeError('Docker setup runner must be a function');
+  }
+
+  const hostEnvironment = options.hostEnvironment || process.env;
+  const dockerCommand = options.dockerCommand === undefined
+    ? resolveDockerExecutable({
+      platform: options.platform || process.platform,
+      env: hostEnvironment,
+      lookup: options.executableLookup
+    })
+    : options.dockerCommand;
+
+  if (!dockerCommand) {
+    return {
+      ok: false,
+      exitCode: 2,
+      code: 'DOCKER_UNAVAILABLE',
+      message: 'CloneProof: a trusted Docker executable was not found.'
+    };
+  }
+
+  const maxOutputBytes = normalizePositiveInteger(
+    options.maxOutputBytes,
+    DEFAULT_MAX_OUTPUT_BYTES,
+    10 * 1024 * 1024
+  );
+  const pullTimeoutMs = normalizePositiveInteger(
+    options.timeoutMs,
+    DEFAULT_SETUP_TIMEOUT_MS,
+    DEFAULT_SETUP_TIMEOUT_MS
+  );
+  let dockerConfigRoot;
+
+  const invoke = async (args, commandOptions) => {
+    try {
+      const result = await runner(dockerCommand, args, commandOptions);
+      return result && typeof result === 'object'
+        ? result
+        : { exitCode: null, error: 'Docker runner returned no result.' };
+    } catch (error) {
+      return {
+        exitCode: null,
+        signal: null,
+        stdout: '',
+        stderr: '',
+        timedOut: false,
+        outputTruncated: false,
+        error: error && error.message ? error.message : String(error)
+      };
+    }
+  };
+
+  try {
+    dockerConfigRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-docker-config-'));
+    const dockerContext = {
+      cwd: os.tmpdir(),
+      env: dockerClientEnvironment(dockerConfigRoot, hostEnvironment)
+    };
+    const probe = await invoke(
+      ['version', '--format', '{{.Server.Version}}'],
+      { ...dockerContext, timeoutMs: DOCKER_PROBE_TIMEOUT_MS, maxOutputBytes: 16 * 1024 }
+    );
+    if (!resultSucceeded(probe)) {
+      return {
+        ok: false,
+        exitCode: 2,
+        code: 'DOCKER_UNAVAILABLE',
+        message: `CloneProof: Docker daemon is unavailable: ${processFailureDetail(probe, 'the daemon did not respond successfully.')}`
+      };
+    }
+
+    const initialInspect = await invoke(
+      ['image', 'inspect', DEFAULT_VERIFY_IMAGE],
+      { ...dockerContext, timeoutMs: DOCKER_PROBE_TIMEOUT_MS, maxOutputBytes: 16 * 1024 }
+    );
+    if (resultSucceeded(initialInspect)) {
+      return {
+        ok: true,
+        exitCode: 0,
+        code: 'DOCKER_IMAGE_ALREADY_PRESENT',
+        message: `CloneProof: verifier image ${DEFAULT_VERIFY_IMAGE} is already present.`
+      };
+    }
+
+    const pull = await invoke(
+      ['pull', DEFAULT_VERIFY_IMAGE],
+      { ...dockerContext, timeoutMs: pullTimeoutMs, maxOutputBytes }
+    );
+    if (!resultSucceeded(pull)) {
+      return {
+        ok: false,
+        exitCode: 2,
+        code: 'DOCKER_PULL_FAILED',
+        message: `CloneProof: Docker image pull failed for ${DEFAULT_VERIFY_IMAGE}: ${processFailureDetail(pull, 'the pull did not complete successfully.')}`
+      };
+    }
+
+    const confirmedInspect = await invoke(
+      ['image', 'inspect', DEFAULT_VERIFY_IMAGE],
+      { ...dockerContext, timeoutMs: DOCKER_PROBE_TIMEOUT_MS, maxOutputBytes: 16 * 1024 }
+    );
+    if (!resultSucceeded(confirmedInspect)) {
+      return {
+        ok: false,
+        exitCode: 2,
+        code: 'DOCKER_IMAGE_UNAVAILABLE',
+        message: `CloneProof: Docker pull completed but the pinned image could not be confirmed: ${processFailureDetail(confirmedInspect, 'image inspect failed.')}`
+      };
+    }
+
+    return {
+      ok: true,
+      exitCode: 0,
+      code: 'DOCKER_IMAGE_READY',
+      message: `CloneProof: verifier image ${DEFAULT_VERIFY_IMAGE} is ready.`
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      exitCode: 2,
+      code: 'DOCKER_SETUP_FAILED',
+      message: `CloneProof: Docker setup failed: ${processFailureDetail({ error: error && error.message }, 'unexpected setup error.')}`
+    };
+  } finally {
+    if (dockerConfigRoot) fs.rmSync(dockerConfigRoot, { recursive: true, force: true });
+  }
+}
+
+const setupDocker = setupDockerImage;
+
 async function cleanupContainer(runner, dockerCommand, containerName, runResult, context) {
   const needsCleanup = Boolean(runResult.timedOut || runResult.outputTruncated || runResult.signal || runResult.error);
   if (!needsCleanup) {
@@ -654,7 +812,7 @@ async function verifyRepository(rootPath, options = {}) {
       title: 'The controlled Docker image is unavailable locally',
       message: `CloneProof will not pull ${DEFAULT_VERIFY_IMAGE} implicitly.`,
       evidence: makeEvidence('verification', detail),
-      recommendation: `Pull or build ${DEFAULT_VERIFY_IMAGE} explicitly, then rerun verification.`
+      recommendation: `Run cloneproof setup (or docker pull ${DEFAULT_VERIFY_IMAGE})`
     });
     report.status = 'blocked';
     report.verification.cleanup.completed = true;
@@ -832,8 +990,12 @@ async function verifyRepository(rootPath, options = {}) {
 
 module.exports = {
   DEFAULT_VERIFY_IMAGE,
+  DEFAULT_SETUP_TIMEOUT_MS,
+  dockerClientEnvironment,
   dockerRunArguments,
   runProcess,
+  setupDocker,
+  setupDockerImage,
   stageRepository,
   verifyRepository
 };

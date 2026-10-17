@@ -11,9 +11,9 @@ const {
 const { scanRepository } = require('./scan/repository');
 const { exitCodeForReport, renderHtml, renderJson, renderText } = require('./report/render');
 const { createCoverage } = require('./report/coverage');
-const { verifyRepository } = require('./verify/docker');
+const { setupDockerImage, verifyRepository } = require('./verify/docker');
 
-const COMMANDS = new Set(['check', 'verify']);
+const COMMANDS = new Set(['check', 'verify', 'setup']);
 const FORMATS = new Set(['text', 'json', 'html']);
 
 function printHelp() {
@@ -23,6 +23,7 @@ function printHelp() {
     'Usage:',
     '  cloneproof check <repository-or-github-url> [--format text|json|html] [--output FILE]',
     '  cloneproof verify <repository-or-github-url> --docker --execute [--allow-network] [--timeout-ms N] [--format text|json|html] [--output FILE]',
+    '  cloneproof setup',
     '',
     'Static check never executes repository code. Docker verification requires explicit --docker --execute consent.',
     'Network access is disabled unless --allow-network is also provided.',
@@ -127,8 +128,20 @@ function parseArguments(argv) {
     target = value;
   }
 
-  if (!target) {
+  if (command === 'setup' && target !== null) {
+    throw new Error('setup does not accept a repository path');
+  }
+
+  if (command !== 'setup' && !target) {
     throw new Error(`${command} requires a repository path`);
+  }
+
+  if (command === 'setup' && format !== 'text') {
+    throw new Error('setup only supports text output');
+  }
+
+  if (command === 'setup' && (outputPath || allowNetwork || timeoutMs !== undefined || docker || execute)) {
+    throw new Error('setup does not accept Docker, output, or verification options');
   }
 
   if (command === 'check' && (allowNetwork || timeoutMs !== undefined || docker || execute)) {
@@ -206,7 +219,11 @@ function cloneFailureReport(target, error, mode) {
     ? 'GitHub repository URL is not supported'
     : 'GitHub repository could not be staged';
   const message = error && error.message ? error.message : 'The GitHub repository could not be cloned.';
-  const reportTarget = { kind: 'github', name: targetName };
+  const reportTarget = {
+    kind: 'github',
+    name: targetName,
+    preflightAuthenticated: Boolean(error && error.preflightAuthenticated === true)
+  };
   if (error && error.preflight) reportTarget.preflight = error.preflight;
   if (error && Number.isFinite(error.repositorySizeKb)) reportTarget.repositorySizeKb = error.repositorySizeKb;
   return {
@@ -258,6 +275,7 @@ function applySourceTarget(report, source) {
     name: source.repository,
     url: source.url,
     preflight: source.preflight,
+    preflightAuthenticated: source.preflightAuthenticated === true,
     ...(source.repositorySizeKb === undefined ? {} : { repositorySizeKb: source.repositorySizeKb }),
     ...(source.executableModes === undefined ? {} : { executableModes: source.executableModes }),
     ...(typeof source.commit === 'string' && /^[0-9a-f]{40}$/i.test(source.commit)
@@ -323,6 +341,17 @@ async function runVerify(options) {
   }
 }
 
+async function runSetup() {
+  const result = await setupDockerImage();
+  const output = `${result.message}\n`;
+  if (result.exitCode === 0) {
+    process.stdout.write(output);
+  } else {
+    process.stderr.write(output);
+  }
+  return result.exitCode;
+}
+
 async function run() {
   let options;
   try {
@@ -338,6 +367,10 @@ async function run() {
     return 0;
   }
 
+  if (options.command === 'setup') {
+    return runSetup();
+  }
+
   if (options.command === 'verify') {
     return runVerify(options);
   }
@@ -345,11 +378,13 @@ async function run() {
   return runCheck(options);
 }
 
-run().then((exitCode) => {
-  process.exitCode = exitCode;
-}).catch((error) => {
-  process.stderr.write(`CloneProof: ${error.message}\n`);
-  process.exitCode = 2;
-});
+if (require.main === module) {
+  run().then((exitCode) => {
+    process.exitCode = exitCode;
+  }).catch((error) => {
+    process.stderr.write(`CloneProof: ${error.message}\n`);
+    process.exitCode = 2;
+  });
+}
 
 module.exports = { parseArguments, renderReport };

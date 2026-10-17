@@ -10,6 +10,7 @@ const {
   DEFAULT_VERIFY_IMAGE,
   dockerRunArguments,
   runProcess,
+  setupDockerImage,
   stageRepository,
   verifyRepository
 } = require('../src/verify/docker');
@@ -199,6 +200,123 @@ test('missing verifier image blocks execution without pulling implicitly', async
   assert.equal(report.findings.find((finding) => finding.code === 'DOCKER_IMAGE_UNAVAILABLE').status, 'skipped');
   assert.equal(report.verification.imageAvailable, false);
   assert.equal(calls.filter((call) => call.args[0] === 'run').length, 0);
+  const finding = report.findings.find((item) => item.code === 'DOCKER_IMAGE_UNAVAILABLE');
+  assert.match(finding.recommendation, /Run cloneproof setup \(or docker pull /);
+});
+
+function setupSuccessResult(stdout = '', stderr = '') {
+  return {
+    exitCode: 0,
+    signal: null,
+    stdout,
+    stderr,
+    timedOut: false,
+    outputTruncated: false,
+    error: null
+  };
+}
+
+test('setup reports an already-present image without pulling', async () => {
+  const calls = [];
+  const result = await setupDockerImage({
+    dockerCommand: '/trusted/docker',
+    runner: async (command, args, options) => {
+      calls.push({ command, args, options });
+      if (args[0] === 'version') return setupSuccessResult('27.0.0\n');
+      if (args[0] === 'image') return setupSuccessResult('[]\n');
+      throw new Error(`unexpected setup command: ${args.join(' ')}`);
+    },
+    hostEnvironment: { PATH: '/trusted/bin', CLONEPROOF_GITHUB_TOKEN: 'must-not-leak' }
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.match(result.message, /already present/i);
+  assert.equal(calls.filter((call) => call.args[0] === 'pull').length, 0);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].options.env.CLONEPROOF_GITHUB_TOKEN, undefined);
+  assert.equal(calls[0].options.env.DOCKER_CONFIG.startsWith(path.join(os.tmpdir(), 'cloneproof-docker-config-')), true);
+});
+
+test('setup pulls an absent image with the exact reference and confirms it', async () => {
+  const calls = [];
+  let inspectCount = 0;
+  const result = await setupDockerImage({
+    dockerCommand: '/trusted/docker',
+    runner: async (command, args, options) => {
+      calls.push({ command, args, options });
+      if (args[0] === 'version') return setupSuccessResult('27.0.0\n');
+      if (args[0] === 'image') {
+        inspectCount += 1;
+        return inspectCount === 1
+          ? { ...setupSuccessResult(), exitCode: 1, stderr: 'No such image' }
+          : setupSuccessResult('[]\n');
+      }
+      if (args[0] === 'pull') return setupSuccessResult(`pulled ${DEFAULT_VERIFY_IMAGE}\n`);
+      throw new Error(`unexpected setup command: ${args.join(' ')}`);
+    },
+    timeoutMs: 600000,
+    maxOutputBytes: 4096
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.match(result.message, /ready|pulled/i);
+  const pull = calls.find((call) => call.args[0] === 'pull');
+  assert.deepEqual(pull.args, ['pull', DEFAULT_VERIFY_IMAGE]);
+  assert.equal(pull.options.timeoutMs, 600000);
+  assert.equal(pull.options.maxOutputBytes, 4096);
+  assert.equal(calls.filter((call) => call.args[0] === 'image').length, 2);
+});
+
+test('setup reports pull failures with exit code 2 and does not claim success', async () => {
+  const calls = [];
+  const result = await setupDockerImage({
+    dockerCommand: '/trusted/docker',
+    runner: async (command, args) => {
+      calls.push({ command, args });
+      if (args[0] === 'version') return setupSuccessResult('27.0.0\n');
+      if (args[0] === 'image') return { ...setupSuccessResult(), exitCode: 1, stderr: 'No such image' };
+      if (args[0] === 'pull') return { ...setupSuccessResult(), exitCode: 1, stderr: 'registry unavailable' };
+      throw new Error(`unexpected setup command: ${args.join(' ')}`);
+    }
+  });
+
+  assert.equal(result.exitCode, 2);
+  assert.match(result.message, /pull failed/i);
+  assert.match(result.message, /registry unavailable/);
+  assert.equal(calls.filter((call) => call.args[0] === 'image').length, 1);
+});
+
+test('setup reports daemon failure without inspecting or pulling', async () => {
+  const calls = [];
+  const result = await setupDockerImage({
+    dockerCommand: '/trusted/docker',
+    runner: async (command, args) => {
+      calls.push({ command, args });
+      return { ...setupSuccessResult(), exitCode: null, error: 'daemon unavailable' };
+    }
+  });
+
+  assert.equal(result.exitCode, 2);
+  assert.match(result.message, /daemon|Docker/i);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].args[0], 'version');
+});
+
+test('setup reports a missing trusted Docker executable without starting a runner', async () => {
+  let runnerCalled = false;
+  const result = await setupDockerImage({
+    platform: 'linux',
+    hostEnvironment: { PATH: 'relative-only' },
+    executableLookup: () => null,
+    runner: async () => {
+      runnerCalled = true;
+      return setupSuccessResult();
+    }
+  });
+
+  assert.equal(result.exitCode, 2);
+  assert.match(result.message, /trusted Docker executable/i);
+  assert.equal(runnerCalled, false);
 });
 
 test('container failures preserve bounded diagnostics and return a failed report', async () => {

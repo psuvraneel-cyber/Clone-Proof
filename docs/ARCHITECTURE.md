@@ -13,7 +13,7 @@ The first slice targets the root of a Node.js or TypeScript repository. It reads
 
 ```text
 src/
-  cli.js                 argument parsing and exit codes
+  cli.js                 argument parsing, Docker setup, and exit codes
   input/                 public GitHub URL validation and bounded clone staging
   scan/                  bounded filesystem scan and deterministic rules
   report/                report schema and terminal/JSON/HTML rendering
@@ -38,7 +38,7 @@ The conventional environment-key list also suppresses platform and tooling noise
 
 README command parsing recognizes npm install/test/start and script aliases (`npm run-script`, `yarn run`, and `pnpm run`) without executing them. `npm start` is accepted when `scripts.start` or a root `server.js` exists. Setup-manager mismatch warnings are limited to bare setup forms with flags (`yarn`, `yarn install`, `pnpm install`, `pnpm i`, and `npm ci`), compare against the declared or lockfile-inferred manager, and are suppressed when the README also documents the correct manager. Root `.npmrc` is a core file for bounded inspection. The `PRIVATE_REGISTRY` warning retains only a sorted, capped host list from non-public registry settings, npm lockfile `resolved` URLs, and Git dependency URLs; URL credentials and setting values are never copied into evidence.
 
-For a GitHub URL, `input/github.js` validates the exact public HTTPS origin, checks public visibility and repository size before cloning, then runs one isolated `git clone --depth 1 --no-tags` with an argument array and no shell. The clone uses no host Git config or credentials, bounds the temporary checkout, removes its `.git` metadata, and returns an owned cleanup handle. Clone and checkout errors become explicit `incomplete` or `blocked` reports; the subsequent scan is read-only.
+For a GitHub URL, `input/github.js` validates the exact public HTTPS origin, checks public visibility and repository size before cloning, then runs one isolated `git clone --depth 1 --no-tags` with an argument array and no shell. An optional `CLONEPROOF_GITHUB_TOKEN`/`GITHUB_TOKEN` is used only as a Bearer header for that API preflight; `target.preflightAuthenticated` records a boolean and the token is excluded from Git/Docker environments and all report/error/log paths. Private responses remain blocked. The clone uses no host Git config or credentials, bounds the temporary checkout, removes its `.git` metadata, and returns an owned cleanup handle. Clone and checkout errors become explicit `incomplete` or `blocked` reports; the subsequent scan is read-only.
 
 ## Security assumptions
 
@@ -50,6 +50,8 @@ For a GitHub URL, `input/github.js` validates the exact public HTTPS origin, che
 - Docker verification is not a guarantee that a repository is safe. It is a bounded reproducibility experiment and will document its limitations.
 
 ## Docker verification profile
+
+`cloneproof setup` is the explicit image-preparation path. It resolves Docker from the same trusted absolute candidates as verification, creates a temporary isolated `DOCKER_CONFIG` containing no user context, probes the daemon, inspects the exact pinned reference, pulls it only when absent with a ten-minute bounded runner, and inspects it again before returning success. Verification itself never pulls and uses `--pull=never`.
 
 The execution mode does not trust a target Dockerfile or arbitrary Docker flags. It uses the pinned `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90` image with `--pull=never`, requires the image to be present locally, stages regular files into a temporary snapshot, and mounts that snapshot read-only at `/source`. The container has a writable temporary workspace, no host environment or Docker socket, a non-root user, dropped capabilities, `no-new-privileges`, CPU/memory/process/file/output/time limits, and an explicit network policy. Staging has independent file, byte, count, and depth limits so scan limits cannot accidentally become Docker limits.
 
