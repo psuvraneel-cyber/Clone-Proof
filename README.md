@@ -1,5 +1,7 @@
 # CloneProof
 
+[![CI](https://github.com/psuvraneel-cyber/Clone-Proof/actions/workflows/ci.yml/badge.svg)](https://github.com/psuvraneel-cyber/Clone-Proof/actions/workflows/ci.yml)
+
 CloneProof is an evidence-based repository setup verification tool for Node.js and TypeScript projects. It helps maintainers find the problems that would prevent another developer from getting their project running.
 
 CloneProof does not claim to prove that code is safe or that a repository is universally reproducible. It reports what it can verify, the evidence behind each finding, and when a check is blocked or incomplete.
@@ -12,7 +14,7 @@ The project is being built as an OmniRush Frontier Buildathon submission. The cu
 
 - Node.js 22.19.0 or newer (the project pins 22.19.0 in `.nvmrc`).
 - npm.
-- Docker is only required for the optional execution-verification workflow.
+- Docker is only required for the optional execution-verification workflow; the Docker end-to-end CI job runs on Linux.
 
 ## Setup
 

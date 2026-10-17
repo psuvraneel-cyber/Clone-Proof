@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
+
+  docker-e2e:
+    name: Docker E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERIFY_IMAGE: node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Pull pinned verifier image
+        run: docker pull "$VERIFY_IMAGE"
+      - name: Run setup
+        shell: bash
+        run: |
+          set +e
+          node src/cli.js setup
+          setup_status=$?
+          set -e
+          if [ "$setup_status" -ne 0 ] && [ "$setup_status" -ne 2 ]; then
+            echo "node src/cli.js setup failed with unexpected exit ${setup_status}" >&2
+            exit "$setup_status"
+          fi
+      - name: Verify healthy example
+        shell: bash
+        run: |
+          set +e
+          node src/cli.js verify examples/healthy-node --docker --execute --format json --output healthy-report.json
+          verify_status=$?
+          set -e
+          test "$verify_status" -eq 0
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('healthy-report.json', 'utf8'));
+          if (report.status !== 'passed') {
+            throw new Error(`Expected healthy example status passed, got ${report.status}`);
+          }
+          if (report.verification.image !== process.env.VERIFY_IMAGE) {
+            throw new Error(`Expected pinned verifier image ${process.env.VERIFY_IMAGE}, got ${report.verification.image}`);
+          }
+          NODE
+      - name: Verify broken example
+        shell: bash
+        run: |
+          set +e
+          node src/cli.js verify examples/broken-node --docker --execute --format json --output broken-report.json
+          verify_status=$?
+          set -e
+          test "$verify_status" -eq 2
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('broken-report.json', 'utf8'));
+          if (report.status !== 'blocked') {
+            throw new Error(`Expected broken example status blocked, got ${report.status}`);
+          }
+          if (report.verification.image !== process.env.VERIFY_IMAGE) {
+            throw new Error(`Expected pinned verifier image ${process.env.VERIFY_IMAGE}, got ${report.verification.image}`);
+          }
+          NODE
