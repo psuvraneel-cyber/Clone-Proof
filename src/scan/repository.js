@@ -2308,8 +2308,8 @@ function scanRepository(rootPath, options) {
     addFinding(
       findings,
       'BUILD_OUTPUT_MISSING',
-      'warning',
-      'warning',
+      'skipped',
+      'info',
       'A declared build output file is missing',
       buildOutputFinding.message,
       buildOutputFinding.evidence,

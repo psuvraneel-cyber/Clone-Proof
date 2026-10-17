@@ -447,19 +447,22 @@ test('does not warn for public npm and Yarn registry hosts', () => withRepositor
   assert.equal(finding(report, 'PRIVATE_REGISTRY'), undefined);
 }));
 
-test('warns when a declared build output is missing and README omits npm run build', () => withRepository((root) => {
+test('reports missing library build output as informational and skipped', () => withRepository((root) => {
   writeHealthyRepository(root);
   const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   packageData.main = 'dist/index.js';
+  packageData.types = 'dist/index.d.ts';
   writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
-  writeFile(root, 'README.md', 'Run `npm ci` and `npm test`.\n');
+  writeFile(root, 'README.md', 'Consumers install this library with `npm install mylib` or `yarn add mylib`.\n');
 
   const report = scanRepository(root);
   const missing = finding(report, 'BUILD_OUTPUT_MISSING');
 
-  assert.equal(report.status, 'passed_with_warnings');
-  assert.equal(missing.status, 'warning');
+  assert.equal(report.status, 'passed');
+  assert.equal(missing.status, 'skipped');
+  assert.equal(missing.severity, 'info');
   assert.match(missing.message, /dist\/index\.js/);
+  assert.match(missing.message, /dist\/index\.d\.ts/);
 }));
 
 test('does not warn about a missing build output when README documents npm run build', () => withRepository((root) => {
