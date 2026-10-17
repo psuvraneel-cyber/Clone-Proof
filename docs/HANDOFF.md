@@ -1,10 +1,17 @@
 # CloneProof handoff
 
-Updated 2026-10-17; use the latest Git commit on `field-test-fixes` as the authoritative revision until the final fast-forward to `main`.
+Updated 2026-10-17; the implementation and field-test review are complete on `main`. Use the latest pushed `main` commit as the authoritative revision; any commit after this handoff update is documentation-only.
 
 ## Goal
 
 Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository setup verification. `check` never executes repository code: local targets are read-only scans and GitHub targets use one isolated shallow clone before scanning. `verify` runs only the supported npm workflow inside an explicitly authorized, bounded Docker profile.
+
+## Resume summary
+
+- The requested four field-test fixes, reruns, report corrections, final checks, fast-forward, and push are complete.
+- At the start of this handoff update, `main` and `origin/main` were both `a3f5031`; `field-test-fixes` points to `4c0900e` and is already contained in `main`.
+- No implementation work is pending. A new session should review this file and `docs/FIELD_TEST.md` before starting any optional submission or follow-up work.
+- The final code check was run against pushed `main` at `4c0900e` and passed; the later `a3f5031` commit only recorded that result in the handoff.
 
 ## State
 
@@ -34,7 +41,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Docker verification remains an opt-in reproducibility experiment, not a complete hostile-code sandbox. `--allow-network` enables network for both install and test and should be used only for trusted repositories.
 - Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn, private registries, external services, monorepos, and custom setup remain blocked or unsupported.
 - Field results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, corrected first-run counts of 10 correct / 2 false failures / 1 false block / 2 environment-limited failures, and after-fix counts of 13 correct / 2 environment-limited failures. The rerun evidence includes exact commits, preflight states, durations, workflow evidence, and corrected verdicts.
-- No Buildathon dashboard submission or PR has been performed. The branch is ready for the approved merge/push sequence after the final checks below.
+- No Buildathon dashboard submission or PR has been performed. The repository is pushed and ready for optional submission, review, or a new user-directed task.
 
 ## Important files
 
@@ -92,7 +99,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Real Jest fixture using package.json `"test": "jest"` — passed with `--allow-network`, exit `0` after the workspace tmpfs was changed to `exec`; no resource-limit adjustment was needed.
 - Failing test fixture — failed with `failedPhase: test`; explicit stderr was visible as separate lines in text and HTML renderers.
 - Hanging test fixture with `--timeout-ms 15000` — failed and timed out, cleanup confirmed; `docker ps -a --filter name=cloneproof-verify` showed no containers.
-- `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` — passed, exit `0`, preflight `checked`, repository size `59 KiB`, clone cleaned.
+- `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` — passed, exit `0`, preflight `checked`, repository size `150 KiB`, clone cleaned.
 - `node src/cli.js verify https://github.com/psuvraneel-cyber/Clone-Proof --docker --execute --format json` — passed, exit `0`, preflight `checked`, container exit `0`, cleanup confirmed.
 - Final GitHub verification with `--allow-network` — passed, exit `0`; preflight `checked`, container exit `0`, `verification.ignoredPaths: []`, and cleanup confirmed.
 - A random nonexistent public GitHub URL — blocked with `GITHUB_REPOSITORY_UNAVAILABLE`, exit `2`, no sign-in prompt.
@@ -108,7 +115,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Field-test docs `2a35843` — rerun expectations were recorded before the affected repository commands.
 - Field-test swap — `microsoft/TypeScript-Node-Starter` was unavailable from read-only `git ls-remote`; `typeorm/typeorm` was used as the documented TypeScript/external-service replacement.
 - Previous post-push check against `main` at `d57a465` — passed, exit `0`, target commit `d57a465e73e8`, complete scan, status `passed`; GitHub preflight was `unavailable` (the unauthenticated API limit), and the clone was cleaned.
-- Post-push check against `main` at `4c0900e` — passed, exit `0`, target commit `4c0900eb03fcb4f38e00486b4ef276fd40d56d30`, preflight `checked`, repository size `150 KiB`, complete scan, status `passed`, 10 passed / 1 skipped / 0 failed; the clone was cleaned and the temp/container audit was empty. The subsequent handoff-only commit changes documentation only.
+- Post-push check against `main` at `4c0900e` — passed, exit `0`, target commit `4c0900eb03fcb4f38e00486b4ef276fd40d56d30`, preflight `checked`, repository size `150 KiB`, complete scan, status `passed`, 10 passed / 1 skipped / 0 failed; the clone was cleaned and the temp/container audit was empty. Subsequent handoff-only commits change documentation only.
 
 ## Commits in this review pass
 
@@ -148,6 +155,9 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `22e0258 fix: copy sensitive files for fresh clones`
 - `aeea9ac fix: treat skipped install scripts as informational`
 - `2a35843 docs: record field-test rerun expectations`
+- `bfb8cd3 docs: correct field-test report`
+- `4c0900e docs: record final field-test checks`
+- `a3f5031 docs: record pushed check result`
 
 ## OmniRush sessions for submission
 
@@ -158,16 +168,15 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Current field-test-fixes session: `ses_ebb440a63ffeifxYlQlOEyZBGL`
 - Earlier workspace, architecture, scanner, report, Docker-review, and QA sessions remain in the prior handoff history if the dashboard requires them.
 
-## Next step
+## Next session
 
-The final diff and checks must be complete before fast-forwarding `main` to `field-test-fixes`, pushing it, and performing the post-push GitHub check:
+No further implementation step is required. Begin from the pushed `main` checkout, read this handoff and `docs/FIELD_TEST.md`, and wait for the next user-directed task. Optional follow-ups are Buildathon dashboard/PR submission or removing the local parallel worktrees after confirming they are no longer needed.
 
 ```bash
-git status
+git status --short --branch
+git log --oneline --decorate -10
+git show --stat --oneline HEAD
 git diff --check
-git log --oneline -10
-git switch main
-git merge --ff-only field-test-fixes
-git push origin main
-node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```
+
+Do not rerun the 15-repository field test unless new evidence is requested. It already consumed unauthenticated GitHub API quota and its complete evidence is recorded in `docs/FIELD_TEST.md`.
