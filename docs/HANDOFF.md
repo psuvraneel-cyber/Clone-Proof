@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-17; use the latest Git commit on `pre-submit` as the authoritative revision until the final fast-forward to `main`.
+Updated 2026-10-17; `main` and `pre-submit` are fast-forwarded to the final submitted revision `a107b5c` and both are pushed. This file is the final handoff for the implementation session.
 
 ## Goal
 
@@ -40,7 +40,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn profiles, external service health, OS-specific scripts, and custom setup remain outside the execution profile.
 - Field results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, corrected first-run counts of 10 correct / 2 false failures / 1 false block / 2 environment-limited failures, after-fix counts of 13 correct / 2 environment-limited failures, warning precision of 66.7%, and planted-bug detection of 13/13 offline plus 39/39 real-repository cases.
 - The Windows host still skips the real symlink-creation test because it returns `EPERM`; Linux CI is required to run it.
-- The final CI push/merge, Buildathon dashboard submission, demo video, and Submission ID in Unstop remain user-facing follow-ups until the final checks pass.
+- The final CI push/merge and checks are complete. Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop.
 
 ## Important files
 
@@ -81,7 +81,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Do not trust target Dockerfiles, accept arbitrary Docker flags, mount the Docker socket, pass host secrets, inherit host Git config/credentials, or silently enable network access.
 - Keep report fields relative, sorted, canonical, bounded, and free of timestamps.
 
-## Checks observed
+## Historical checks observed
 
 - `npm test` — passed: 130 tests, 129 passed, 1 skipped on the Windows host; the skip is the expected symlink `EPERM` case.
 - `git diff --check` — passed.
@@ -122,6 +122,20 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Field-test swap — `microsoft/TypeScript-Node-Starter` was unavailable from read-only `git ls-remote`; `typeorm/typeorm` was used as the documented TypeScript/external-service replacement.
 - Previous post-push check against `main` at `d57a465` — passed, exit `0`, target commit `d57a465e73e8`, complete scan, status `passed`; GitHub preflight was `unavailable` (the unauthenticated API limit), and the clone was cleaned.
 - Post-push check against `main` at `4c0900e` — passed, exit `0`, target commit `4c0900eb03fcb4f38e00486b4ef276fd40d56d30`, preflight `checked`, repository size `150 KiB`, complete scan, status `passed`, 10 passed / 1 skipped / 0 failed; the clone was cleaned and the temp/container audit was empty. Subsequent handoff-only commits change documentation only.
+
+## Final gap-closure checks
+
+- `npm test` — passed: 164 tests, 163 passed, 1 skipped on Windows; the skip is the expected symlink `EPERM` case.
+- `git diff --check` — passed.
+- `docker build -t cloneproof .` — passed using the pinned base image.
+- `docker run --rm --network none cloneproof npm test` — passed: 164 tests, 164 passed, 0 skipped in Linux.
+- `node src/cli.js setup` — passed; the exact verifier image was already present and no pull was needed.
+- `node src/cli.js verify examples/healthy-node --docker --execute --format json` — passed, exit `0`, network `none`, cleanup complete.
+- `node src/cli.js verify examples/broken-node --docker --execute --format json` — blocked, exit `2`, `DOCKER_PREREQUISITES_FAILED`, no target container started.
+- `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` after push — passed, exit `0`, `target.commit: a107b5cfc8b0dcb57c0a2ede540f13c7500c5464`, preflight `checked`, authenticated `false`, 10 checked groups, 10 passed / 1 skipped / 0 failed.
+- Pre-submit CI run `39025517137` — passed: Ubuntu, macOS, Windows, and Docker E2E.
+- Main CI run `39025568167` — passed: Ubuntu, macOS, Windows, and Docker E2E.
+- Docker/container cleanup audit after the final checks — no `cloneproof-verify` containers and no CloneProof GitHub clone directories remained.
 
 ## Commits in this review pass
 
@@ -176,9 +190,9 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Part 4 implementation session: `ses_eb6f7fc5fffeBeCHmoHZzvPT3H`
 - Earlier workspace, architecture, scanner, report, Docker-review, and QA sessions remain in the prior handoff history if the dashboard requires them.
 
-## Next session
+## Next user follow-up
 
-The final diff and checks must be complete before fast-forwarding `main` to `pre-submit`, pushing it, confirming CI on both refs, and performing the post-push GitHub check:
+Implementation and verification are complete. The remaining user-facing follow-ups are to record the CI URLs in the submission, publish the demo video, submit the Buildathon dashboard entry, and add the Submission ID in Unstop. The final commands already run were:
 
 ```bash
 git status --short --branch
@@ -196,4 +210,4 @@ git push origin main
 node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```
 
-After the merge, the user still needs to record the branch/main CI URLs, publish the demo video, submit the dashboard entry, and add the Submission ID from Unstop.
+CI URLs: pre-submit `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39025517137`; main `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39025568167`.
