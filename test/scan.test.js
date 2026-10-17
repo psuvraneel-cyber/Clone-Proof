@@ -8,7 +8,12 @@ const test = require('node:test');
 
 const { classifyLstatFailure, scanRepository } = require('../src/scan/repository');
 const { exitCodeForReport, renderHtml, renderJson, renderText } = require('../src/report/render');
-const { CHECK_GROUPS, NOT_CHECKED } = require('../src/report/coverage');
+const {
+  CHECK_GROUPS,
+  NOT_CHECKED,
+  NOT_CHECKED_LABELS,
+  assertCoverageConsistency
+} = require('../src/report/coverage');
 
 function makeRepository() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-scan-'));
@@ -468,6 +473,8 @@ test('classifies public Git dependencies separately from private registries', ()
   assert.equal(gitDependencies.severity, 'info');
   assert.match(gitDependencies.message, /github\.com/);
   assert.equal(finding(report, 'PRIVATE_REGISTRY'), undefined);
+  assert.ok(report.coverage.checked.includes(CHECK_GROUPS.PACKAGE_SOURCES));
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
 }));
 
 test('classifies public Git SSH lockfile URLs and explains SSH access', () => withRepository((root) => {
@@ -522,6 +529,9 @@ test('reports missing library build output as informational and skipped', () => 
   assert.equal(missing.severity, 'info');
   assert.match(missing.message, /dist\/index\.js/);
   assert.match(missing.message, /dist\/index\.d\.ts/);
+  assert.ok(report.coverage.checked.includes(CHECK_GROUPS.BUILD_OUTPUT));
+  assert.match(NOT_CHECKED_LABELS['build-steps-generated-output'], /Running build steps/);
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
 }));
 
 test('does not warn about a missing build output when README documents npm run build', () => withRepository((root) => {
@@ -558,6 +568,7 @@ test('reports likely service requirements from compose files and dependency name
   assert.equal(composeFinding.status, 'skipped');
   assert.equal(composeFinding.severity, 'info');
   assert.match(composeFinding.message, /docker-compose\.yml/);
+  assert.ok(composeReport.coverage.checked.includes(CHECK_GROUPS.SERVICE_INDICATORS));
 
   for (const dependency of ['pg', 'mysql2', 'mongoose', 'mongodb', 'redis', 'ioredis', 'amqplib']) {
     const dependencyRoot = makeRepository();

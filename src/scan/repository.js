@@ -7,7 +7,8 @@ const {
   CHECK_GROUPS,
   CHECK_GROUP_IDS,
   NOT_CHECKED,
-  createCoverageTracker
+  createCoverageTracker,
+  assertCoverageConsistency
 } = require('../report/coverage');
 
 const DEFAULT_LIMITS = Object.freeze({
@@ -1939,6 +1940,17 @@ function scanRepository(rootPath, options) {
     }
   }
   const dockerNode = [...new Set(dockerDeclarations.map((declaration) => declaration.raw))].sort(compareStrings);
+  if (
+    scanned.rootState === 'ok'
+    && (
+      nvmrcState !== 'absent'
+      || nodeVersionState !== 'absent'
+      || Boolean(enginesNode)
+      || dockerFiles.length > 0
+    )
+  ) {
+    coverage.mark(CHECK_GROUPS.NODE_RUNTIME);
+  }
 
   const target = {
     kind: 'local',
@@ -2152,7 +2164,8 @@ function scanRepository(rootPath, options) {
     }
   }
 
-  if (scanned.rootState === 'ok') {
+  if (supportedProject && scanned.rootState === 'ok') {
+    coverage.mark(CHECK_GROUPS.PACKAGE_SOURCES);
     const privateRegistry = collectPrivateRegistryHosts(scanned.files, lockfiles, packageData || {});
     if (privateRegistry.hosts.length > 0) {
       addFinding(
@@ -2179,6 +2192,7 @@ function scanRepository(rootPath, options) {
       );
     }
 
+    coverage.mark(CHECK_GROUPS.SERVICE_INDICATORS);
     const serviceReferences = likelyServiceReferences(scanned, packageData || {});
     if (serviceReferences.length > 0) {
       addFinding(
@@ -2364,6 +2378,14 @@ function scanRepository(rootPath, options) {
     readmeState,
     readmeText
   );
+  if (
+    packageValid
+    && typeof scripts.build === 'string'
+    && scripts.build.trim()
+    && !['unscanned', 'skipped'].includes(readmeState)
+  ) {
+    coverage.mark(CHECK_GROUPS.BUILD_OUTPUT);
+  }
   if (buildOutputFinding) {
     addFinding(
       findings,
@@ -2567,7 +2589,7 @@ function scanRepository(rootPath, options) {
   const applicationSourceFiles = allSourceFiles.filter((relativePath) => (
     !isTestPath(relativePath) && !isUnderNestedPackage(relativePath, nestedPackageFiles)
   ));
-  if (supportedProject && scanned.rootState === 'ok' && applicationSourceFiles.length > 0) {
+  if (scanned.rootState === 'ok' && applicationSourceFiles.length > 0) {
     coverage.mark(CHECK_GROUPS.ENV_DOCUMENTATION);
   }
   const environmentSourceFiles = applicationSourceFiles.filter((relativePath) => (
@@ -2894,6 +2916,9 @@ function scanRepository(rootPath, options) {
   else if (summary.failed > 0) status = 'failed';
   else if (summary.warnings > 0) status = 'passed_with_warnings';
 
+  const coverageSnapshot = coverage.snapshot();
+  assertCoverageConsistency(findings, coverageSnapshot);
+
   return {
     schemaVersion: 2,
     tool: 'cloneproof',
@@ -2913,7 +2938,7 @@ function scanRepository(rootPath, options) {
     project,
     findings,
     summary,
-    coverage: coverage.snapshot()
+    coverage: coverageSnapshot
   };
 }
 

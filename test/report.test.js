@@ -85,12 +85,12 @@ test('renderText explains a passed static check and renders coverage sections', 
   const output = renderText(report, { color: false, isTTY: false });
   const html = renderHtml(report);
 
-  assert.match(output, /Status: passed\nNo known setup problems were found \(12 checks\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(output, /Status: passed\nNo known setup problems were found \(15 checks\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
   assert.match(output, /What was checked:/);
   assert.match(output, /Package manifest \(package-manifest\)/);
   assert.match(output, /Not checked:/);
-  assert.match(output, /Build steps and generated output \(build-steps-generated-output\)/);
-  assert.match(html, /No known setup problems were found \(12 checks\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(output, /Running build steps \(declared outputs are only checked for presence\) \(build-steps-generated-output\)/);
+  assert.match(html, /No known setup problems were found \(15 checks\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
   assert.match(html, /What was checked/);
   assert.match(html, /Not checked/);
 });
@@ -122,7 +122,7 @@ test('renderText and renderHtml explain a passed Docker verification', () => {
   assert.match(html, /What was checked/);
   assert.match(html, /Not checked/);
   assert.match(html, /Package manifest/);
-  assert.match(html, /Build steps and generated output/);
+  assert.match(html, /Running build steps \(declared outputs are only checked for presence\)/);
 });
 
 test('renderText includes the report summary and every finding status', () => {

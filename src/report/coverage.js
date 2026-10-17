@@ -17,7 +17,10 @@ const CHECK_GROUPS = Object.freeze({
   INSTALL_SCRIPTS: 'install-scripts',
   BROWSER_TESTS: 'browser-tests',
   NESTED_PACKAGES: 'nested-packages',
-  PROJECT_CLASSIFICATION: 'project-classification'
+  PROJECT_CLASSIFICATION: 'project-classification',
+  PACKAGE_SOURCES: 'package-sources',
+  BUILD_OUTPUT: 'build-output',
+  SERVICE_INDICATORS: 'service-indicators'
 });
 
 const CHECK_GROUP_IDS = Object.freeze(Object.values(CHECK_GROUPS));
@@ -48,16 +51,77 @@ const CHECK_GROUP_LABELS = Object.freeze({
   [CHECK_GROUPS.INSTALL_SCRIPTS]: 'Install scripts',
   [CHECK_GROUPS.BROWSER_TESTS]: 'Browser tests',
   [CHECK_GROUPS.NESTED_PACKAGES]: 'Nested packages',
-  [CHECK_GROUPS.PROJECT_CLASSIFICATION]: 'Project classification'
+  [CHECK_GROUPS.PROJECT_CLASSIFICATION]: 'Project classification',
+  [CHECK_GROUPS.PACKAGE_SOURCES]: 'Package registries and Git dependency hosts',
+  [CHECK_GROUPS.BUILD_OUTPUT]: 'Declared build output files',
+  [CHECK_GROUPS.SERVICE_INDICATORS]: 'Compose files and service dependency indicators'
 });
 
 const NOT_CHECKED_LABELS = Object.freeze({
-  'build-steps-generated-output': 'Build steps and generated output',
-  'services-databases-caches': 'Services such as databases and caches',
+  'build-steps-generated-output': 'Running build steps (declared outputs are only checked for presence)',
+  'services-databases-caches': 'Starting or reaching services (only indicators are detected)',
   'os-specific-scripts': 'OS-specific scripts',
-  'private-registry-credentials': 'Private registry credentials',
+  'private-registry-credentials': 'Registry credentials and access (only hosts are detected)',
   'non-readme-documentation-commands': 'Non-README documentation commands',
   'verify-browser-native-build-tests': 'Browser and native-build tests in verify'
+});
+
+const FINDING_CHECK_GROUPS = Object.freeze({
+  SCAN_ROOT_UNAVAILABLE: null,
+  SCAN_DIRECTORY_UNREADABLE: CHECK_GROUPS.PROJECT_CLASSIFICATION,
+  SCAN_FILE_UNREADABLE: CHECK_GROUPS.PROJECT_CLASSIFICATION,
+  PACKAGE_JSON_INVALID: CHECK_GROUPS.PACKAGE_MANIFEST,
+  PACKAGE_JSON_PRESENT: CHECK_GROUPS.PACKAGE_MANIFEST,
+  PACKAGE_JSON_MISSING: CHECK_GROUPS.PACKAGE_MANIFEST,
+  PACKAGE_JSON_UNSCANNED: CHECK_GROUPS.PACKAGE_MANIFEST,
+  PACKAGE_MANAGER_LOCKFILE_MISMATCH: CHECK_GROUPS.PACKAGE_MANAGER,
+  NESTED_PACKAGES_SKIPPED: CHECK_GROUPS.NESTED_PACKAGES,
+  UNSUPPORTED_ROOT: CHECK_GROUPS.PROJECT_CLASSIFICATION,
+  EMPTY_REPOSITORY: CHECK_GROUPS.PROJECT_CLASSIFICATION,
+  CORE_FILE_GITIGNORED: CHECK_GROUPS.GITIGNORED_CORE_FILES,
+  LOCKFILE_MISSING: CHECK_GROUPS.LOCKFILE,
+  LOCKFILE_PRESENT: CHECK_GROUPS.LOCKFILE,
+  MULTIPLE_LOCKFILES: CHECK_GROUPS.LOCKFILE,
+  LOCKFILE_INVALID: CHECK_GROUPS.LOCKFILE,
+  LOCKFILE_OUT_OF_SYNC: CHECK_GROUPS.LOCKFILE,
+  INSTALL_SCRIPTS_SKIPPED: CHECK_GROUPS.INSTALL_SCRIPTS,
+  TEST_SCRIPT_PLACEHOLDER: CHECK_GROUPS.TEST_SCRIPT,
+  TEST_SCRIPT_PRESENT: CHECK_GROUPS.TEST_SCRIPT,
+  TEST_SCRIPT_MISSING: CHECK_GROUPS.TEST_SCRIPT,
+  TEST_SCRIPT_CHECK_SKIPPED: CHECK_GROUPS.TEST_SCRIPT,
+  TEST_FILES_FOUND: CHECK_GROUPS.PROJECT_CLASSIFICATION,
+  BROWSER_TESTS_DETECTED: CHECK_GROUPS.BROWSER_TESTS,
+  README_OTHER_PROJECT_COMMANDS: CHECK_GROUPS.README_COMMANDS,
+  README_CHECK_SKIPPED: CHECK_GROUPS.README_COMMANDS,
+  README_PACKAGE_MANAGER_MISMATCH: CHECK_GROUPS.README_COMMANDS,
+  README_CI_COMMAND: CHECK_GROUPS.README_COMMANDS,
+  README_CI_CHECK_SKIPPED: CHECK_GROUPS.README_COMMANDS,
+  README_INSTALL_COMMAND: CHECK_GROUPS.README_COMMANDS,
+  README_TEST_COMMAND: CHECK_GROUPS.README_COMMANDS,
+  README_TEST_CHECK_SKIPPED: CHECK_GROUPS.README_COMMANDS,
+  README_SCRIPT_REFERENCE: CHECK_GROUPS.README_COMMANDS,
+  README_START_COMMAND_UNKNOWN: CHECK_GROUPS.README_COMMANDS,
+  README_SCRIPT_UNKNOWN: CHECK_GROUPS.README_COMMANDS,
+  README_SCRIPT_CHECK_SKIPPED: CHECK_GROUPS.README_COMMANDS,
+  BUILD_OUTPUT_MISSING: CHECK_GROUPS.BUILD_OUTPUT,
+  PRIVATE_REGISTRY: CHECK_GROUPS.PACKAGE_SOURCES,
+  GIT_DEPENDENCIES: CHECK_GROUPS.PACKAGE_SOURCES,
+  SERVICES_LIKELY_REQUIRED: CHECK_GROUPS.SERVICE_INDICATORS,
+  ENV_CHECK_SKIPPED: CHECK_GROUPS.ENV_DOCUMENTATION,
+  ENV_EXAMPLE_MISSING: CHECK_GROUPS.ENV_DOCUMENTATION,
+  ENV_KEY_MISSING: CHECK_GROUPS.ENV_DOCUMENTATION,
+  ENV_KEY_DOCUMENTED: CHECK_GROUPS.ENV_DOCUMENTATION,
+  NVMRC_PRESENT: CHECK_GROUPS.NODE_RUNTIME,
+  NVMRC_EMPTY: CHECK_GROUPS.NODE_RUNTIME,
+  NVMRC_CHECK_SKIPPED: CHECK_GROUPS.NODE_RUNTIME,
+  NODE_VERSION_PRESENT: CHECK_GROUPS.NODE_RUNTIME,
+  NODE_VERSION_EMPTY: CHECK_GROUPS.NODE_RUNTIME,
+  NODE_VERSION_CHECK_SKIPPED: CHECK_GROUPS.NODE_RUNTIME,
+  ENGINES_NODE_PRESENT: CHECK_GROUPS.NODE_RUNTIME,
+  DOCKER_NODE_BASE_PRESENT: CHECK_GROUPS.NODE_RUNTIME,
+  RUNTIME_VERSION_MISMATCH: CHECK_GROUPS.NODE_RUNTIME,
+  ENGINES_NODE_UNSATISFIED: CHECK_GROUPS.NODE_RUNTIME,
+  DOCKER_NODE_CHECK_SKIPPED: CHECK_GROUPS.NODE_RUNTIME
 });
 
 function createCoverage(checked = []) {
@@ -84,12 +148,29 @@ function createCoverageTracker(initial = []) {
   };
 }
 
+function assertCoverageConsistency(findings, coverage) {
+  const checked = new Set(coverage && Array.isArray(coverage.checked) ? coverage.checked : []);
+  const notChecked = new Set(coverage && Array.isArray(coverage.notChecked) ? coverage.notChecked : []);
+  for (const id of checked) {
+    if (notChecked.has(id)) throw new Error(`Coverage group is both checked and not checked: ${id}`);
+  }
+  for (const item of Array.isArray(findings) ? findings : []) {
+    const group = FINDING_CHECK_GROUPS[item && item.code];
+    if (group === undefined) throw new Error(`Finding code is not mapped to a coverage group: ${item && item.code}`);
+    if (group === null) continue;
+    if (notChecked.has(group)) throw new Error(`Finding ${item.code} belongs to a not-checked group: ${group}`);
+  }
+  return true;
+}
+
 module.exports = {
   CHECK_GROUPS,
   CHECK_GROUP_IDS,
   CHECK_GROUP_LABELS,
+  FINDING_CHECK_GROUPS,
   NOT_CHECKED,
   NOT_CHECKED_LABELS,
+  assertCoverageConsistency,
   createCoverage,
   createCoverageTracker
 };
