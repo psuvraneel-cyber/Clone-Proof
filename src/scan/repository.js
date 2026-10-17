@@ -1859,14 +1859,14 @@ function scanRepository(rootPath, options) {
 
   if (nestedPackageFiles.length > 0) {
     const visibleNestedPackages = nestedPackageFiles.slice(0, 50);
-    const remainingNestedPackages = nestedPackageFiles.length - visibleNestedPackages.length;
+    const messagePaths = nestedPackageFiles.slice(0, 5);
     addFinding(
       findings,
       'NESTED_PACKAGES_SKIPPED',
       'skipped',
       'info',
       'Nested packages were excluded from the root application checks',
-      `Found nested package manifests: ${visibleNestedPackages.join(', ')}${remainingNestedPackages > 0 ? ` (and ${remainingNestedPackages} more)` : ''}.`,
+      `Found ${nestedPackageFiles.length} nested package manifest${nestedPackageFiles.length === 1 ? '' : 's'}; first ${messagePaths.length} path${messagePaths.length === 1 ? '' : 's'}: ${messagePaths.join(', ')}.`,
       visibleNestedPackages.map((relativePath) => makeEvidence(relativePath, 'Nested package boundary.')),
       'Run CloneProof separately on each nested package directory.'
     );
@@ -2501,14 +2501,17 @@ function scanRepository(rootPath, options) {
     ...depthSkippedEnvironmentPaths
   ].sort(compareStrings);
   if (unscannedEnvironmentPaths.length > 0 && (applicationSourceFiles.length > 0 || depthSkippedEnvironmentPaths.length > 0)) {
+    const totalUnscannedEnvironmentPaths = unscannedEnvironmentPaths.length;
+    const visibleEnvironmentPaths = unscannedEnvironmentPaths.slice(0, 50);
+    const remainingEnvironmentPaths = totalUnscannedEnvironmentPaths - visibleEnvironmentPaths.length;
     addFinding(
       findings,
       'ENV_CHECK_SKIPPED',
       'skipped',
       'info',
       'Environment references could not be fully checked',
-      'At least one source or environment template file was outside the readable scan set.',
-      unscannedEnvironmentPaths.map((relativePath) => makeEvidence(
+      `At least ${totalUnscannedEnvironmentPaths} source or environment template file${totalUnscannedEnvironmentPaths === 1 ? '' : 's'} were outside the readable scan set${remainingEnvironmentPaths > 0 ? `; ${remainingEnvironmentPaths} more path${remainingEnvironmentPaths === 1 ? '' : 's'} are omitted from evidence` : ''}.`,
+      visibleEnvironmentPaths.map((relativePath) => makeEvidence(
         relativePath,
         depthSkippedEnvironmentPaths.includes(relativePath)
           ? 'Directory was outside the configured maximum scan depth.'

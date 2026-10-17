@@ -311,6 +311,20 @@ function evidenceItems(finding) {
   return evidence;
 }
 
+const MAX_FINDING_EVIDENCE_ITEMS = 10;
+
+function boundedEvidenceItems(finding) {
+  const evidence = evidenceItems(finding);
+  return {
+    visible: evidence.slice(0, MAX_FINDING_EVIDENCE_ITEMS),
+    remaining: Math.max(0, evidence.length - MAX_FINDING_EVIDENCE_ITEMS)
+  };
+}
+
+function evidenceOverflowText(remaining) {
+  return `… and ${remaining} more (see --format json)`;
+}
+
 function lineValue(item) {
   if (!item || typeof item !== 'object') {
     return undefined;
@@ -357,13 +371,17 @@ function renderFinding(finding, enabled) {
     `  Message: ${message}`
   ];
 
-  const evidence = evidenceItems(finding)
+  const boundedEvidence = boundedEvidenceItems(finding);
+  const evidence = boundedEvidence.visible
     .map(evidenceText)
     .filter((item) => item.length > 0);
   if (evidence.length > 0) {
     lines.push('  Evidence:');
     for (const item of evidence) {
       lines.push(`    - ${item}`);
+    }
+    if (boundedEvidence.remaining > 0) {
+      lines.push(`    - ${evidenceOverflowText(boundedEvidence.remaining)}`);
     }
   }
 
@@ -629,7 +647,11 @@ function htmlFinding(finding, index) {
   const title = findingText(finding, 'title', 'Untitled finding');
   const message = findingText(finding, 'message', 'No message provided');
   const recommendation = findingText(finding, 'recommendation', 'No recommendation provided');
-  const evidence = evidenceItems(finding).map(htmlEvidenceItem).filter(Boolean);
+  const boundedEvidence = boundedEvidenceItems(finding);
+  const evidence = boundedEvidence.visible.map(htmlEvidenceItem).filter(Boolean);
+  if (boundedEvidence.remaining > 0) {
+    evidence.push(`<li>${htmlValue(evidenceOverflowText(boundedEvidence.remaining))}</li>`);
+  }
   const titleId = `finding-${index}-title`;
 
   return [

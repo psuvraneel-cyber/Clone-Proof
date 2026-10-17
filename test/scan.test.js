@@ -1467,3 +1467,32 @@ test('reads root files before descending into a large hidden directory', () => w
   assert.equal(report.scan.complete, false);
   assert.equal(finding(report, 'SCAN_ENTRY_LIMIT_EXCEEDED').status, 'skipped');
 }));
+
+test('caps environment scan evidence while preserving the total count', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({ name: 'environment-limit-fixture' }));
+  for (let index = 0; index < 120; index += 1) {
+    writeFile(root, `src/file-${String(index).padStart(3, '0')}.js`, 'xx');
+  }
+
+  const report = scanRepository(root, { maxFileBytes: 1 });
+  const skipped = finding(report, 'ENV_CHECK_SKIPPED');
+
+  assert.equal(skipped.evidence.length, 50);
+  assert.match(skipped.message, /120/);
+  assert.doesNotMatch(skipped.message, /file-119/);
+}));
+
+test('shortens nested package messages to five paths', () => withRepository((root) => {
+  writeFile(root, 'index.js', 'module.exports = 1;\n');
+  for (let index = 0; index < 7; index += 1) {
+    writeFile(root, `packages/pkg-${index}/package.json`, '{}\n');
+  }
+
+  const report = scanRepository(root);
+  const nested = finding(report, 'NESTED_PACKAGES_SKIPPED');
+
+  assert.match(nested.message, /Found 7 nested package manifests/);
+  assert.match(nested.message, /packages\/pkg-0\/package\.json/);
+  assert.match(nested.message, /packages\/pkg-4\/package\.json/);
+  assert.doesNotMatch(nested.message, /packages\/pkg-5\/package\.json/);
+}));
