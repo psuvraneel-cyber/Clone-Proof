@@ -32,6 +32,22 @@ Each GitHub URL run is expected to make one unauthenticated GitHub size/visibili
 
 `microsoft/TypeScript-Node-Starter` was replaced before field testing because the public repository URL returned `Repository not found` from read-only `git ls-remote`. `typeorm/typeorm` is a similarly well-known TypeScript/Node repository whose root test workflow depends on pnpm and database-backed integrations, so it preserves the external-service/package-manager stress case. The original suggestion and the swap are retained here rather than silently changing the test set.
 
+## Rerun after fixes
+
+This section was written before any rerun command below was started. The reruns use the four fixes on the `field-test-fixes` branch. Each result will record the status, exit code, principal finding codes, `target.commit`, `target.preflight`, and duration; repositories that cannot be cloned or are blocked by static prerequisites will not receive a Docker result.
+
+| Repository | Commands | Expected after the fixes |
+|---|---|---|
+| `psuvraneel-cyber/Clone-Proof` | `check`; verify without network; verify with network | All three runs passed as the control. |
+| `facebook/react` | `check`; both verifies | `check` passed or passed with warnings after the 4 GiB full-history sanity bound; both verifies blocked by the npm-only rule because the repository uses Yarn. |
+| `tj/commander.js` | `check`; both verifies | Without network: `DOCKER_NETWORK_REQUIRED`; with network: blocked by `DOCKER_SYMLINKS_BLOCKED`, with the Git-listed fixture path reported consistently on Windows. |
+| `motdotla/dotenv` | `check`; verify with network | Passed if the committed `.env` fixtures were the only cause of the earlier test failure. |
+| `axios/axios` | `check`; verify with network | Still failed in the test phase because browser binaries are unavailable; record whether the committed TLS-fixture failures are gone. |
+| `kelektiv/node.bcrypt.js` | `check`; verify with network | `check` no longer warns about install scripts; verify still failed, with the skipped-install-script explanation. |
+| `torvalds/linux` | `check` only while the GitHub size check is available | Blocked with `GITHUB_REPOSITORY_TOO_LARGE` before cloning; `target.preflight` is `checked`. |
+
+The other first-run repositories did not report `INSTALL_SCRIPTS_SKIPPED`; no additional check-only rerun is required beyond the repositories listed above.
+
 ## Results
 
 The first check for every repository was run from the pre-run plan above. For repositories whose check was not blocked, both verification modes were exercised. Durations are wall-clock milliseconds measured around each CLI invocation; the table uses the final rerun when a field-confirmed fix or an explicit image-preparation retry changed the result.
