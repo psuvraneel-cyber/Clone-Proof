@@ -1916,6 +1916,58 @@ function scanRepository(rootPath, options) {
     name: rootName(absoluteRoot)
   };
 
+  const createReport = () => {
+    const digest = calculateDigest(scanned.files);
+    const lockfileSummary = npmLockfileSummary(lockfiles, scanned.files);
+    const project = {
+      type: projectType,
+      packageManager: packageManagerInfo ? packageManagerInfo.name : null,
+      packageManagerVersion: packageManagerInfo ? packageManagerInfo.version : null,
+      ...(lockfileSummary ? { lockfile: lockfileSummary } : {}),
+      scripts,
+      runtime: {
+        nvmrc,
+        nodeVersion,
+        enginesNode,
+        dockerNode
+      }
+    };
+    const summary = {
+      total: findings.length,
+      passed: findings.filter((finding) => finding.status === 'passed').length,
+      failed: findings.filter((finding) => finding.status === 'failed').length,
+      warnings: findings.filter((finding) => finding.status === 'warning').length,
+      skipped: findings.filter((finding) => finding.status === 'skipped').length
+    };
+    let status = 'passed';
+    if (!scanned.complete) status = 'incomplete';
+    else if (projectType === 'unsupported') status = 'blocked';
+    else if (summary.failed > 0) status = 'failed';
+    else if (summary.warnings > 0) status = 'passed_with_warnings';
+
+    return {
+      schemaVersion: 2,
+      tool: 'cloneproof',
+      mode: 'check',
+      status,
+      target,
+      scan: {
+        complete: scanned.complete,
+        fileCount: scanned.fileCount,
+        discoveredFileCount: scanned.discoveredFileCount,
+        totalBytes: scanned.totalBytes,
+        digest,
+        limits,
+        skippedPaths: [...scanned.skipped].sort(compareStrings),
+        skippedPathsTruncated: scanned.skippedPathsTruncated
+      },
+      project,
+      findings,
+      summary,
+      coverage: coverage.snapshot()
+    };
+  };
+
   if (nestedPackageFiles.length > 0) {
     const visibleNestedPackages = nestedPackageFiles.slice(0, 50);
     const messagePaths = nestedPackageFiles.slice(0, 5);
@@ -1978,7 +2030,9 @@ function scanRepository(rootPath, options) {
     );
   }
 
-  for (const relativePath of [...scanned.ignoredCorePaths].sort(compareStrings)) {
+  for (const relativePath of supportedProject
+    ? [...scanned.ignoredCorePaths].sort(compareStrings)
+    : []) {
     addFinding(
       findings,
       'CORE_FILE_GITIGNORED',
@@ -2027,10 +2081,18 @@ function scanRepository(rootPath, options) {
   }
 
   if (projectType === 'unsupported' && scanned.rootState === 'ok') {
-    const knownFile = ecosystemMarker
-      ? ecosystemMarker.path
-      : [...scanned.discovered.keys()].sort(compareStrings)[0];
-    if (knownFile) {
+    if (scanned.discoveredFileCount === 0 && scanned.complete && !ecosystemMarker) {
+      addFinding(
+        findings,
+        'EMPTY_REPOSITORY',
+        'warning',
+        'warning',
+        'The repository is empty',
+        'No readable files were found in the repository root.',
+        [],
+        'Add the project files before asking CloneProof to inspect setup readiness.'
+      );
+    } else {
       const nestedRecommendation = nestedPackageFiles.length > 0
         ? ' Run CloneProof separately on each nested package directory.'
         : '';
@@ -2042,25 +2104,16 @@ function scanRepository(rootPath, options) {
         'The root project is outside CloneProof’s dynamic Node.js profile.',
         ecosystemMarker
           ? `Detected a ${ecosystemMarker.ecosystem} project marker at ${ecosystemMarker.path}.`
-          : 'No supported root Node.js or TypeScript project marker was found.',
-        [makeEvidence(knownFile, ecosystemMarker
-          ? `Detected ${ecosystemMarker.ecosystem} project marker.`
-          : 'The scanned root did not contain a supported project marker.')],
+          : 'No package.json or Node.js source at the top level.',
+        ecosystemMarker
+          ? [makeEvidence(ecosystemMarker.path, `Detected ${ecosystemMarker.ecosystem} project marker.`)]
+          : [],
         `Point CloneProof at a supported Node.js or TypeScript repository.${nestedRecommendation}`
-      );
-    } else if (scanned.fileCount === 0 && scanned.complete) {
-      addFinding(
-        findings,
-        'EMPTY_REPOSITORY',
-        'warning',
-        'warning',
-        'The repository is empty',
-        'No readable files were found in the repository root.',
-        [],
-        'Add the project files before asking CloneProof to inspect setup readiness.'
       );
     }
   }
+
+  if (!supportedProject || scanned.rootState !== 'ok') return createReport();
 
   let missingLockfileFinding = null;
   if (projectType !== 'unsupported' && scanned.rootState === 'ok') {
@@ -2818,57 +2871,7 @@ function scanRepository(rootPath, options) {
     );
   }
 
-  const digest = calculateDigest(scanned.files);
-  const lockfileSummary = npmLockfileSummary(lockfiles, scanned.files);
-  const project = {
-    type: projectType,
-    packageManager: packageManagerInfo ? packageManagerInfo.name : null,
-    packageManagerVersion: packageManagerInfo ? packageManagerInfo.version : null,
-    ...(lockfileSummary ? { lockfile: lockfileSummary } : {}),
-    scripts,
-    runtime: {
-      nvmrc,
-      nodeVersion,
-      enginesNode,
-      dockerNode
-    }
-  };
-
-  const summary = {
-    total: findings.length,
-    passed: findings.filter((finding) => finding.status === 'passed').length,
-    failed: findings.filter((finding) => finding.status === 'failed').length,
-    warnings: findings.filter((finding) => finding.status === 'warning').length,
-    skipped: findings.filter((finding) => finding.status === 'skipped').length
-  };
-
-  let status = 'passed';
-  if (!scanned.complete) status = 'incomplete';
-  else if (projectType === 'unsupported') status = 'blocked';
-  else if (summary.failed > 0) status = 'failed';
-  else if (summary.warnings > 0) status = 'passed_with_warnings';
-
-  return {
-    schemaVersion: 2,
-    tool: 'cloneproof',
-    mode: 'check',
-    status,
-    target,
-    scan: {
-      complete: scanned.complete,
-      fileCount: scanned.fileCount,
-      discoveredFileCount: scanned.discoveredFileCount,
-      totalBytes: scanned.totalBytes,
-      digest,
-      limits,
-      skippedPaths: [...scanned.skipped].sort(compareStrings),
-      skippedPathsTruncated: scanned.skippedPathsTruncated
-    },
-    project,
-    findings,
-    summary,
-    coverage: coverage.snapshot()
-  };
+  return createReport();
 }
 
 module.exports = {

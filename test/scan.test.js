@@ -1305,6 +1305,29 @@ test('unsupported reports list only the static groups that were attempted', () =
   });
 }));
 
+test('unsupported roots do not run Node project checks or list arbitrary evidence', () => withRepository((root) => {
+  writeFile(root, 'README.md', '# Documentation-only folder\n');
+  writeFile(root, 'scripts/a.test.js', 'test("not a root project", () => {});\n');
+  writeFile(root, 'x/package.json', '{"name":"nested"}\n');
+
+  const report = scanRepository(root);
+  const codes = report.findings.map((item) => item.code);
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.project.type, 'unsupported');
+  assert.deepEqual(report.coverage.checked, [CHECK_GROUPS.NESTED_PACKAGES, CHECK_GROUPS.PROJECT_CLASSIFICATION]);
+  assert.deepEqual(
+    report.findings
+      .filter((item) => item.code !== 'NESTED_PACKAGES_SKIPPED' && item.code !== 'UNSUPPORTED_ROOT')
+      .map((item) => item.code),
+    []
+  );
+  assert.equal(codes.includes('TEST_FILES_FOUND'), false);
+  assert.equal(codes.some((code) => code.startsWith('ENV_')), false);
+  assert.deepEqual(finding(report, 'UNSUPPORTED_ROOT').evidence, []);
+  assert.match(finding(report, 'UNSUPPORTED_ROOT').message, /no package\.json or Node\.js source at the top level/i);
+}));
+
 test('returns an incomplete report for a missing repository path', () => {
   const missing = path.join(os.tmpdir(), `cloneproof-does-not-exist-${Date.now()}`);
   const report = scanRepository(missing);
