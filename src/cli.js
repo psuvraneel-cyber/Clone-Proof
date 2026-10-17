@@ -277,7 +277,10 @@ async function runCheck(options) {
 
   try {
     const report = applySourceTarget(
-      scanRepository(resolved.path, { freshClone: Boolean(resolved.source) }),
+      scanRepository(resolved.path, {
+        freshClone: Boolean(resolved.source),
+        symlinkPaths: resolved.source ? resolved.source.symlinkPaths : []
+      }),
       resolved.source
     );
     writeReport(report, options);
@@ -308,7 +311,8 @@ async function runVerify(options) {
       allowNetwork: options.allowNetwork,
       timeoutMs: options.timeoutMs,
       freshClone: Boolean(resolved.source),
-      executablePaths: resolved.source ? resolved.source.executablePaths : []
+      executablePaths: resolved.source ? resolved.source.executablePaths : [],
+      symlinkPaths: resolved.source ? resolved.source.symlinkPaths : []
     }), resolved.source);
     writeReport(report, options);
     return exitCodeForReport(report);

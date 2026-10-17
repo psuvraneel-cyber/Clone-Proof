@@ -13,9 +13,11 @@ const {
   cloneGithubRepository,
   inspectCheckout,
   isGithubRepositoryUrl,
-  parseGitExecutableModes,
+  parseGitFileModes,
   validateGithubUrl
 } = require('../src/input/github');
+const { scanRepository } = require('../src/scan/repository');
+const { stageRepository, verifyRepository } = require('../src/verify/docker');
 const { resolveGitExecutable } = require('../src/util/executable');
 
 const VALID_URL = 'https://github.com/example/project';
@@ -507,6 +509,8 @@ test('records executable Git modes before removing clone metadata', async () => 
         fs.mkdirSync(path.join(checkout, '.git'));
         fs.mkdirSync(path.join(checkout, 'bin'));
         fs.writeFileSync(path.join(checkout, 'bin', 'run.js'), '#!/usr/bin/env node\n');
+        fs.mkdirSync(path.join(checkout, 'tests', 'fixtures'), { recursive: true });
+        fs.writeFileSync(path.join(checkout, 'tests', 'fixtures', 'pmlink'), 'process.env.SHOULD_NOT_BE_READ = "secret";\n');
         fs.writeFileSync(path.join(checkout, 'README.md'), '# fixture\n');
         return successfulResult();
       }
@@ -515,6 +519,7 @@ test('records executable Git modes before removing clone metadata', async () => 
           ...successfulResult(),
           stdout: [
             '100755 abc 0\tbin/run.js',
+            '120000 eee 0\ttests/fixtures/pmlink',
             '100644 def 0\tREADME.md'
           ].join('\0') + '\0'
         };
@@ -529,6 +534,7 @@ test('records executable Git modes before removing clone metadata', async () => 
   });
 
   assert.deepEqual(result.executablePaths, ['bin/run.js']);
+  assert.deepEqual(result.symlinkPaths, ['tests/fixtures/pmlink']);
   assert.equal(result.executableModes, 'checked');
   assert.equal(result.commit, COMMIT_SHA);
   assert.equal(fs.existsSync(path.join(result.root, '.git')), false);
@@ -539,19 +545,112 @@ test('records executable Git modes before removing clone metadata', async () => 
   await result.cleanup();
 });
 
-test('NUL mode records preserve spaces and non-English paths and ignore non-executable modes', () => {
+test('NUL file mode records preserve paths, separate executables and symlinks, and ignore other modes', () => {
   const output = [
     '100644 aaa 0\treadme.md\0',
     '100755 bbb 0\tbin/run file.js\0',
     '100755 ccc 0\t日本語/実行.js\0',
-    '100755 ddd 0\tquotes "stay".js\0'
+    '100755 ddd 0\tquotes "stay".js\0',
+    '120000 eee 0\ttests/fixtures/pmlink\0'
   ].join('');
 
-  assert.deepEqual(parseGitExecutableModes(output), [
-    'bin/run file.js',
-    'quotes "stay".js',
-    '日本語/実行.js'
-  ]);
+  assert.deepEqual(parseGitFileModes(output), {
+    executablePaths: [
+      'bin/run file.js',
+      'quotes "stay".js',
+      '日本語/実行.js'
+    ],
+    symlinkPaths: ['tests/fixtures/pmlink']
+  });
+});
+
+test('Git-listed symlinks stay skipped through check and block Docker staging while executable modes survive', async () => {
+  const result = await cloneGithubRepository(VALID_URL, {
+    gitExecutable: process.execPath,
+    platform: 'linux',
+    fetcher: publicFetcher(),
+    runner: async (command, args) => {
+      if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+      if (args.includes('clone')) {
+        const checkout = args.at(-1);
+        fs.mkdirSync(path.join(checkout, '.git'));
+        fs.writeFileSync(path.join(checkout, 'package.json'), JSON.stringify({
+          name: 'git-mode-fixture',
+          scripts: { test: 'node --test' }
+        }));
+        fs.writeFileSync(path.join(checkout, 'package-lock.json'), JSON.stringify({
+          name: 'git-mode-fixture',
+          lockfileVersion: 3,
+          packages: { '': { name: 'git-mode-fixture' } }
+        }));
+        fs.mkdirSync(path.join(checkout, 'bin'));
+        fs.writeFileSync(path.join(checkout, 'bin', 'run.js'), '#!/usr/bin/env node\n');
+        fs.mkdirSync(path.join(checkout, 'tests', 'fixtures'), { recursive: true });
+        fs.writeFileSync(path.join(checkout, 'tests', 'fixtures', 'pmlink'), 'process.env.SHOULD_NOT_BE_READ = "secret";\n');
+        return successfulResult();
+      }
+      if (args.includes('ls-files')) {
+        return {
+          ...successfulResult(),
+          stdout: [
+            '100644 aaa 0\tpackage.json',
+            '100644 bbb 0\tpackage-lock.json',
+            '100755 ccc 0\tbin/run.js',
+            '120000 ddd 0\ttests/fixtures/pmlink'
+          ].join('\0') + '\0'
+        };
+      }
+      if (args.includes('rev-parse')) return commitResult();
+      throw new Error(`unexpected git args: ${args.join(' ')}`);
+    }
+  });
+  const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-git-modes-stage-'));
+
+  try {
+    assert.deepEqual(result.executablePaths, ['bin/run.js']);
+    assert.deepEqual(result.symlinkPaths, ['tests/fixtures/pmlink']);
+
+    const check = scanRepository(result.root, {
+      freshClone: true,
+      symlinkPaths: result.symlinkPaths
+    });
+    assert.equal(check.scan.complete, true);
+    assert.ok(check.scan.skippedPaths.includes('tests/fixtures/pmlink'));
+    assert.equal(check.scan.discoveredFileCount, 3);
+
+    const staged = stageRepository(result.root, staging, {
+      freshClone: true,
+      executablePaths: result.executablePaths,
+      symlinkPaths: result.symlinkPaths
+    });
+    assert.deepEqual(staged.symlinkPaths, ['tests/fixtures/pmlink']);
+    assert.equal(fs.existsSync(path.join(staged.destinationRoot, 'tests', 'fixtures', 'pmlink')), false);
+    assert.equal(result.executablePaths.includes('bin/run.js'), true);
+    if (process.platform !== 'win32') {
+      assert.ok(fs.statSync(path.join(staged.destinationRoot, 'bin', 'run.js')).mode & 0o111);
+    }
+
+    const calls = [];
+    const verification = await verifyRepository(result.root, {
+      execute: true,
+      freshClone: true,
+      executablePaths: result.executablePaths,
+      symlinkPaths: result.symlinkPaths,
+      runner: async (command, args) => {
+        calls.push({ command, args });
+        if (args[0] === 'version' || args[0] === 'image') return successfulResult();
+        throw new Error(`docker run should not be called: ${args.join(' ')}`);
+      }
+    });
+    const symlinkFinding = verification.findings.find((finding) => finding.code === 'DOCKER_SYMLINKS_BLOCKED');
+    assert.equal(verification.status, 'blocked');
+    assert.equal(symlinkFinding.status, 'skipped');
+    assert.match(symlinkFinding.message, /1/);
+    assert.equal(calls.some((call) => call.args[0] === 'run'), false);
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true });
+    await result.cleanup();
+  }
 });
 
 test('ls-files failures, timeouts, and oversized output are non-fatal', async () => {

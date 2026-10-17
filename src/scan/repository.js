@@ -1110,10 +1110,18 @@ function readRegularIgnoreFile(filePath, maximumBytes = 1024 * 1024) {
   }
 }
 
-function loadGitignoreMatcher(rootPath, freshClone) {
+function loadGitignoreMatcher(rootPath, freshClone, symlinkPaths = new Set()) {
   if (freshClone) return null;
+  const blockedPaths = new Set(
+    [...(symlinkPaths instanceof Set
+      ? symlinkPaths
+      : Array.isArray(symlinkPaths) ? symlinkPaths : [])]
+      .map((relativePath) => String(relativePath).split('\\').join('/'))
+  );
   const texts = [];
-  const rootGitignore = readRegularIgnoreFile(path.join(rootPath, '.gitignore'));
+  const rootGitignore = blockedPaths.has('.gitignore')
+    ? null
+    : readRegularIgnoreFile(path.join(rootPath, '.gitignore'));
   if (rootGitignore !== null) texts.push(rootGitignore);
 
   const gitDirectory = path.join(rootPath, '.git');
@@ -1160,6 +1168,11 @@ function scanFiles(rootPath, limits, options = {}) {
   let skippedPathsTruncated = false;
   let rootState = 'ok';
   let entryLimitExceeded = false;
+  const gitSymlinkPaths = new Set(
+    (Array.isArray(options.symlinkPaths) ? options.symlinkPaths : [])
+      .map((relativePath) => String(relativePath).split('\\').join('/'))
+      .filter((relativePath) => relativePath.length > 0)
+  );
 
   function addSkipped(relativePath, makesIncomplete = false) {
     if (skipped.size < 500) skipped.add(relativePath || '.');
@@ -1210,7 +1223,7 @@ function scanFiles(rootPath, limits, options = {}) {
     return emptyResult();
   }
 
-  const ignoreMatcher = loadGitignoreMatcher(rootPath, options.freshClone === true);
+  const ignoreMatcher = loadGitignoreMatcher(rootPath, options.freshClone === true, gitSymlinkPaths);
 
   function visitDirectory(absoluteDirectory, relativeDirectory, depth, nestedPackageRoot = null) {
     if (entryLimitExceeded) return;
@@ -1224,7 +1237,9 @@ function scanFiles(rootPath, limits, options = {}) {
 
     entries.sort((left, right) => compareStrings(left.name, right.name));
     const hasNestedPackageManifest = relativeDirectory !== '.'
-      && entries.some((entry) => entry.isFile() && entry.name.toLowerCase() === 'package.json');
+      && entries.some((entry) => entry.isFile()
+        && !gitSymlinkPaths.has(toRelativePath(rootPath, path.join(absoluteDirectory, entry.name)))
+        && entry.name.toLowerCase() === 'package.json');
     const activeNestedPackageRoot = nestedPackageRoot || (hasNestedPackageManifest ? relativeDirectory : null);
 
     for (const entry of entries) {
@@ -1238,6 +1253,11 @@ function scanFiles(rootPath, limits, options = {}) {
       const absoluteEntry = path.join(absoluteDirectory, entry.name);
       const relativeEntry = toRelativePath(rootPath, absoluteEntry);
       let entryStat;
+
+      if (gitSymlinkPaths.has(relativeEntry)) {
+        addSkipped(relativeEntry);
+        continue;
+      }
 
       try {
         entryStat = fs.lstatSync(absoluteEntry);

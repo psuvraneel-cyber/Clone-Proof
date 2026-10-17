@@ -183,8 +183,14 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
   const limits = { ...STAGING_LIMITS, ...overrides };
   const maxDepth = limits.maxDepth;
   const maxFiles = limits.maxFiles;
-  const ignoreMatcher = loadGitignoreMatcher(sourceRoot, overrides.freshClone === true);
   const executablePaths = new Set((overrides.executablePaths || []).map((relative) => String(relative).split('\\').join('/')));
+  const gitSymlinkPaths = new Set(
+    (Array.isArray(overrides.symlinkPaths) ? overrides.symlinkPaths : [])
+      .map((relative) => String(relative).split('\\').join('/'))
+      .filter((relative) => relative.length > 0)
+  );
+  symlinkPaths.push(...gitSymlinkPaths);
+  const ignoreMatcher = loadGitignoreMatcher(sourceRoot, overrides.freshClone === true, gitSymlinkPaths);
 
   function walk(sourceDirectory, destinationDirectory, depth) {
     const entries = fs.readdirSync(sourceDirectory, { withFileTypes: true })
@@ -194,6 +200,11 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
       const sourcePath = path.join(sourceDirectory, entry.name);
       const relative = relativePath(sourceRoot, sourcePath);
       const destinationPath = path.join(destinationRoot, relative.split('/').join(path.sep));
+
+      if (gitSymlinkPaths.has(relative)) {
+        continue;
+      }
+
       const stat = fs.lstatSync(sourcePath);
 
       if (stat.isSymbolicLink()) {
@@ -254,7 +265,14 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
   }
 
   walk(sourceRoot, destinationRoot, 0);
-  return { destinationRoot, symlinkPaths, skippedSensitivePaths, skippedIgnoredPaths, fileCount, totalBytes };
+  return {
+    destinationRoot,
+    symlinkPaths: [...new Set(symlinkPaths)].sort(compareStrings),
+    skippedSensitivePaths,
+    skippedIgnoredPaths,
+    fileCount,
+    totalBytes
+  };
 }
 
 function dockerRunArguments(stagingRoot, allowNetwork, containerName = 'cloneproof-verify') {
@@ -484,7 +502,10 @@ async function verifyRepository(rootPath, options = {}) {
   const allowNetwork = options.allowNetwork === true;
   const timeoutMs = normalizePositiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS, 10 * 60 * 1000);
   const maxOutputBytes = normalizePositiveInteger(options.maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES, 10 * 1024 * 1024);
-  const staticReport = scanRepository(rootPath, { freshClone: options.freshClone === true });
+  const staticReport = scanRepository(rootPath, {
+    freshClone: options.freshClone === true,
+    symlinkPaths: options.symlinkPaths || []
+  });
   const report = cloneReport(staticReport);
   report.mode = 'verify';
   report.verification = {
@@ -640,7 +661,8 @@ async function verifyRepository(rootPath, options = {}) {
     const staged = stageRepository(rootPath, temporaryRoot, {
       ...(options.stagingLimits || {}),
       freshClone: options.freshClone === true,
-      executablePaths: options.executablePaths || []
+      executablePaths: options.executablePaths || [],
+      symlinkPaths: options.symlinkPaths || []
     });
     report.verification.omittedPaths = staged.skippedSensitivePaths.slice().sort(compareStrings);
     const ignoredPaths = staged.skippedIgnoredPaths.slice().sort(compareStrings);
@@ -672,14 +694,16 @@ async function verifyRepository(rootPath, options = {}) {
       });
     }
     if (staged.symlinkPaths.length > 0) {
-      report.verification.stderr = `Symlinks were not staged: ${staged.symlinkPaths.join(', ')}`;
+      const symlinkCount = staged.symlinkPaths.length;
+      const visibleSymlinkPaths = staged.symlinkPaths.slice(0, MAX_IGNORED_PATH_EVIDENCE);
+      report.verification.stderr = `Symlinks were not staged (${symlinkCount} total): ${visibleSymlinkPaths.join(', ')}`;
       addFinding(report, {
         code: 'DOCKER_SYMLINKS_BLOCKED',
         status: 'skipped',
         severity: 'warning',
         title: 'Docker verification was blocked by symlinks',
-        message: 'CloneProof refuses to stage symlinks into the verification container.',
-        evidence: staged.symlinkPaths.map((relative) => ({ path: relative, detail: 'Symlink was not copied into the staged snapshot.' })),
+        message: `CloneProof refuses to stage ${symlinkCount} symlink${symlinkCount === 1 ? '' : 's'} into the verification container.`,
+        evidence: visibleSymlinkPaths.map((relative) => ({ path: relative, detail: 'Symlink was not copied into the staged snapshot.' })),
         recommendation: 'Replace or remove symlinks before running the Docker workflow.'
       });
       report.status = 'blocked';

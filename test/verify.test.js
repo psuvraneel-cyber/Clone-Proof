@@ -539,6 +539,37 @@ test('local staging skips gitignored directories but still copies core files', (
   }
 });
 
+test('Git-listed symlinks block verification with bounded evidence and no Docker run', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-git-symlink-list-'));
+  try {
+    fs.cpSync(healthyFixture, root, { recursive: true });
+    fs.mkdirSync(path.join(root, 'tests', 'fixtures'), { recursive: true });
+    const symlinkPaths = Array.from({ length: 55 }, (_, index) => {
+      const relative = `tests/fixtures/pmlink-${String(index).padStart(3, '0')}`;
+      fs.writeFileSync(path.join(root, ...relative.split('/')), 'regular checkout text\n');
+      return relative;
+    });
+    const { calls, runner } = makeRunner();
+
+    const report = await verifyRepository(root, {
+      execute: true,
+      symlinkPaths,
+      runner
+    });
+    assertSummaryMatchesFindings(report);
+
+    const finding = report.findings.find((item) => item.code === 'DOCKER_SYMLINKS_BLOCKED');
+    assert.equal(report.status, 'blocked');
+    assert.equal(finding.status, 'skipped');
+    assert.match(finding.message, /55 symlinks/);
+    assert.equal(finding.evidence.length, 50);
+    assert.match(report.verification.stderr, /55 total/);
+    assert.equal(calls.some((call) => call.args[0] === 'run'), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('host process runner enforces a timeout', async () => {
   const result = await runProcess(process.execPath, ['-e', 'setTimeout(() => {}, 500);'], { timeoutMs: 30 });
 

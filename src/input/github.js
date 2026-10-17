@@ -538,17 +538,22 @@ function gitVersionSupportsGlobalConfig(result) {
   return major > 2 || (major === 2 && minor >= 32);
 }
 
-function parseGitExecutableModes(output) {
+function parseGitFileModes(output) {
   const executablePaths = [];
+  const symlinkPaths = [];
   const records = Buffer.isBuffer(output)
     ? output.toString('utf8').split('\0')
     : String(output || '').split('\0');
   for (const record of records) {
     const match = /^(\d{6})\s+\S+\s+\d+\t([\s\S]*)$/.exec(record);
-    if (!match || match[1] !== '100755') continue;
-    if (match[2].length > 0) executablePaths.push(match[2]);
+    if (!match || match[2].length === 0) continue;
+    if (match[1] === '100755') executablePaths.push(match[2]);
+    if (match[1] === '120000') symlinkPaths.push(match[2]);
   }
-  return [...new Set(executablePaths)].sort((left, right) => left.localeCompare(right));
+  return {
+    executablePaths: [...new Set(executablePaths)].sort((left, right) => left.localeCompare(right)),
+    symlinkPaths: [...new Set(symlinkPaths)].sort((left, right) => left.localeCompare(right))
+  };
 }
 
 async function removeTemporaryDirectory(directory) {
@@ -659,7 +664,9 @@ async function cloneGithubRepository(value, options = {}) {
       modeResult = null;
     }
     const modeAvailable = cloneSucceeded(modeResult, MAX_OUTPUT_BYTES);
-    const executablePaths = modeAvailable ? parseGitExecutableModes(modeResult.stdout) : [];
+    const fileModes = modeAvailable
+      ? parseGitFileModes(modeResult.stdout)
+      : { executablePaths: [], symlinkPaths: [] };
 
     const commitArgs = gitPrefix.concat(['-C', temporaryRoot, 'rev-parse', 'HEAD']);
     let commitResult;
@@ -699,7 +706,8 @@ async function cloneGithubRepository(value, options = {}) {
       repository: source.repository,
       preflight: preflight.state,
       ...(preflight.repositorySizeKb === undefined ? {} : { repositorySizeKb: preflight.repositorySizeKb }),
-      executablePaths,
+      executablePaths: fileModes.executablePaths,
+      symlinkPaths: fileModes.symlinkPaths,
       executableModes: modeAvailable ? 'checked' : 'unavailable',
       ...(commit === undefined ? {} : { commit }),
       root: temporaryRoot,
@@ -740,7 +748,7 @@ module.exports = {
   cloneGithubRepository,
   inspectCheckout,
   isGithubRepositoryUrl,
-  parseGitExecutableModes,
+  parseGitFileModes,
   preflightGithubRepository,
   validateGithubUrl
 };
