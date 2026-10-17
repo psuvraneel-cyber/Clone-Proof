@@ -1717,7 +1717,12 @@ function scanFiles(rootPath, limits, options = {}) {
         addSkipped(relativeEntry);
         continue;
       }
-      if (ignoreMatcher && ignoreMatcher.isIgnored(relativeEntry, false) && coreFile) {
+      if (
+        ignoreMatcher
+        && ignoreMatcher.isIgnored(relativeEntry, false)
+        && coreFile
+        && relativeEntry.toLowerCase() !== '.npmrc'
+      ) {
         ignoredCorePaths.add(relativeEntry);
       }
       discoveredFileCount += 1;

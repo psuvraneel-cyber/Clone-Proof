@@ -822,6 +822,21 @@ test('warns when a core lockfile is ignored by local Git rules', () => withRepos
   assert.equal(finding(report, 'LOCKFILE_PRESENT').status, 'passed');
 }));
 
+test('does not warn when a gitignored .npmrc contains personal registry settings', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, '.gitignore', '.npmrc\n');
+  writeFile(root, '.npmrc', [
+    'registry=https://npm.internal.example/',
+    '_authToken=personal-secret-token'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const outputs = [renderJson(report), renderText(report, { color: false, isTTY: false }), renderHtml(report)];
+
+  assert.equal(finding(report, 'CORE_FILE_GITIGNORED'), undefined);
+  for (const output of outputs) assert.doesNotMatch(output, /personal-secret-token/);
+}));
+
 test('supports gitignore negation for environment templates', () => withRepository((root) => {
   writeEnvironmentFixture(root, 'const value = process.env.API_URL;\n');
   writeFile(root, '.gitignore', '.env*\n!.env.example\n');
