@@ -230,7 +230,7 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
       const coreFile = isCoreFile(relative);
       const ignored = ignoreMatcher && ignoreMatcher.isIgnored(relative, false);
       if (ignored && !coreFile) skippedIgnoredPaths.push(relative);
-      if (isSensitiveFile(relative)) {
+      if (overrides.freshClone !== true && isSensitiveFile(relative)) {
         skippedSensitivePaths.push(relative);
         continue;
       }

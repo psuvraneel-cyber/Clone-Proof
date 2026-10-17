@@ -49,6 +49,23 @@ function makeIgnoredPathsFixture(count) {
   return root;
 }
 
+function makeSensitiveFilesFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-sensitive-files-'));
+  fs.cpSync(healthyFixture, root, { recursive: true });
+  const files = {
+    '.env': 'COMMITTED_SECRET=placeholder\n',
+    'tests/.env.test': 'TEST_SECRET=placeholder\n',
+    'certs/server.key': '-----BEGIN PRIVATE KEY-----\nplaceholder\n-----END PRIVATE KEY-----\n',
+    '.npmrc': 'registry=https://registry.npmjs.org/\n'
+  };
+  for (const [relative, contents] of Object.entries(files)) {
+    const filePath = path.join(root, relative);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, contents);
+  }
+  return { root, files };
+}
+
 function assertSummaryMatchesFindings(report) {
   assert.deepEqual(report.summary, {
     total: report.findings.length,
@@ -512,6 +529,49 @@ test('staging excludes real environment files but keeps safe examples', () => {
     assert.equal(result.skippedSensitivePaths.includes('.env'), true);
     assert.equal(fs.existsSync(path.join(result.destinationRoot, '.env')), false);
     assert.equal(fs.existsSync(path.join(result.destinationRoot, '.env.example')), true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(staging, { recursive: true, force: true });
+  }
+});
+
+test('local staging omits committed sensitive files and reports the omission', async () => {
+  const { root, files } = makeSensitiveFilesFixture();
+  const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-stage-local-sensitive-target-'));
+  try {
+    const result = stageRepository(root, staging, { freshClone: false });
+    const sensitivePaths = Object.keys(files).sort();
+
+    assert.deepEqual(result.skippedSensitivePaths.sort(), sensitivePaths);
+    for (const relative of sensitivePaths) {
+      assert.equal(fs.existsSync(path.join(result.destinationRoot, relative)), false, relative);
+    }
+
+    const { runner } = makeRunner();
+    const report = await verifyRepository(root, { execute: true, freshClone: false, runner });
+    assert.deepEqual(report.verification.omittedPaths, sensitivePaths);
+    assert.ok(report.findings.some((finding) => finding.code === 'DOCKER_SENSITIVE_FILES_OMITTED'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(staging, { recursive: true, force: true });
+  }
+});
+
+test('fresh-clone staging copies committed sensitive files without an omission finding', async () => {
+  const { root, files } = makeSensitiveFilesFixture();
+  const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-stage-fresh-sensitive-target-'));
+  try {
+    const result = stageRepository(root, staging, { freshClone: true });
+
+    assert.deepEqual(result.skippedSensitivePaths, []);
+    for (const [relative, contents] of Object.entries(files)) {
+      assert.equal(fs.readFileSync(path.join(result.destinationRoot, relative), 'utf8'), contents, relative);
+    }
+
+    const { runner } = makeRunner();
+    const report = await verifyRepository(root, { execute: true, freshClone: true, runner });
+    assert.deepEqual(report.verification.omittedPaths, []);
+    assert.equal(report.findings.find((finding) => finding.code === 'DOCKER_SENSITIVE_FILES_OMITTED'), undefined);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(staging, { recursive: true, force: true });
