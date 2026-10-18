@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-17; the target-guard fixes are implemented on `target-guard-fixes` from the latest `main` revision. This file records the implementation and verification state for the current OmniRush session.
+Updated 2026-10-17; precision fixes `1.1–1.8` and the target-guard hardening are integrated on `precision-fixes`, which was created from and merged with the current `main` baseline. This file records the final submission state for the current OmniRush session.
 
 ## Goal
 
@@ -17,19 +17,20 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Project classification checks a root package manifest first, then other-ecosystem markers, then supported root/application source locations.
 - Partial `.nvmrc`, `.node-version`, and Docker Node pins use prefix/existential engine-range semantics; full versions retain exact comparison.
 - Partial `>` engine ranges follow npm release semantics: `>X` is treated as `>=X+1.0.0` and `>X.Y` as `>=X.Y+1.0`.
-- GitHub input performs a ten-second unauthenticated public visibility/size preflight. Repositories over `MAX_REPOSITORY_BYTES` (4 GiB), private repositories, and missing repositories are blocked before cloning; the GitHub `size` value and `target.repositorySizeKb` describe full history, not the shallow checkout. Unavailable/rate-limited preflight continues with bounded clone limits and records `target.preflight: "unavailable"`.
-- GitHub cloning resolves a trusted absolute Git executable, uses an allow-listed environment and empty Git config, disables credential helpers/LFS smudging, uses no shell, records `100755` and `120000` paths with `git ls-files -s -z` before deleting `.git`, and cleans its parent directory on success and failure.
+- GitHub input performs a ten-second public visibility/size preflight. Repositories over `MAX_REPOSITORY_BYTES` (4 GiB), private repositories, and missing repositories are blocked before cloning; the GitHub `size` value and `target.repositorySizeKb` describe full history, not the shallow checkout. `target.preflightReason` uses fixed values for checked, HTTP, rate-limit, timeout, network, invalid-response, and no-fetch outcomes. An optional rejected token produces a safe 401 notice without exposing its value.
+- GitHub cloning resolves a trusted absolute Git executable, uses an allow-listed environment and empty Git config, disables credential helpers/LFS smudging, uses no shell, records `100755` and `120000` paths with `git ls-files -s -z` before deleting `.git`, and cleans its parent directory on success and failure. Cleanup retries ten times at 100 ms and reports only a temporary-folder basename if a Windows file lock persists.
 - GitHub checkout limits are enforced before the non-fatal Git mode read. `parseGitFileModes` returns sorted `executablePaths` and `symlinkPaths`; NUL-delimited parsing preserves paths with spaces and non-English characters. `target.commit` records a valid 40-character `rev-parse HEAD` result when available, and `target.executableModes` records `checked` or `unavailable`. Git-listed symlinks skip static reads and block Docker staging consistently on every OS.
 - Docker verification uses the pinned image `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`, `--pull=never`, a read-only source mount, non-root UID/GID 1000, dropped capabilities, no-new-privileges, no network by default, and bounded CPU/memory/PID/tmpfs/output/time policies.
 - Docker staging honors the root `.gitignore` and root `.git/info/exclude` for local targets, keeps ignored core files, reports skipped ignored paths, and does not read nested `.gitignore` files. Ignored-path findings are informational/skipped, evidence is capped at 50, and verification metadata is capped at 500 paths with `ignoredPathCount` and `ignoredPathsTruncated`. GitHub fresh clones copy committed sensitive fixtures; local staging still omits them and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Command-line `npm ci --ignore-scripts` remains authoritative.
 - Static npm checks add informational/skipped `INSTALL_SCRIPTS_SKIPPED` and advisory `BROWSER_TESTS_DETECTED` findings. Test-phase Docker failures include targeted explanations when either limitation is present; install scripts and browsers remain disabled/not installed.
 - Every verification return is finalized through summary/cleanup normalization. `report.summary` matches `findings` on consent, prerequisite, network, Docker/image, symlink, staging-limit, source-change, execution, timeout, and cleanup paths.
 - Text and HTML verification output explain omitted lines and character shortening; HTML badges are static and contain no `role="status"`.
-- Schema version 2 reports now include additive `coverage.checked` and `coverage.notChecked` fields, with renderer explanations for what was and was not checked.
-- Environment warnings exclude documented tooling/example/fixture/config scopes and conventional process variables; the eight-repository rerun improved warning precision from 2/7 to 4/6.
-- README checks recognize npm install aliases, start/server.js behavior, package-manager setup mismatches, and script aliases without executing README commands. Root `.npmrc`, lockfile resolved URLs, and Git dependency hosts produce host-only `PRIVATE_REGISTRY` evidence.
+- Schema version 2 reports now include additive `coverage.checked` and `coverage.notChecked` fields, with renderer explanations for what was and was not checked. Coverage includes package sources, build output, and service indicators, with a centralized finding/group consistency map.
+- Environment warnings exclude documented tooling/example/fixture/config scopes and conventional process variables, including both cases of proxy variables.
+- README checks recognize npm install aliases, start/server.js behavior, package-manager setup mismatches, and script aliases without executing README commands. Commands after `cd` into another project are summarized by `README_OTHER_PROJECT_COMMANDS`; unknown repository `npm start` is `README_START_COMMAND_UNKNOWN`.
+- Root `.npmrc` and dependency metadata use host-only findings: public Git hosts produce `GIT_DEPENDENCIES`, while non-public hosts produce `PRIVATE_REGISTRY`; a gitignored personal `.npmrc` is exempt from the core-file warning.
 - `cloneproof setup` prepares the exact pinned verifier image through an isolated Docker client. Optional `CLONEPROOF_GITHUB_TOKEN`/`GITHUB_TOKEN` authentication is limited to the size preflight and records only `target.preflightAuthenticated`.
-- `BUILD_OUTPUT_MISSING` and informational/skipped `SERVICES_LIKELY_REQUIRED` cover build-output references and common service indicators without running builds or services.
+- Skipped/info `BUILD_OUTPUT_MISSING` and `SERVICES_LIKELY_REQUIRED` cover build-output references and common service indicators without running builds or services.
 - Local `check` resolves the target before traversal and immediately blocks home folders and filesystem roots with `WRONG_TARGET`; the home value is injectable in tests and no directory walk occurs for this finding.
 - Bounded scans report `SCAN_ENTRY_LIMIT_EXCEEDED` with a relative stop path and the configured limit. Every scanner, GitHub checkout inspector, and Docker staging walker processes sorted files before sorted subdirectories.
 - Unsupported roots stop after classification. They emit only `UNSUPPORTED_ROOT`/`EMPTY_REPOSITORY`, nested-package, scan-limit, and read-error findings; coverage matches those attempted groups and no Node package checks run.
@@ -43,9 +44,9 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - GitHub preflight authentication is optional and still subject to rate limits; the token is never passed to Git or Docker, and unavailable preflight continues with bounded clone limits.
 - Docker verification remains an opt-in reproducibility experiment, not a complete hostile-code sandbox. `--allow-network` enables network for both install and test and should be used only for trusted repositories.
 - Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn profiles, external service health, OS-specific scripts, and custom setup remain outside the execution profile.
-- Field results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, corrected first-run counts of 10 correct / 2 false failures / 1 false block / 2 environment-limited failures, after-fix counts of 13 correct / 2 environment-limited failures, warning precision of 66.7%, and planted-bug detection of 13/13 offline plus 39/39 real-repository cases.
+- Final Run 3 results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, 13 correct and 2 environment-limited failures, warning precision 83.3%, combined warning/failure precision 83.3%, and planted-bug detection of 13/13 offline plus 39/39 real-repository cases.
 - The Windows host still skips the real symlink-creation test because it returns `EPERM`; Linux CI is required to run it.
-- The final CI push/merge and checks are complete. Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop.
+- Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop; final branch/main CI and merge are still pending in this session.
 - The target-guard field recheck ran 15 sequential GitHub `check --format json` attempts with a one-second delay. Thirteen check conclusions remained compatible with the recorded run-3 verdicts; Express currently reports an additional `README_SCRIPT_UNKNOWN` failure on the main baseline, and the Linux check timed out before producing JSON. These are recorded in `docs/FIELD_TEST.md` rather than being hidden.
 
 ## Important files
@@ -60,6 +61,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `test/github.test.js` — URL, preflight, Git isolation, trusted executable, cleanup, and network-free clone tests.
 - `test/scan.test.js` — scanner, environment, classification, Gitignore, runtime, bounds, and non-execution tests.
 - `test/planted-bugs.test.js` — offline realistic base and 13 one-change mutations.
+- `scripts/planted-bugs-real.js` — repeatable read-only real-repository planted-bug procedure.
 - `test/report.test.js` — canonical renderers, escaping, output bounds, static badges, and exit codes.
 - `test/verify.test.js` — Docker arguments, injected runner, every summary path, staging, cleanup, phases, and timeout behavior.
 - `test/cli.test.js` — CLI reports, URL forms, output formats, nested output folders, and exit codes.

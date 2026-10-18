@@ -118,3 +118,13 @@
 - **Decision:** Publish only `src/`, `README.md`, and `LICENSE`; CI validates the packed contents and installs the generated archive globally on Ubuntu, macOS, and Windows before running `cloneproof --help`.
 - **Optional:** Add `cloneproof --version` and explicit GitHub installation guidance, including the warning about the unrelated npm package named `cloneproof`.
 - **Current OmniRush session:** `ses_eb723d8b8ffeSyS1IT2hp9kfEw`.
+
+## 2026-10-17 — Precision fixes for README, package sources, and coverage
+
+- **Decision:** Track README `cd` transitions into other projects until the next Markdown heading; ignore commands in that state and report them as `README_OTHER_PROJECT_COMMANDS`. Unknown repository `npm start` is a warning (`README_START_COMMAND_UNKNOWN`), while explicit unknown `run` scripts remain failures.
+- **Decision:** Add `package-sources`, `build-output`, and `service-indicators` coverage groups and a centralized finding-to-group map. `BUILD_OUTPUT_MISSING` is skipped/info because generated library output is commonly created at publish time; `NOT_CHECKED` labels describe the narrower claims CloneProof actually does not make.
+- **Decision:** Separate public Git hosts (`GIT_DEPENDENCIES`) from private registries (`PRIVATE_REGISTRY`) and exempt a gitignored personal `.npmrc` from `CORE_FILE_GITIGNORED`. Host-only evidence remains the invariant.
+- **Decision:** Treat proxy variables as conventional environment keys and preserve custom environment warnings.
+- **Decision:** Use one retrying cleanup policy for GitHub clones and Docker staging, with injectable removers in tests. Cleanup failures never replace a report or change its exit status; only a temporary folder basename is printed.
+- **Decision:** Replace free-form GitHub preflight errors with fixed `target.preflightReason` values and remove the old redaction-marker fields. This makes rate limits, timeouts, invalid responses, and rejected tokens actionable without leaking secret material.
+- **Current precision-fixes branch:** `precision-fixes`, merged with the current `main` baseline for final integration.

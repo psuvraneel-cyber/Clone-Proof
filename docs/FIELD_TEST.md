@@ -32,7 +32,7 @@ Each GitHub URL run is expected to make one unauthenticated GitHub size/visibili
 
 `microsoft/TypeScript-Node-Starter` was replaced before field testing because the public repository URL returned `Repository not found` from read-only `git ls-remote`. `typeorm/typeorm` is a similarly well-known TypeScript/Node repository whose root test workflow depends on pnpm and database-backed integrations, so it preserves the external-service/package-manager stress case. The original suggestion and the swap are retained here rather than silently changing the test set.
 
-## Rerun after fixes
+## Earlier rerun evidence (measured with earlier code; not comparable for finding-level counts)
 
 This section was written before any rerun command below was started. The reruns use the four fixes on the `field-test-fixes` branch. Each result will record the status, exit code, principal finding codes, `target.commit`, `target.preflight`, and duration; repositories that cannot be cloned or are blocked by static prerequisites will not receive a Docker result.
 
@@ -48,7 +48,7 @@ This section was written before any rerun command below was started. The reruns 
 
 The other first-run repositories did not report `INSTALL_SCRIPTS_SKIPPED`; no additional check-only rerun is required beyond the repositories listed above.
 
-## Warning precision after environment filtering
+## Earlier warning precision (measured with a different set of checks; not comparable to Run 3)
 
 The environment-warning rerun used the eight repositories named in the review request. The “warning” unit below is a warning finding, not an individual environment key; keys are shown in brackets so the reason for each judgment is auditable. “Real” means that a person setting up or verifying the repository genuinely needs the information. “Noise” means that the reference is optional tooling/configuration, a conventional process variable, or a limitation already represented by a more direct finding.
 
@@ -230,6 +230,68 @@ On 2026-10-17, the 15 field-test GitHub URLs were checked again from `target-gua
 The check-only recheck therefore has **13 compatible conclusions, 1 changed conclusion, and 1 environment-limited/unconfirmed attempt**. The Express difference is not caused by the six target-guard changes; it records the behavior of the latest `main` baseline used to create this branch. The earlier full run-3 total of 13 correct and 2 environment-limited repositories remains the historical verify result, while this section makes the new check-only limitation explicit.
 
 ## Known limitations
+
+## Run 3: final precision-fixes code (2026-10-17, commit `54141a5`)
+
+Run 3 was measured after all Part 1 precision fixes and after the final pinned Docker image was prepared. Expectations were retained from the pre-run plan above before the commands were started. All 15 `check` commands ran against the public URLs. Every non-blocked check also received `verify --docker --execute` with and without `--allow-network`; `npm-cli`, Linux, and Flask were blocked by check and therefore had no verify invocation. `target.preflightReason` was recorded for every GitHub check. No target repository code ran on the host.
+
+| Repository | Expected check / verdict | Check | Verify no network | Verify network | Commit / preflightReason | Duration ms | Verdict |
+|---|---|---|---|---|---|---:|---|
+| `psuvraneel-cyber/Clone-Proof` | pass / correct | `passed` / 0 | `passed` / 0 | `passed` / 0 | `630015c804a3f67f868a724fb1dd3d5527394c8a` / `checked` | 2485 / 5830 / 5092 | correct |
+| `tj/commander.js` | pass; Docker network/symlink limits / correct | `passed` / 0 | `blocked` / 2 `DOCKER_NETWORK_REQUIRED` | `blocked` / 2 `DOCKER_SYMLINKS_BLOCKED` | `ba6d13ddb4243e5913367734f8c159089ffe7834` / `checked` | 5399 / 3357 / 3681 | correct |
+| `motdotla/dotenv` | pass with advisory findings / correct | `passed_with_warnings` / 0 `ENV_EXAMPLE_MISSING` | `blocked` / 2 `DOCKER_NETWORK_REQUIRED` | `passed_with_warnings` / 0 | `6d6e6c58074adc12131ec6ab6eac92fb92484dbc` / `checked` | 2515 / 2118 / 50442 | correct |
+| `typestack/class-validator` | pass; network verify pass / correct | `passed` / 0 | `blocked` / 2 `DOCKER_NETWORK_REQUIRED` | `passed` / 0 | `2e1a5c27dbd65b80e27fe96b49bd6e6641fa3603` / `checked` | 2317 / 2759 / 67849 | correct |
+| `expressjs/express` | pass with `LOCKFILE_MISSING` / correct | `passed_with_warnings` / 0 `LOCKFILE_MISSING` | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `a419aa7350389a275ab45fde2e849ed1f02449ef` / `checked` | 5628 / 3363 / 2426 | correct |
+| `sindresorhus/slugify` | pass with `LOCKFILE_MISSING` / correct | `passed_with_warnings` / 0 `LOCKFILE_MISSING` | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `3b17b2e84b97624a683aafaa38184bf2746fab22` / `checked` | 2093 / 1847 / 1526 | correct |
+| `typeorm/typeorm` | pass; npm-only profile blocked / correct | `passed` / 0 `SERVICES_LIKELY_REQUIRED` | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `fe92394287516feeada6e9c308ebe22deca2458e` / `checked` | 17718 / 8390 / 6577 | correct |
+| `kelektiv/node.bcrypt.js` | pass; native test limitation / environment-limited failure | `passed` / 0 | `blocked` / 2 `DOCKER_NETWORK_REQUIRED` | `failed` / 1 `DOCKER_VERIFICATION_FAILED` | `24aa3c50a990db8cea4f545cd21b8740ea0364ea` / `checked` | 2205 / 1965 / 10787 | environment-limited failure |
+| `axios/axios` | pass with browser advisory / environment-limited failure | `passed_with_warnings` / 0 `BROWSER_TESTS_DETECTED` | `blocked` / 2 `DOCKER_NETWORK_REQUIRED` | `failed` / 1 `DOCKER_VERIFICATION_FAILED` | `326843a3902d73c9f6af9bad7b55e2412566a251` / `checked` | 8426 / 4179 / 223606 | environment-limited failure |
+| `vuejs/core` | pass; npm-only profile blocked / correct | `passed_with_warnings` / 0 `BROWSER_TESTS_DETECTED` | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `bf5f0dd877dd3c23ce85c2cbc1dd771567e84c8c` / `checked` | 3278 / 3296 / 2485 | correct |
+| `facebook/react` | pass; Yarn profile blocked / correct | `passed` / 0 | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `098d2e87a1f7142947418d15f63f975b58c4685b` / `checked` | 18416 / 9576 / 8781 | correct |
+| `jestjs/jest` | pass; Yarn profile blocked / correct | `passed` / 0 | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `blocked` / 2 `DOCKER_PREREQUISITES_FAILED` | `61050e9323e742539dc2360236671110e37329e6` / `checked` | 11028 / 7909 / 12961 | correct |
+| `npm/cli` | bounded checkout block / correct | `blocked` / 2 `GITHUB_CHECKOUT_LIMIT_EXCEEDED` | not run | not run | no commit / `checked` | 22148 | correct |
+| `torvalds/linux` | full-history size block / correct | `blocked` / 2 `GITHUB_REPOSITORY_TOO_LARGE` | not run | not run | no commit / `checked` | 578 | correct |
+| `pallets/flask` | unsupported Python root / correct | `blocked` / 2 `UNSUPPORTED_ROOT` | not run | not run | `d086db856be187255b8ec61ef409357393020f32` / `checked` | 2157 | correct |
+
+Run 3 therefore totals **13 correct** and **2 environment-limited failures**, with all 15 repositories represented exactly once in the verdict count.
+
+### Run 3 warning and failure precision
+
+The following table uses only the Run 3 `check` reports. Skipped/info findings are excluded; every warning or failed finding is listed once.
+
+| Repository | Finding | Status | Judgment | Reason |
+|---|---|---|---|---|
+| `motdotla/dotenv` | `ENV_EXAMPLE_MISSING` | warning | noise | Optional dotenv configuration keys are not required to install or run the package workflow. |
+| `expressjs/express` | `LOCKFILE_MISSING` | warning | real | A fresh clone cannot reproduce dependency versions without a committed root lockfile. |
+| `sindresorhus/slugify` | `LOCKFILE_MISSING` | warning | real | A fresh clone cannot reproduce dependency versions without a committed root lockfile. |
+| `axios/axios` | `BROWSER_TESTS_DETECTED` | warning | real | The controlled Node image has no browser executable, so browser-reachable tests are a real verification limitation. |
+| `vuejs/core` | `BROWSER_TESTS_DETECTED` | warning | real | The controlled Node image has no browser executable for the detected workflow. |
+| `pallets/flask` | `UNSUPPORTED_ROOT` | warning | real | The target is a Python repository outside CloneProof's supported Node/TypeScript execution profile. |
+
+| Category | Real | All | Precision |
+|---|---:|---:|---:|
+| Warnings | 5 | 6 | **83.3%** |
+| Failed findings | 0 | 0 | **not applicable** |
+| Combined warnings + failed findings | 5 | 6 | **83.3%** |
+
+The earlier 28.6% and 66.7% values were measured with a different check set and are not used for Run 3 precision.
+
+### Run 3 planted-bug rerun
+
+`node scripts/planted-bugs-real.js` performs read-only shallow clones, mutates copies, runs only `node src/cli.js check`, and deletes every temporary copy. The final run used commit `54141a5` and detected every mutation in all three repositories. The whitespace-only README mutation is the control and produced no new finding.
+
+| Repository | Detected | Total | Rate |
+|---|---:|---:|---:|
+| `psuvraneel-cyber/Clone-Proof` | 13 | 13 | 100% |
+| `typestack/class-validator` | 13 | 13 | 100% |
+| `motdotla/dotenv` | 13 | 13 | 100% |
+| All real-repository cases | **39** | **39** | **100%** |
+
+The repeatable procedure is committed as `scripts/planted-bugs-real.js`; it does not install dependencies, run target scripts, run target tests, or start target Dockerfiles. The offline suite remains 13/13.
+
+### Temporary-folder measurement
+
+On the Windows host, the `cloneproof-*` temp-directory entry count was **10 before** and **10 after** ten `npm run build` repetitions; **0 new entries** were created. The ten existing entries included five historical `cloneproof-github-*` folders from the earlier cleanup regression and five ignored fixture JSON files; those historical clone folders were removed before the final audit.
 
 1. **Sensitive-file omission applies to local folders only.** Local staging still omits `.env*`, npm configuration, credentials, and certificate/key files and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Fresh public GitHub clones copy committed versions because they are already public; command-line flags still force `npm ci --ignore-scripts`.
 2. **Symlink suites are blocked consistently but not reproduced.** Git-listed mode `120000` paths and real `lstat` symlinks are skipped during scanning and block Docker verification on every OS. A Windows checkout created with `core.symlinks=false` cannot be detected without Git metadata, and recreating symlinks inside the container is out of scope. The Windows symlink integration test remains skipped because creation returns `EPERM`.

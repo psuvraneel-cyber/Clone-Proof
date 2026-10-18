@@ -150,10 +150,13 @@ Docker commands use the local default Docker endpoint. CloneProof creates an iso
 | `browser-tests` | Browser tooling reachable from the test workflow |
 | `nested-packages` | Nested package boundaries |
 | `project-classification` | Project classification |
+| `package-sources` | Package registries and Git dependency hosts |
+| `build-output` | Declared build output files |
+| `service-indicators` | Compose files and service dependency indicators |
 
-Additional advisory findings are `BUILD_OUTPUT_MISSING` for missing package entrypoint/build files and `SERVICES_LIKELY_REQUIRED` for compose files or common database/cache/broker dependencies. They are bounded metadata signals: CloneProof does not run builds or start services.
+Additional advisory findings are `GIT_DEPENDENCIES` for public Git hosts, `PRIVATE_REGISTRY` for non-public package/dependency hosts, `BUILD_OUTPUT_MISSING` for missing package entrypoint/build files, and `SERVICES_LIKELY_REQUIRED` for compose files or common database/cache/broker dependencies. `BUILD_OUTPUT_MISSING` and `SERVICES_LIKELY_REQUIRED` are skipped/info signals: CloneProof does not run builds or start services.
 
-The fixed `coverage.notChecked` scope includes build steps and generated output, services such as databases and caches, OS-specific scripts, private registry credentials, commands in documentation other than the README, and browser/native-build tests during `verify`.
+The fixed `coverage.notChecked` scope is precise: running build steps (declared outputs are only checked for presence), starting or reaching services (only indicators are detected), OS-specific scripts, registry credentials and access (only hosts are detected), commands in documentation other than the README, and browser/native-build tests during `verify`.
 
 ## What a result means
 
@@ -192,10 +195,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 - Sensitive `.env` files, npm configuration files, credentials, and certificate/key files are excluded from local folders before Docker staging. For a fresh public GitHub clone, those committed files are copied because they are already public repository content; the command-line `npm ci --ignore-scripts` policy still overrides any committed `.npmrc`. The host environment and Docker socket are not mounted.
 - For GitHub clones, executable file modes and Git-listed symlinks are read from the Git index before `.git` is removed. Executable modes are preserved; symlink paths are skipped during static scanning and block Docker verification consistently on every host OS. Local Windows filesystem scans cannot detect repository execute bits, and a `core.symlinks=false` checkout has no Git metadata available to recover its symlink identity.
 - Scan reports use schema version 2 and record bounded-scan completeness, discovered/read file counts, skipped paths, and npm lockfile package metadata.
-- Field-tested against 15 public repositories (2026-10-17). First run: 10 correct, 2 false failures, 1 false block, 2 environment-limited failures. After fixes: 13 correct, 2 environment-limited failures. See docs/FIELD_TEST.md.
+- Field-tested against 15 public repositories with the final precision-fixes code. Run 3: 13 correct and 2 environment-limited failures. See docs/FIELD_TEST.md.
 - Target-guard-fixes rechecked all 15 GitHub URLs sequentially with JSON output: 13 check conclusions were compatible with run 3, Express exposed a current-main `README_SCRIPT_UNKNOWN` false-failing baseline case, and the Linux attempt timed out before JSON. The earlier full verify result remains 13 correct and 2 environment-limited; the check-only recheck details are in docs/FIELD_TEST.md.
 - The verifier image is pinned to `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`; `cloneproof setup` prepares it and `--pull=never` refuses implicit image changes during verification.
-- GitHub input is limited to public `https://github.com/OWNER/REPOSITORY` URLs. An optional `CLONEPROOF_GITHUB_TOKEN` (falling back to `GITHUB_TOKEN`) is sent only to the GitHub API preflight; it is never passed to Git or Docker and never appears in reports, errors, or logs. Clone failures and checkout-limit failures are reported as `incomplete` or `blocked`.
+- GitHub input is limited to public `https://github.com/OWNER/REPOSITORY` URLs. An optional `CLONEPROOF_GITHUB_TOKEN` (falling back to `GITHUB_TOKEN`) is sent only to the GitHub API preflight; it is never passed to Git or Docker and never appears in reports, errors, or logs. `target.preflightReason` uses fixed values such as `checked`, `http-401`, `rate-limited`, `timeout`, and `network-error`; a rejected configured token produces a safe 401 notice without its value.
+- Git dependencies on public Git hosts produce `GIT_DEPENDENCIES`; private registries and non-public dependency hosts produce `PRIVATE_REGISTRY`. Reports contain host-only evidence. A gitignored `.npmrc` is exempt from `CORE_FILE_GITIGNORED` so personal credentials are not treated as a reproducibility failure.
 - `BUILD_OUTPUT_MISSING` checks package entrypoint references without running a build, and `SERVICES_LIKELY_REQUIRED` only reports compose/common-service indicators as skipped informational evidence. Neither finding starts a service or claims generated output was verified.
 - The first release focuses on the root package of Node.js/TypeScript repositories. Monorepos, pnpm/Yarn execution, private repositories, and external services may be reported as unsupported or blocked.
 
@@ -205,12 +209,14 @@ The full commands, repository commits, and per-finding judgments are in [docs/FI
 
 | Measure | Result |
 |---|---:|
-| Public field test after fixes | 13 correct + 2 environment-limited failures / 15 repositories |
+| Run 3 public field test | 13 correct + 2 environment-limited failures / 15 repositories |
 | Target-guard-fixes check-only recheck | 13 compatible / 1 changed / 1 environment-limited or unconfirmed / 15 URLs |
-| Warning precision before filtering | 2 real / 7 warnings = 28.6% |
-| Warning precision after filtering | 4 real / 6 warnings = 66.7% |
+| Run 3 warning precision | 5 real / 6 warnings = 83.3% |
+| Run 3 failed-finding precision | 2 real / 2 failures = 100% |
+| Run 3 combined warning/failure precision | 7 real / 8 findings = 87.5% |
 | Offline planted-bug suite | 13 / 13 detected; whitespace control produced no new finding |
 | Real-repository planted-bug suite | 39 / 39 detected across three repositories |
+| Windows temp-folder measurement | 0 new folders across 10 test runs |
 
 ## Future work
 
