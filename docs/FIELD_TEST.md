@@ -205,6 +205,30 @@ Counting rule: each of the 15 table rows contributes exactly one verdict to the 
 - The final host suite after the four fixes is **130 tests: 129 passed, 1 skipped** (the expected Windows symlink `EPERM` case). The Linux container suite is reported separately in the handoff checks.
 - The final cleanup audit found no `cloneproof-github-*` temporary folders and no containers from `docker ps -a --filter name=cloneproof-verify`.
 
+## Target-guard-fixes check-only recheck
+
+On 2026-10-17, the 15 field-test GitHub URLs were checked again from `target-guard-fixes` with `--format json`, one process at a time and a one-second delay between URLs. Each attempt made at most the normal GitHub preflight request; no target repository code was executed. This was a check-only recheck, not a replacement for the earlier full verify matrix.
+
+| Repository | Check result | Exit | Main finding codes | Recheck conclusion |
+|---|---|---:|---|---|
+| `psuvraneel-cyber/Clone-Proof` | `passed` | 0 | `NESTED_PACKAGES_SKIPPED` | compatible with run-3 verdict |
+| `tj/commander.js` | `passed` | 0 | none blocking | compatible with run-3 verdict |
+| `motdotla/dotenv` | `passed_with_warnings` | 0 | `BUILD_OUTPUT_MISSING`, `ENV_EXAMPLE_MISSING` | compatible with run-3 verdict |
+| `typestack/class-validator` | `passed_with_warnings` | 0 | `BUILD_OUTPUT_MISSING` | compatible with run-3 verdict |
+| `expressjs/express` | `failed` | 1 | `README_SCRIPT_UNKNOWN` | changed: current main baseline has a false-failing README command case |
+| `sindresorhus/slugify` | `passed_with_warnings` | 0 | `LOCKFILE_MISSING` | compatible with run-3 verdict |
+| `typeorm/typeorm` | `passed` | 0 | `NESTED_PACKAGES_SKIPPED`, `SERVICES_LIKELY_REQUIRED` | compatible with run-3 verdict |
+| `kelektiv/node.bcrypt.js` | `passed_with_warnings` | 0 | `INSTALL_SCRIPTS_SKIPPED`, `BUILD_OUTPUT_MISSING` | compatible with run-3 verdict |
+| `axios/axios` | `passed_with_warnings` | 0 | `BROWSER_TESTS_DETECTED`, `INSTALL_SCRIPTS_SKIPPED` | compatible with run-3 verdict |
+| `vuejs/core` | `passed_with_warnings` | 0 | `BROWSER_TESTS_DETECTED` | compatible with run-3 verdict |
+| `facebook/react` | `passed` | 0 | `NESTED_PACKAGES_SKIPPED` | compatible with run-3 verdict |
+| `jestjs/jest` | `passed` | 0 | `NESTED_PACKAGES_SKIPPED` | compatible with run-3 verdict |
+| `npm/cli` | `blocked` | 2 | `GITHUB_CHECKOUT_LIMIT_EXCEEDED` | compatible with run-3 verdict |
+| `torvalds/linux` | no JSON; process timed out at 300000 ms | — | — | unconfirmed; environment-limited |
+| `pallets/flask` | `blocked` | 2 | `UNSUPPORTED_ROOT` | compatible with run-3 verdict |
+
+The check-only recheck therefore has **13 compatible conclusions, 1 changed conclusion, and 1 environment-limited/unconfirmed attempt**. The Express difference is not caused by the six target-guard changes; it records the behavior of the latest `main` baseline used to create this branch. The earlier full run-3 total of 13 correct and 2 environment-limited repositories remains the historical verify result, while this section makes the new check-only limitation explicit.
+
 ## Known limitations
 
 1. **Sensitive-file omission applies to local folders only.** Local staging still omits `.env*`, npm configuration, credentials, and certificate/key files and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Fresh public GitHub clones copy committed versions because they are already public; command-line flags still force `npm ci --ignore-scripts`.

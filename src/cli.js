@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { version: PACKAGE_VERSION } = require('../package.json');
 
 const {
   cloneGithubRepository,
@@ -21,6 +22,7 @@ function printHelp() {
     'CloneProof — repository setup verification',
     '',
     'Usage:',
+    '  cloneproof --version',
     '  cloneproof check <repository-or-github-url> [--format text|json|html] [--output FILE]',
     '  cloneproof verify <repository-or-github-url> --docker --execute [--allow-network] [--timeout-ms N] [--format text|json|html] [--output FILE]',
     '  cloneproof setup',
@@ -34,6 +36,9 @@ function printHelp() {
 
 function parseArguments(argv) {
   const values = argv.slice(2);
+  if (values.length === 1 && values[0] === '--version') {
+    return { version: true };
+  }
   if (values.length === 0 || values.includes('--help') || values.includes('-h')) {
     return { help: true };
   }
@@ -419,6 +424,11 @@ async function run() {
 
   if (options.help) {
     printHelp();
+    return 0;
+  }
+
+  if (options.version) {
+    process.stdout.write(`${PACKAGE_VERSION}\n`);
     return 0;
   }
 

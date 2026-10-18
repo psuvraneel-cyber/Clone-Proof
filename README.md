@@ -16,6 +16,17 @@ The project is being built as an OmniRush Frontier Buildathon submission. The cu
 - npm.
 - Docker is only required for the optional execution-verification workflow; the Docker end-to-end CI job runs on Linux.
 
+## Install
+
+Install this CloneProof CLI directly from the GitHub repository:
+
+```bash
+npm install -g github:psuvraneel-cyber/Clone-Proof
+npx github:psuvraneel-cyber/Clone-Proof --help
+```
+
+Do not run `npm install -g cloneproof`: that installs a different, unrelated npm package. Run `cloneproof check <project-folder>` from inside a project folder, not from your home folder or a drive root.
+
 ## Setup
 
 ```bash
@@ -31,6 +42,8 @@ Inspect a repository without executing its code:
 ```bash
 node src/cli.js check ./path/to/repository
 ```
+
+CloneProof blocks home folders and filesystem roots immediately as `WRONG_TARGET`; pointing it at one project folder keeps the scan bounded and focused. A scan that reaches its directory-entry limit reports `SCAN_ENTRY_LIMIT_EXCEEDED` with the path where traversal stopped. Terminal and HTML findings show at most ten evidence items; use JSON for the complete bounded evidence list.
 
 The first remote-input profile accepts only a public HTTPS GitHub repository URL and performs a GitHub API size/visibility preflight before the shallow, bounded clone. If `CLONEPROOF_GITHUB_TOKEN` is present, or otherwise `GITHUB_TOKEN` is present, CloneProof sends it as a Bearer token only on that API request. The report records `target.preflightAuthenticated: true` or `false`, but never records the token. Private repositories remain blocked even when a token is supplied. Repositories over the 4 GiB sanity limit, private repositories, and missing repositories are blocked without cloning. GitHub's `size` value describes the repository's full history, not the latest shallow checkout that CloneProof downloads. If the API is unavailable or rate-limited, CloneProof records an unavailable preflight and continues with the existing clone limits. Git runs from a CloneProof-owned temporary parent with an empty Git config, an allow-listed environment, credential helpers disabled, and Git LFS smudging disabled. CloneProof resolves Git from known absolute installation paths or absolute `PATH` entries; if none is available, the report is incomplete and no clone directory is created:
 
@@ -180,6 +193,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundaries and mo
 - For GitHub clones, executable file modes and Git-listed symlinks are read from the Git index before `.git` is removed. Executable modes are preserved; symlink paths are skipped during static scanning and block Docker verification consistently on every host OS. Local Windows filesystem scans cannot detect repository execute bits, and a `core.symlinks=false` checkout has no Git metadata available to recover its symlink identity.
 - Scan reports use schema version 2 and record bounded-scan completeness, discovered/read file counts, skipped paths, and npm lockfile package metadata.
 - Field-tested against 15 public repositories (2026-10-17). First run: 10 correct, 2 false failures, 1 false block, 2 environment-limited failures. After fixes: 13 correct, 2 environment-limited failures. See docs/FIELD_TEST.md.
+- Target-guard-fixes rechecked all 15 GitHub URLs sequentially with JSON output: 13 check conclusions were compatible with run 3, Express exposed a current-main `README_SCRIPT_UNKNOWN` false-failing baseline case, and the Linux attempt timed out before JSON. The earlier full verify result remains 13 correct and 2 environment-limited; the check-only recheck details are in docs/FIELD_TEST.md.
 - The verifier image is pinned to `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`; `cloneproof setup` prepares it and `--pull=never` refuses implicit image changes during verification.
 - GitHub input is limited to public `https://github.com/OWNER/REPOSITORY` URLs. An optional `CLONEPROOF_GITHUB_TOKEN` (falling back to `GITHUB_TOKEN`) is sent only to the GitHub API preflight; it is never passed to Git or Docker and never appears in reports, errors, or logs. Clone failures and checkout-limit failures are reported as `incomplete` or `blocked`.
 - `BUILD_OUTPUT_MISSING` checks package entrypoint references without running a build, and `SERVICES_LIKELY_REQUIRED` only reports compose/common-service indicators as skipped informational evidence. Neither finding starts a service or claims generated output was verified.
@@ -192,6 +206,7 @@ The full commands, repository commits, and per-finding judgments are in [docs/FI
 | Measure | Result |
 |---|---:|
 | Public field test after fixes | 13 correct + 2 environment-limited failures / 15 repositories |
+| Target-guard-fixes check-only recheck | 13 compatible / 1 changed / 1 environment-limited or unconfirmed / 15 URLs |
 | Warning precision before filtering | 2 real / 7 warnings = 28.6% |
 | Warning precision after filtering | 4 real / 6 warnings = 66.7% |
 | Offline planted-bug suite | 13 / 13 detected; whitespace control produced no new finding |

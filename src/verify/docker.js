@@ -195,10 +195,13 @@ function stageRepository(rootPath, stagingRoot, overrides = {}) {
   const ignoreMatcher = loadGitignoreMatcher(sourceRoot, overrides.freshClone === true, gitSymlinkPaths);
 
   function walk(sourceDirectory, destinationDirectory, depth) {
-    const entries = fs.readdirSync(sourceDirectory, { withFileTypes: true })
-      .sort((left, right) => compareStrings(left.name, right.name));
+    const entries = fs.readdirSync(sourceDirectory, { withFileTypes: true });
+    const orderedEntries = [
+      ...entries.filter((entry) => !entry.isDirectory()).sort((left, right) => compareStrings(left.name, right.name)),
+      ...entries.filter((entry) => entry.isDirectory()).sort((left, right) => compareStrings(left.name, right.name))
+    ];
 
-    for (const entry of entries) {
+    for (const entry of orderedEntries) {
       const sourcePath = path.join(sourceDirectory, entry.name);
       const relative = relativePath(sourceRoot, sourcePath);
       const destinationPath = path.join(destinationRoot, relative.split('/').join(path.sep));

@@ -375,6 +375,32 @@ test('renderText renders bounded multiline verification output and evidence deta
   assert.ok(stderrLine.length <= 4004);
 });
 
+test('renderText and renderHtml cap finding evidence at ten items', () => {
+  const report = {
+    target: { kind: 'local', name: 'evidence-fixture' },
+    status: 'passed_with_warnings',
+    findings: [{
+      status: 'warning',
+      code: 'EVIDENCE_CAP',
+      title: 'Evidence is bounded',
+      message: 'Many evidence items are present.',
+      evidence: Array.from({ length: 30 }, (_, index) => ({
+        path: `evidence-${String(index + 1).padStart(2, '0')}.txt`,
+        detail: 'Evidence item.'
+      })),
+      recommendation: 'Use JSON for the complete evidence list.'
+    }]
+  };
+
+  const text = renderText(report, { color: false, isTTY: false });
+  const html = renderHtml(report);
+
+  assert.equal((text.match(/evidence-\d+\.txt/g) || []).length, 10);
+  assert.match(text, /… and 20 more \(see --format json\)/);
+  assert.equal((html.match(/evidence-\d+\.txt/g) || []).length, 10);
+  assert.match(html, /… and 20 more \(see --format json\)/);
+});
+
 test('exitCodeForReport maps report statuses to the documented codes', () => {
   assert.equal(exitCodeForReport({ status: 'passed' }), 0);
   assert.equal(exitCodeForReport({ status: 'passed_with_warnings' }), 0);

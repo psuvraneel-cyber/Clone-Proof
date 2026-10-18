@@ -31,6 +31,37 @@ jobs:
         run: npm ci
       - name: Run tests
         run: npm test
+      - name: Assert npm package contents
+        shell: bash
+        run: |
+          npm pack --dry-run --json > pack-dry-run.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const pack = JSON.parse(fs.readFileSync('pack-dry-run.json', 'utf8'))[0];
+          const files = pack.files.map(({ path }) => path).sort();
+          const expected = [
+            'LICENSE',
+            'README.md',
+            'package.json',
+            'src/cli.js',
+            'src/input/github.js',
+            'src/report/coverage.js',
+            'src/report/render.js',
+            'src/scan/repository.js',
+            'src/util/executable.js',
+            'src/verify/docker.js'
+          ].sort();
+          if (JSON.stringify(files) !== JSON.stringify(expected)) {
+            throw new Error(`Unexpected npm package contents: ${files.join(', ')}`);
+          }
+          NODE
+      - name: Smoke test packed global CLI
+        shell: bash
+        run: |
+          npm pack --json > pack.json
+          pack_file=$(node -p "JSON.parse(require('node:fs').readFileSync('pack.json', 'utf8'))[0].filename")
+          npm install --global "./$pack_file"
+          cloneproof --help
 
   docker-e2e:
     name: Docker E2E

@@ -1355,6 +1355,35 @@ test('blocks an empty repository instead of reporting a false pass', () => withR
   assert.equal(finding(report, 'EMPTY_REPOSITORY').status, 'warning');
 }));
 
+test('blocks an injected home-folder target before traversal', () => {
+  const injectedHome = path.join(os.tmpdir(), 'cloneproof-injected-home');
+  const originalReaddir = fs.readdirSync;
+  let traversalCalled = false;
+  fs.readdirSync = (...args) => {
+    traversalCalled = true;
+    return originalReaddir(...args);
+  };
+  try {
+    const report = scanRepository(injectedHome, { homeDirectory: injectedHome });
+
+    assert.equal(report.status, 'blocked');
+    assert.equal(finding(report, 'WRONG_TARGET').status, 'skipped');
+    assert.equal(finding(report, 'WRONG_TARGET').severity, 'warning');
+    assert.equal(traversalCalled, false);
+  } finally {
+    fs.readdirSync = originalReaddir;
+  }
+});
+
+test('blocks a filesystem root before traversal', () => {
+  const root = path.parse(process.cwd()).root;
+  const report = scanRepository(root, { homeDirectory: path.join(os.tmpdir(), 'not-the-home') });
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(finding(report, 'WRONG_TARGET').status, 'skipped');
+  assert.match(finding(report, 'WRONG_TARGET').recommendation, /cloneproof check <project-folder>/);
+});
+
 test('blocks an unsupported repository type with a clear finding', () => withRepository((root) => {
   writeFile(root, 'README.md', '# Python project\n');
   writeFile(root, 'main.py', 'print("hello")\n');
@@ -1461,6 +1490,29 @@ test('unsupported reports list only the static groups that were attempted', () =
     checked: [CHECK_GROUPS.NESTED_PACKAGES, CHECK_GROUPS.PROJECT_CLASSIFICATION],
     notChecked: NOT_CHECKED
   });
+}));
+
+test('unsupported roots do not run Node project checks or list arbitrary evidence', () => withRepository((root) => {
+  writeFile(root, 'README.md', '# Documentation-only folder\n');
+  writeFile(root, 'scripts/a.test.js', 'test("not a root project", () => {});\n');
+  writeFile(root, 'x/package.json', '{"name":"nested"}\n');
+
+  const report = scanRepository(root);
+  const codes = report.findings.map((item) => item.code);
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.project.type, 'unsupported');
+  assert.deepEqual(report.coverage.checked, [CHECK_GROUPS.NESTED_PACKAGES, CHECK_GROUPS.PROJECT_CLASSIFICATION]);
+  assert.deepEqual(
+    report.findings
+      .filter((item) => item.code !== 'NESTED_PACKAGES_SKIPPED' && item.code !== 'UNSUPPORTED_ROOT')
+      .map((item) => item.code),
+    []
+  );
+  assert.equal(codes.includes('TEST_FILES_FOUND'), false);
+  assert.equal(codes.some((code) => code.startsWith('ENV_')), false);
+  assert.deepEqual(finding(report, 'UNSUPPORTED_ROOT').evidence, []);
+  assert.match(finding(report, 'UNSUPPORTED_ROOT').message, /no package\.json or Node\.js source at the top level/i);
 }));
 
 test('returns an incomplete report for a missing repository path', () => {
@@ -1631,4 +1683,55 @@ test('marks a traversal that exceeds maxEntries incomplete', () => withRepositor
 
   assert.equal(report.status, 'incomplete');
   assert.equal(report.scan.complete, false);
+  const limitFinding = finding(report, 'SCAN_ENTRY_LIMIT_EXCEEDED');
+  assert.equal(limitFinding.status, 'skipped');
+  assert.equal(limitFinding.severity, 'warning');
+  assert.equal(limitFinding.message, 'Stopped after 5 directory entries; the folder is too large to inspect fully.');
+  assert.equal(limitFinding.recommendation, 'Point CloneProof at a single project folder.');
+  assert.equal(limitFinding.evidence.length, 1);
+  assert.equal(path.isAbsolute(limitFinding.evidence[0].path), false);
+}));
+
+test('reads root files before descending into a large hidden directory', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({ name: 'entry-order-fixture' }));
+  writeFile(root, 'README.md', 'Run `npm test` after installing dependencies.\n');
+  for (let index = 0; index < 50; index += 1) writeFile(root, `.venv/file-${String(index).padStart(2, '0')}.txt`, 'x');
+
+  const report = scanRepository(root, { maxEntries: 20 });
+
+  assert.equal(report.project.type, 'node');
+  assert.equal(finding(report, 'PACKAGE_JSON_PRESENT').status, 'passed');
+  assert.equal(finding(report, 'TEST_SCRIPT_MISSING').status, 'failed');
+  assert.equal(report.status, 'incomplete');
+  assert.equal(report.scan.complete, false);
+  assert.equal(finding(report, 'SCAN_ENTRY_LIMIT_EXCEEDED').status, 'skipped');
+}));
+
+test('caps environment scan evidence while preserving the total count', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({ name: 'environment-limit-fixture' }));
+  for (let index = 0; index < 120; index += 1) {
+    writeFile(root, `src/file-${String(index).padStart(3, '0')}.js`, 'xx');
+  }
+
+  const report = scanRepository(root, { maxFileBytes: 1 });
+  const skipped = finding(report, 'ENV_CHECK_SKIPPED');
+
+  assert.equal(skipped.evidence.length, 50);
+  assert.match(skipped.message, /120/);
+  assert.doesNotMatch(skipped.message, /file-119/);
+}));
+
+test('shortens nested package messages to five paths', () => withRepository((root) => {
+  writeFile(root, 'index.js', 'module.exports = 1;\n');
+  for (let index = 0; index < 7; index += 1) {
+    writeFile(root, `packages/pkg-${index}/package.json`, '{}\n');
+  }
+
+  const report = scanRepository(root);
+  const nested = finding(report, 'NESTED_PACKAGES_SKIPPED');
+
+  assert.match(nested.message, /Found 7 nested package manifests/);
+  assert.match(nested.message, /packages\/pkg-0\/package\.json/);
+  assert.match(nested.message, /packages\/pkg-4\/package\.json/);
+  assert.doesNotMatch(nested.message, /packages\/pkg-5\/package\.json/);
 }));

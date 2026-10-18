@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const {
   CHECK_GROUPS,
@@ -1596,6 +1597,7 @@ function scanFiles(rootPath, limits, options = {}) {
   let skippedPathsTruncated = false;
   let rootState = 'ok';
   let entryLimitExceeded = false;
+  let entryLimitPath = null;
   const gitSymlinkPaths = new Set(
     (Array.isArray(options.symlinkPaths) ? options.symlinkPaths : [])
       .map((relativePath) => String(relativePath).split('\\').join('/'))
@@ -1626,7 +1628,8 @@ function scanFiles(rootPath, limits, options = {}) {
       fileCount,
       discoveredFileCount,
       totalBytes,
-      rootState
+      rootState,
+      entryLimitPath
     };
   }
 
@@ -1663,7 +1666,10 @@ function scanFiles(rootPath, limits, options = {}) {
       return;
     }
 
-    entries.sort((left, right) => compareStrings(left.name, right.name));
+    entries = [
+      ...entries.filter((entry) => !entry.isDirectory()).sort((left, right) => compareStrings(left.name, right.name)),
+      ...entries.filter((entry) => entry.isDirectory()).sort((left, right) => compareStrings(left.name, right.name))
+    ];
     const hasNestedPackageManifest = relativeDirectory !== '.'
       && entries.some((entry) => entry.isFile()
         && !gitSymlinkPaths.has(toRelativePath(rootPath, path.join(absoluteDirectory, entry.name)))
@@ -1675,6 +1681,7 @@ function scanFiles(rootPath, limits, options = {}) {
       if (entryCount > limits.maxEntries) {
         complete = false;
         entryLimitExceeded = true;
+        entryLimitPath = toRelativePath(rootPath, path.join(absoluteDirectory, entry.name));
         break;
       }
 
@@ -1818,6 +1825,54 @@ function calculateDigest(files) {
   return hash.digest('hex');
 }
 
+function normalizedAbsolutePath(value) {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function wrongTargetReport(absoluteRoot, limits) {
+  const findings = [
+    addFinding(
+      [],
+      'WRONG_TARGET',
+      'skipped',
+      'warning',
+      'The target is a home folder or filesystem root',
+      'This is your home folder (or a drive root), not a project folder.',
+      [makeEvidence(rootName(absoluteRoot), 'The requested local target is a home folder or filesystem root.')],
+      'Run cloneproof check <project-folder> or cloneproof check https://github.com/OWNER/REPO.'
+    )
+  ];
+  const coverage = createCoverageTracker().snapshot();
+  return {
+    schemaVersion: 2,
+    tool: 'cloneproof',
+    mode: 'check',
+    status: 'blocked',
+    target: { kind: 'local', name: rootName(absoluteRoot) },
+    scan: {
+      complete: false,
+      fileCount: 0,
+      discoveredFileCount: 0,
+      totalBytes: 0,
+      digest: calculateDigest(new Map()),
+      limits,
+      skippedPaths: [],
+      skippedPathsTruncated: false
+    },
+    project: {
+      type: 'unsupported',
+      packageManager: null,
+      packageManagerVersion: null,
+      scripts: {},
+      runtime: { nvmrc: null, nodeVersion: null, enginesNode: null, dockerNode: [] }
+    },
+    findings,
+    summary: { total: 1, passed: 0, failed: 0, warnings: 1, skipped: 1 },
+    coverage
+  };
+}
+
 function inferProjectType(packageState, discovered, nestedPaths = [], ecosystemMarker = rootEcosystemMarker(discovered)) {
   const knownPaths = [...discovered.keys()].filter((relativePath) => isApplicationSourcePath(relativePath, nestedPaths));
   const hasRootTsconfig = discovered.has('tsconfig.json');
@@ -1841,6 +1896,16 @@ function scanRepository(rootPath, options) {
 
   const limits = normalizeLimits(options);
   const scanOptions = options && typeof options === 'object' ? options : {};
+  let homeDirectory;
+  try {
+    homeDirectory = normalizedAbsolutePath(scanOptions.homeDirectory === undefined ? os.homedir() : scanOptions.homeDirectory);
+  } catch {
+    homeDirectory = normalizedAbsolutePath(os.homedir());
+  }
+  const filesystemRoot = normalizedAbsolutePath(path.parse(absoluteRoot).root);
+  if (normalizedAbsolutePath(absoluteRoot) === homeDirectory || normalizedAbsolutePath(absoluteRoot) === filesystemRoot) {
+    return wrongTargetReport(absoluteRoot, limits);
+  }
   const scanned = scanFiles(absoluteRoot, limits, scanOptions);
   const coverage = createCoverageTracker();
   const findings = [];
@@ -1965,16 +2030,68 @@ function scanRepository(rootPath, options) {
     name: rootName(absoluteRoot)
   };
 
+  const createReport = () => {
+    const digest = calculateDigest(scanned.files);
+    const lockfileSummary = npmLockfileSummary(lockfiles, scanned.files);
+    const project = {
+      type: projectType,
+      packageManager: packageManagerInfo ? packageManagerInfo.name : null,
+      packageManagerVersion: packageManagerInfo ? packageManagerInfo.version : null,
+      ...(lockfileSummary ? { lockfile: lockfileSummary } : {}),
+      scripts,
+      runtime: {
+        nvmrc,
+        nodeVersion,
+        enginesNode,
+        dockerNode
+      }
+    };
+    const summary = {
+      total: findings.length,
+      passed: findings.filter((finding) => finding.status === 'passed').length,
+      failed: findings.filter((finding) => finding.status === 'failed').length,
+      warnings: findings.filter((finding) => finding.status === 'warning').length,
+      skipped: findings.filter((finding) => finding.status === 'skipped').length
+    };
+    let status = 'passed';
+    if (!scanned.complete) status = 'incomplete';
+    else if (projectType === 'unsupported') status = 'blocked';
+    else if (summary.failed > 0) status = 'failed';
+    else if (summary.warnings > 0) status = 'passed_with_warnings';
+
+    return {
+      schemaVersion: 2,
+      tool: 'cloneproof',
+      mode: 'check',
+      status,
+      target,
+      scan: {
+        complete: scanned.complete,
+        fileCount: scanned.fileCount,
+        discoveredFileCount: scanned.discoveredFileCount,
+        totalBytes: scanned.totalBytes,
+        digest,
+        limits,
+        skippedPaths: [...scanned.skipped].sort(compareStrings),
+        skippedPathsTruncated: scanned.skippedPathsTruncated
+      },
+      project,
+      findings,
+      summary,
+      coverage: coverage.snapshot()
+    };
+  };
+
   if (nestedPackageFiles.length > 0) {
     const visibleNestedPackages = nestedPackageFiles.slice(0, 50);
-    const remainingNestedPackages = nestedPackageFiles.length - visibleNestedPackages.length;
+    const messagePaths = nestedPackageFiles.slice(0, 5);
     addFinding(
       findings,
       'NESTED_PACKAGES_SKIPPED',
       'skipped',
       'info',
       'Nested packages were excluded from the root application checks',
-      `Found nested package manifests: ${visibleNestedPackages.join(', ')}${remainingNestedPackages > 0 ? ` (and ${remainingNestedPackages} more)` : ''}.`,
+      `Found ${nestedPackageFiles.length} nested package manifest${nestedPackageFiles.length === 1 ? '' : 's'}; first ${messagePaths.length} path${messagePaths.length === 1 ? '' : 's'}: ${messagePaths.join(', ')}.`,
       visibleNestedPackages.map((relativePath) => makeEvidence(relativePath, 'Nested package boundary.')),
       'Run CloneProof separately on each nested package directory.'
     );
@@ -1990,6 +2107,20 @@ function scanRepository(rootPath, options) {
       'The requested local repository root is unavailable or is not a directory.',
       [makeEvidence('.', 'The repository root could not be read as a directory.')],
       'Provide an existing readable directory as the repository root.'
+    );
+  }
+
+  if (scanned.entryLimitPath) {
+    const formattedLimit = String(limits.maxEntries).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    addFinding(
+      findings,
+      'SCAN_ENTRY_LIMIT_EXCEEDED',
+      'skipped',
+      'warning',
+      'The repository scan entry limit was exceeded',
+      `Stopped after ${formattedLimit} directory entries; the folder is too large to inspect fully.`,
+      [makeEvidence(scanned.entryLimitPath, 'The entry limit was exceeded while inspecting this path.')],
+      'Point CloneProof at a single project folder.'
     );
   }
 
@@ -2013,7 +2144,9 @@ function scanRepository(rootPath, options) {
     );
   }
 
-  for (const relativePath of [...scanned.ignoredCorePaths].sort(compareStrings)) {
+  for (const relativePath of supportedProject
+    ? [...scanned.ignoredCorePaths].sort(compareStrings)
+    : []) {
     addFinding(
       findings,
       'CORE_FILE_GITIGNORED',
@@ -2062,10 +2195,18 @@ function scanRepository(rootPath, options) {
   }
 
   if (projectType === 'unsupported' && scanned.rootState === 'ok') {
-    const knownFile = ecosystemMarker
-      ? ecosystemMarker.path
-      : [...scanned.discovered.keys()].sort(compareStrings)[0];
-    if (knownFile) {
+    if (scanned.discoveredFileCount === 0 && scanned.complete && !ecosystemMarker) {
+      addFinding(
+        findings,
+        'EMPTY_REPOSITORY',
+        'warning',
+        'warning',
+        'The repository is empty',
+        'No readable files were found in the repository root.',
+        [],
+        'Add the project files before asking CloneProof to inspect setup readiness.'
+      );
+    } else {
       const nestedRecommendation = nestedPackageFiles.length > 0
         ? ' Run CloneProof separately on each nested package directory.'
         : '';
@@ -2077,25 +2218,16 @@ function scanRepository(rootPath, options) {
         'The root project is outside CloneProof’s dynamic Node.js profile.',
         ecosystemMarker
           ? `Detected a ${ecosystemMarker.ecosystem} project marker at ${ecosystemMarker.path}.`
-          : 'No supported root Node.js or TypeScript project marker was found.',
-        [makeEvidence(knownFile, ecosystemMarker
-          ? `Detected ${ecosystemMarker.ecosystem} project marker.`
-          : 'The scanned root did not contain a supported project marker.')],
+          : 'No package.json or Node.js source at the top level.',
+        ecosystemMarker
+          ? [makeEvidence(ecosystemMarker.path, `Detected ${ecosystemMarker.ecosystem} project marker.`)]
+          : [],
         `Point CloneProof at a supported Node.js or TypeScript repository.${nestedRecommendation}`
-      );
-    } else if (scanned.fileCount === 0 && scanned.complete) {
-      addFinding(
-        findings,
-        'EMPTY_REPOSITORY',
-        'warning',
-        'warning',
-        'The repository is empty',
-        'No readable files were found in the repository root.',
-        [],
-        'Add the project files before asking CloneProof to inspect setup readiness.'
       );
     }
   }
+
+  if (!supportedProject || scanned.rootState !== 'ok') return createReport();
 
   let missingLockfileFinding = null;
   if (projectType !== 'unsupported' && scanned.rootState === 'ok') {
@@ -2639,14 +2771,17 @@ function scanRepository(rootPath, options) {
     ...depthSkippedEnvironmentPaths
   ].sort(compareStrings);
   if (unscannedEnvironmentPaths.length > 0 && (applicationSourceFiles.length > 0 || depthSkippedEnvironmentPaths.length > 0)) {
+    const totalUnscannedEnvironmentPaths = unscannedEnvironmentPaths.length;
+    const visibleEnvironmentPaths = unscannedEnvironmentPaths.slice(0, 50);
+    const remainingEnvironmentPaths = totalUnscannedEnvironmentPaths - visibleEnvironmentPaths.length;
     addFinding(
       findings,
       'ENV_CHECK_SKIPPED',
       'skipped',
       'info',
       'Environment references could not be fully checked',
-      'At least one source or environment template file was outside the readable scan set.',
-      unscannedEnvironmentPaths.map((relativePath) => makeEvidence(
+      `At least ${totalUnscannedEnvironmentPaths} source or environment template file${totalUnscannedEnvironmentPaths === 1 ? '' : 's'} were outside the readable scan set${remainingEnvironmentPaths > 0 ? `; ${remainingEnvironmentPaths} more path${remainingEnvironmentPaths === 1 ? '' : 's'} are omitted from evidence` : ''}.`,
+      visibleEnvironmentPaths.map((relativePath) => makeEvidence(
         relativePath,
         depthSkippedEnvironmentPaths.includes(relativePath)
           ? 'Directory was outside the configured maximum scan depth.'
@@ -2894,60 +3029,7 @@ function scanRepository(rootPath, options) {
     );
   }
 
-  const digest = calculateDigest(scanned.files);
-  const lockfileSummary = npmLockfileSummary(lockfiles, scanned.files);
-  const project = {
-    type: projectType,
-    packageManager: packageManagerInfo ? packageManagerInfo.name : null,
-    packageManagerVersion: packageManagerInfo ? packageManagerInfo.version : null,
-    ...(lockfileSummary ? { lockfile: lockfileSummary } : {}),
-    scripts,
-    runtime: {
-      nvmrc,
-      nodeVersion,
-      enginesNode,
-      dockerNode
-    }
-  };
-
-  const summary = {
-    total: findings.length,
-    passed: findings.filter((finding) => finding.status === 'passed').length,
-    failed: findings.filter((finding) => finding.status === 'failed').length,
-    warnings: findings.filter((finding) => finding.status === 'warning').length,
-    skipped: findings.filter((finding) => finding.status === 'skipped').length
-  };
-
-  let status = 'passed';
-  if (!scanned.complete) status = 'incomplete';
-  else if (projectType === 'unsupported') status = 'blocked';
-  else if (summary.failed > 0) status = 'failed';
-  else if (summary.warnings > 0) status = 'passed_with_warnings';
-
-  const coverageSnapshot = coverage.snapshot();
-  assertCoverageConsistency(findings, coverageSnapshot);
-
-  return {
-    schemaVersion: 2,
-    tool: 'cloneproof',
-    mode: 'check',
-    status,
-    target,
-    scan: {
-      complete: scanned.complete,
-      fileCount: scanned.fileCount,
-      discoveredFileCount: scanned.discoveredFileCount,
-      totalBytes: scanned.totalBytes,
-      digest,
-      limits,
-      skippedPaths: [...scanned.skipped].sort(compareStrings),
-      skippedPathsTruncated: scanned.skippedPathsTruncated
-    },
-    project,
-    findings,
-    summary,
-    coverage: coverageSnapshot
-  };
+  return createReport();
 }
 
 module.exports = {

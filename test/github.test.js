@@ -294,6 +294,28 @@ test('checkout limits ignore the root .git directory', () => {
   }
 });
 
+test('checkout inspection visits root files before a .venv subtree reaches maxEntries', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-checkout-order-'));
+  try {
+    for (const name of ['README.md', 'package-lock.json', 'package.json']) {
+      fs.writeFileSync(path.join(root, name), 'metadata\n');
+    }
+    fs.mkdirSync(path.join(root, '.venv'));
+    for (let index = 0; index < 4; index += 1) {
+      fs.writeFileSync(path.join(root, '.venv', `file-${index}.txt`), 'x');
+    }
+
+    assert.throws(
+      () => inspectCheckout(root, { maxEntries: 5 }),
+      (error) => error && error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
+        && error.path === '.venv/file-1.txt'
+        && !path.isAbsolute(error.path)
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('builds an isolated git environment and command line policy', () => {
   const parentPath = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-git-invocation-'));
   try {
