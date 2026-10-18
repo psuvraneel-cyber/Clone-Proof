@@ -291,7 +291,7 @@ The repeatable procedure is committed as `scripts/planted-bugs-real.js`; it does
 
 ### Temporary-folder measurement
 
-On the Windows host, the `cloneproof-*` temp-directory entry count was **10 before** and **10 after** ten `npm run build` repetitions; **0 new entries** were created. The ten existing entries included five historical `cloneproof-github-*` folders from the earlier cleanup regression and five ignored fixture JSON files; those historical clone folders were removed before the final audit.
+On the Windows host, all existing `cloneproof-*` directories were removed before the measurement. The directory count was **0 before** and **0 after** ten exact `npm test` repetitions; **0 new directories** were created. Every run exited `0`. The cleanup-failure regression test now removes its intentionally retained fixture in a `finally` block, so repeated test runs do not leave clone directories behind.
 
 1. **Sensitive-file omission applies to local folders only.** Local staging still omits `.env*`, npm configuration, credentials, and certificate/key files and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Fresh public GitHub clones copy committed versions because they are already public; command-line flags still force `npm ci --ignore-scripts`.
 2. **Symlink suites are blocked consistently but not reproduced.** Git-listed mode `120000` paths and real `lstat` symlinks are skipped during scanning and block Docker verification on every OS. A Windows checkout created with `core.symlinks=false` cannot be detected without Git metadata, and recreating symlinks inside the container is out of scope. The Windows symlink integration test remains skipped because creation returns `EPERM`.

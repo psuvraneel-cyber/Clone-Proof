@@ -212,11 +212,11 @@ The full commands, repository commits, and per-finding judgments are in [docs/FI
 | Run 3 public field test | 13 correct + 2 environment-limited failures / 15 repositories |
 | Target-guard-fixes check-only recheck | 13 compatible / 1 changed / 1 environment-limited or unconfirmed / 15 URLs |
 | Run 3 warning precision | 5 real / 6 warnings = 83.3% |
-| Run 3 failed-finding precision | 2 real / 2 failures = 100% |
-| Run 3 combined warning/failure precision | 7 real / 8 findings = 87.5% |
+| Run 3 failed-finding precision | not applicable: 0 real / 0 failures |
+| Run 3 combined warning/failure precision | 5 real / 6 findings = 83.3% |
 | Offline planted-bug suite | 13 / 13 detected; whitespace control produced no new finding |
 | Real-repository planted-bug suite | 39 / 39 detected across three repositories |
-| Windows temp-folder measurement | 0 new folders across 10 test runs |
+| Windows temp-folder measurement | 0 new folders across 10 exact `npm test` runs |
 
 ## Future work
 
