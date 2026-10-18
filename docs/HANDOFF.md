@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-17; precision fixes `1.1–1.8` and the target-guard hardening are integrated on `precision-fixes`, which was created from and merged with the current `main` baseline. This file records the final submission state for the current OmniRush session.
+Updated 2026-10-18; precision fixes `1.1–1.8` and the target-guard hardening are integrated on `main` at `ec026ef`. The `precision-fixes` branch was pushed, its CI passed, and it was fast-forwarded into `main`; the final `main` CI also passed. This file records the final submission state for the current OmniRush session.
 
 ## Goal
 
@@ -46,7 +46,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn profiles, external service health, OS-specific scripts, and custom setup remain outside the execution profile.
 - Final Run 3 results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, 13 correct and 2 environment-limited failures, warning precision 83.3%, combined warning/failure precision 83.3%, and planted-bug detection of 13/13 offline plus 39/39 real-repository cases.
 - The Windows host still skips the real symlink-creation test because it returns `EPERM`; Linux CI is required to run it.
-- Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop; final branch/main CI and merge are still pending in this session.
+- Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop; implementation, merge, and CI validation are complete.
 - The target-guard field recheck ran 15 sequential GitHub `check --format json` attempts with a one-second delay. Thirteen check conclusions remained compatible with the recorded run-3 verdicts; Express currently reports an additional `README_SCRIPT_UNKNOWN` failure on the main baseline, and the Linux check timed out before producing JSON. These are recorded in `docs/FIELD_TEST.md` rather than being hidden.
 
 ## Important files
@@ -141,13 +141,23 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `node src/cli.js setup` — passed; the exact verifier image was already present and no pull was needed.
 - `node src/cli.js verify examples/healthy-node --docker --execute --format json` — passed, exit `0`, network `none`, cleanup complete.
 - `node src/cli.js verify examples/broken-node --docker --execute --format json` — blocked, exit `2`, `DOCKER_PREREQUISITES_FAILED`, no target container started.
-- Current target-guard verification — `docker build -t cloneproof .` passed, and `docker run --rm --network none cloneproof npm test` passed with 174/174 tests in Linux.
+- Current final verification — `docker build -t cloneproof .` passed, and `docker run --rm --network none cloneproof npm test` passed with 189/189 tests in Linux.
 - From `C:\Users\Sauvraneel Paul`, `npx --yes github:psuvraneel-cyber/Clone-Proof#target-guard-fixes check .` exited `2` immediately with one `WRONG_TARGET` finding and no traversal output.
 - Target branch CI run `39036000461` — passed on Ubuntu, macOS, Windows, and Docker E2E; pack-content and global packed-CLI smoke steps passed.
 - `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` after the final implementation push — passed, exit `0`, `target.commit: 1b919eccaa43804addbc2fe47ba61e962862724a`, preflight `checked`, authenticated `false`, 10 checked groups, 10 passed / 1 skipped / 0 failed.
 - The preflight-redaction regression test covers a token-bearing GitHub API error: reports and stderr contain only `[REDACTED]`.
 - Pre-submit CI run `39028051301` and main CI run `39028381054` — passed for final implementation revision `1b919ec`; any later handoff-only commit changes documentation only.
 - Docker/container cleanup audit after the final checks — no `cloneproof-verify` containers and no CloneProof GitHub clone directories remained.
+
+## Final submission checks
+
+- Windows `npm test` — passed: 189 tests, 188 passed, 1 expected symlink `EPERM` skip; `git diff --check` passed.
+- Ten exact Windows `npm test` repetitions — all exited `0`; `cloneproof-*` directory count was 0 before and 0 after, with 0 new directories.
+- Plain Jest fixture verification — passed with explicit `--allow-network`, exit `0`, pinned image, and cleanup complete.
+- Branch CI `39119108657` — passed on Ubuntu, macOS, Windows, and Docker E2E for `ec026efc186c81b89bbbdc6f24a8b1f108c2512d`.
+- Main CI `39119180819` — passed on Ubuntu, macOS, Windows, and Docker E2E for `ec026efc186c81b89bbbdc6f24a8b1f108c2512d`.
+- Final GitHub check against pushed `main` — passed, exit `0`, target commit `ec026efc186c81b89bbbdc6f24a8b1f108c2512d`, preflight `checked`, repository size `401 KiB`, complete scan, 11 passed / 1 skipped / 0 failed.
+- Final cleanup audit — no `cloneproof-*` directories in the Windows temp directory and no containers matching `cloneproof-verify`.
 
 ## Commits in this review pass
 
