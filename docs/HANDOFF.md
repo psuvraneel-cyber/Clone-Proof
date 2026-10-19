@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-18; precision fixes `1.1–1.8` and the target-guard hardening are integrated on `main` at `ec026ef`. The `precision-fixes` branch was pushed, its CI passed, and it was fast-forwarded into `main`; the final `main` CI also passed. This file records the final submission state for the current OmniRush session.
+Updated 2026-10-19; implementation and verification remain complete on `main`. The implementation revision is `ec026ef`; subsequent commits `e0de5cf` and this refresh are documentation-only handoff updates. The `precision-fixes` branch was pushed, its CI passed, and it was fast-forwarded into `main`; the final `main` CI also passed. This file records the final submission state for the current OmniRush session.
 
 ## Goal
 
@@ -158,6 +158,13 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Main CI `39119180819` — passed on Ubuntu, macOS, Windows, and Docker E2E for `ec026efc186c81b89bbbdc6f24a8b1f108c2512d`.
 - Final GitHub check against pushed `main` — passed, exit `0`, target commit `ec026efc186c81b89bbbdc6f24a8b1f108c2512d`, preflight `checked`, repository size `401 KiB`, complete scan, 11 passed / 1 skipped / 0 failed.
 - Final cleanup audit — no `cloneproof-*` directories in the Windows temp directory and no containers matching `cloneproof-verify`.
+
+## Current handoff refresh
+
+- At the start of this refresh, local `main` matched `origin/main` at `e0de5cf` and the working tree was clean.
+- `npm test` — passed in this session: build checked 7 source files; 189 tests, 188 passed, 0 failed, and 1 expected Windows symlink `EPERM` skip.
+- `git diff --check` — passed after this documentation-only edit; Git emitted only the normal Windows LF/CRLF normalization warning.
+- No source, test, package, Docker, or workflow behavior changed in this refresh; only this handoff document was updated.
 
 ## Commits in this review pass
 
