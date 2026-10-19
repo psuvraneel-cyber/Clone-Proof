@@ -48,7 +48,7 @@ No secrets are required for local inspection. `.env.example` is included as a sa
 
 ## Usage
 
-Inspect a repository without executing its code:
+Inspect a repository without executing its code. For a local path this static inspection needs neither Docker nor network access:
 
 ```bash
 node src/cli.js check ./path/to/repository
@@ -73,6 +73,8 @@ Create a report in text, JSON, or self-contained HTML. `--output` works with eve
 ```bash
 node src/cli.js check ./path/to/repository --format html --output report.html
 ```
+
+Text output uses ANSI color only when it is written to a terminal. Use `--color` or `--no-color` to set the terminal preference; the `NO_COLOR` environment variable always disables ANSI color. JSON, HTML, and report files are color-free.
 
 The intended installed command is also available after `npm link`:
 
@@ -139,7 +141,7 @@ docker build -t cloneproof .
 docker run --rm --network none cloneproof
 ```
 
-The container runs CloneProof's static inspection against the project copy. Target-repository verification is intentionally separate and uses a temporary, read-only source snapshot with bounded CPU, memory, process count, output, and wall-clock time. CloneProof does not run a target Dockerfile or accept arbitrary Docker flags.
+The `.dockerignore` keeps dependency/build outputs and credential-like local files out of CloneProof's image build context, including dotenv files other than `.env.example`, npm/Yarn configuration, credential stores, and private key/certificate files. The container then runs CloneProof's static inspection against the project copy; this build smoke test does not verify a target repository's install or test workflow. Target-repository verification is intentionally separate and optional: `verify --docker --execute` uses a temporary, read-only source snapshot with bounded CPU, memory, process count, output, and wall-clock time, and `--allow-network` is a separate explicit choice for both dependency installation and tests. CloneProof does not run a target Dockerfile or accept arbitrary Docker flags.
 
 Docker commands use the local default Docker endpoint. CloneProof creates an isolated temporary Docker CLI configuration and does not inherit the user's Docker context selection or silently honor a remote context.
 
@@ -223,8 +225,8 @@ The full commands, repository commits, and per-finding judgments are in [docs/FI
 | Run 3 warning precision | 5 real / 6 warnings = 83.3% |
 | Run 3 failed-finding precision | not applicable: 0 real / 0 failures |
 | Run 3 combined warning/failure precision | 5 real / 6 findings = 83.3% |
-| Offline planted-bug suite | 13 / 13 detected; whitespace control produced no new finding |
-| Real-repository planted-bug suite | 39 / 39 detected across three repositories |
+| Offline planted-bug mutations | 13 / 13 detected; whitespace control produced no new finding (static scanner only) |
+| Manual real-repository planted-bug run | 39 / 39 detected across three repositories (`scripts/planted-bugs-real.js`; network-dependent and separate from `npm test`) |
 | Windows temp-folder measurement | 0 new folders across 10 exact `npm test` runs |
 
 ## Future work

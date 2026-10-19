@@ -29,6 +29,7 @@ function clone(url) {
   fs.rmSync(root, { recursive: true, force: true });
   const result = spawn('git', ['clone', '--depth', '1', url, root], process.cwd());
   if (result.status !== 0) throw new Error(result.stderr);
+  fs.rmSync(path.join(root, '.git'), { recursive: true, force: true });
   return root;
 }
 function copy(root) {

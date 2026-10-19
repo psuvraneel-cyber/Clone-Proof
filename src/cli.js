@@ -23,12 +23,13 @@ function printHelp() {
     '',
     'Usage:',
     '  cloneproof --version',
-    '  cloneproof check <repository-or-github-url> [--format text|json|html] [--output FILE]',
-    '  cloneproof verify <repository-or-github-url> --docker --execute [--allow-network] [--timeout-ms N] [--format text|json|html] [--output FILE]',
+    '  cloneproof check <repository-or-github-url> [--format text|json|html] [--output FILE] [--color|--no-color]',
+    '  cloneproof verify <repository-or-github-url> --docker --execute [--allow-network] [--timeout-ms N] [--format text|json|html] [--output FILE] [--color|--no-color]',
     '  cloneproof setup',
     '',
     'Static check never executes repository code. Docker verification requires explicit --docker --execute consent.',
-    'Network access is disabled unless --allow-network is also provided.',
+    'Docker verification network access is disabled unless --allow-network is also provided.',
+    'Text output uses color only on a TTY; use --color or --no-color. NO_COLOR always disables ANSI color.',
     'GitHub input accepts only public https://github.com/OWNER/REPOSITORY URLs.',
     ''
   ].join('\n'));

@@ -6,7 +6,7 @@ This field test was planned on 2026-10-17 (IST) from CloneProof commit `f5d15f9`
 
 The pre-run expectations below were written before any CloneProof command was run against these repositories. Root package manifests, default branches, lockfile names, root `.env.example` presence, and default-branch GitHub Actions results were inspected through public GitHub pages/raw files and read-only `git ls-remote --symref ... HEAD`. No target repository was installed or tested on the host.
 
-Each GitHub URL run is expected to make one unauthenticated GitHub size/visibility request. `check` is expected to clone only the shallow checkout; `verify` is expected to execute only inside CloneProof's pinned Docker profile. The network-allowed verification runs explicitly permit the target's npm install and test process to reach the internet inside that container.
+Each GitHub URL run is expected to make one unauthenticated GitHub size/visibility request. The `check` results below are static inspection only and clone only the shallow checkout; `verify` is optional and executes only inside CloneProof's pinned Docker profile. The network-allowed verification runs explicitly permit the target's npm install and test process to reach the internet inside that container.
 
 ## Pre-run repository inspection and expectations
 
@@ -70,11 +70,11 @@ The environment-warning rerun used the eight repositories named in the review re
 
 The “before” values are the original `reports/field/*-check.json` observations. The “after” values are the fresh JSON reruns saved locally as `reports/field/{commander,dotenv,axios,express,slugify,vue,react,jest}-check-after-env.json`; those generated reports remain ignored so the repository does not accumulate machine-specific checkout evidence. The after rerun commands were `node src/cli.js check <URL> --format json --output <report>` and all eight GitHub preflights were `checked`; no target repository code was executed.
 
-## Planted-bug test
+## Planted-bug test (static inspection only)
 
-The offline suite in `test/planted-bugs.test.js` builds a realistic Node.js project in the operating-system temporary directory, confirms the healthy base is `passed`, then copies it for each single mutation. It covers the 13 requested mutations, including a whitespace-only README control. The suite runs `scanRepository` only; it never starts a target process.
+The offline suite in `test/planted-bugs.test.js` builds a realistic Node.js project in the operating-system temporary directory, confirms the healthy base is `passed`, then copies it for each single mutation. It covers the 13 requested mutations, including a whitespace-only README control. The suite runs `scanRepository` only; it is part of `npm test` and never starts a target process.
 
-The real-repository extension used read-only `git clone --depth 1` for `psuvraneel-cyber/Clone-Proof`, `typestack/class-validator`, and `motdotla/dotenv`, removed each checkout's `.git` directory, copied each checkout for every mutation, and invoked `node src/cli.js check <copy> --format json`. No target `npm`, test, build, lifecycle, or Docker command was run. Adaptations were recorded rather than silently omitted:
+The separate real-repository extension used read-only `git clone --depth 1` for `psuvraneel-cyber/Clone-Proof`, `typestack/class-validator`, and `motdotla/dotenv`, removed each checkout's `.git` directory, copied each checkout for every mutation, and invoked `node src/cli.js check <copy> --format json`. It is a manual, network-dependent field procedure rather than part of `npm test`; no target `npm`, test, build, lifecycle, or Docker command was run. Adaptations were recorded rather than silently omitted:
 
 - Bug 1 seeded one `devDependencies.planted-dependency` entry in both the CloneProof manifest and lockfile root because that repository has no root dependency, then removed only the lockfile entry.
 - Bug 4 added an `npm run build` README line to class-validator and dotenv because their READMEs had no npm script line before the build-script rename.
@@ -202,7 +202,7 @@ Counting rule: each of the 15 table rows contributes exactly one verdict to the 
 - The corrected first-run false failures are Commander’s Windows symlink materialization and dotenv’s committed fixture omission. The corrected first-run false block is React’s use of GitHub’s whole-history size against the former sanity bound.
 - The two after-fix environment-limited failures are bcrypt’s native build and Axios’s browser-dependent test phase. Better diagnostics make the limitation honest but do not change that verdict.
 - Four fixes were implemented with offline regression tests: `a8d1dc1` (4 GiB full-history sanity limit), `cf02646` (Git-listed symlinks), `22e0258` (fresh-clone sensitive files), and `aeea9ac` (informational skipped-install-script finding). The earlier diagnostic commits `cb44146` and `8ca4fc3` remain in history and are covered by the final suite.
-- The final host suite after the four fixes is **130 tests: 129 passed, 1 skipped** (the expected Windows symlink `EPERM` case). The Linux container suite is reported separately in the handoff checks.
+- At the time of the four-fix rerun, the host suite was **130 tests: 129 passed, 1 skipped** (the expected Windows symlink `EPERM` case). That historical count predates later implementation and regression tests; the current host count is recorded in `docs/HANDOFF.md`. The Linux container suite is reported separately in the handoff checks.
 - The final cleanup audit found no `cloneproof-github-*` temporary folders and no containers from `docker ps -a --filter name=cloneproof-verify`.
 
 ## Target-guard-fixes check-only recheck

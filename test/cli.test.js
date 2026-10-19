@@ -26,6 +26,11 @@ test('setup accepts no target and defaults to text output', () => {
   });
 });
 
+test('check accepts explicit color preferences', () => {
+  assert.equal(parseArguments(['node', cliPath, 'check', 'repository', '--color']).color, true);
+  assert.equal(parseArguments(['node', cliPath, 'check', 'repository', '--no-color']).color, false);
+});
+
 test('version prints the package version and exits successfully', () => {
   const result = spawnSync(process.execPath, [cliPath, '--version'], {
     cwd: projectRoot,
