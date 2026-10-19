@@ -17,6 +17,7 @@ const {
 } = require('../src/verify/docker');
 const { scanRepository } = require('../src/scan/repository');
 const { CHECK_GROUPS, NOT_CHECKED } = require('../src/report/coverage');
+const { exitCodeForReport } = require('../src/report/render');
 
 const healthyFixture = path.join(__dirname, '..', 'examples', 'healthy-node');
 const brokenFixture = path.join(__dirname, '..', 'examples', 'broken-node');
@@ -146,6 +147,27 @@ test('transient staging remover failures are retried without a cleanup notice', 
   assert.equal(report.verification.cleanup.stagingRemoved, true);
   assert.equal(report.verification.cleanup.cleanupFailed, undefined);
   assert.ok(stagingAttempts >= 3);
+});
+
+test('cleanup failure fails verification without exposing an absolute directory', async () => {
+  const { runner } = makeRunner();
+  const report = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner,
+    removeTemporaryDirectory: async () => {
+      throw new Error('injected cleanup failure');
+    }
+  });
+
+  assertSummaryMatchesFindings(report);
+  assert.equal(report.status, 'failed');
+  assert.equal(exitCodeForReport(report), 1);
+  assert.equal(report.verification.cleanup.cleanupFailed, true);
+  assert.equal(report.verification.cleanup.completed, false);
+  assert.equal(report.verification.cleanup.cleanupDirectory.includes('\\'), false);
+  assert.equal(report.verification.cleanup.cleanupDirectory.includes('/'), false);
+  assert.equal(report.findings.some((finding) => finding.code === 'DOCKER_CLEANUP_INCOMPLETE'), true);
+  assert.doesNotMatch(JSON.stringify(report), /AppData|C:\\Users|\/home\//);
 });
 
 test('gitignored Docker paths are informational and have bounded sorted evidence', async () => {

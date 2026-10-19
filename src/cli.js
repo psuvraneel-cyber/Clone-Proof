@@ -278,6 +278,9 @@ function reportCleanupFailure(report, error) {
     cleanup.cleanupFailed = true;
     cleanup.stagingRemoved = false;
   }
+  if (report && (report.status === 'passed' || report.status === 'passed_with_warnings')) {
+    report.status = report.mode === 'verify' ? 'failed' : 'incomplete';
+  }
   process.stderr.write(`CloneProof: could not remove temporary folder ${folderName}; it is safe to delete.\n`);
   return true;
 }

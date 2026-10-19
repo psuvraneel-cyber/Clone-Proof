@@ -358,14 +358,31 @@ function recomputeSummary(report) {
 }
 
 function finalizeVerificationReport(report) {
-  recomputeSummary(report);
   const cleanup = report.verification && report.verification.cleanup;
   if (cleanup && typeof cleanup === 'object') {
     cleanup.attempted = Boolean(cleanup.attempted);
     cleanup.completed = Boolean(cleanup.completed);
     cleanup.stagingRemoved = Boolean(cleanup.stagingRemoved);
     cleanup.clientConfigRemoved = Boolean(cleanup.clientConfigRemoved);
+    if (cleanup.cleanupFailed) {
+      if (!report.findings.some((finding) => finding.code === 'DOCKER_CLEANUP_INCOMPLETE')) {
+        addFinding(report, {
+          code: 'DOCKER_CLEANUP_INCOMPLETE',
+          status: 'failed',
+          severity: 'error',
+          title: 'Temporary verification cleanup could not be completed',
+          message: 'CloneProof could not remove every temporary verification directory.',
+          evidence: makeEvidence('verification.cleanup', 'A temporary directory remained after verification cleanup.'),
+          recommendation: 'Delete the reported temporary folder before running another verification.'
+        });
+      }
+      report.status = 'failed';
+      if (report.verification.outcome === 'passed' || report.verification.outcome === 'blocked') {
+        report.verification.outcome = 'failed';
+      }
+    }
   }
+  recomputeSummary(report);
   return report;
 }
 
@@ -659,13 +676,19 @@ async function cleanupContainer(runner, dockerCommand, containerName, runResult,
   };
 }
 
+function temporaryDirectoryName(value) {
+  const normalized = String(value || '').replace(/[\\/]+$/, '');
+  const parts = normalized.split(/[\\/]/).filter(Boolean);
+  return parts.at(-1) || 'temporary-folder';
+}
+
 async function cleanupVerificationDirectory(directory, report, field, removeDirectory) {
   try {
     await removeDirectory(directory);
     report.verification.cleanup[field] = true;
   } catch (error) {
     report.verification.cleanup.cleanupFailed = true;
-    report.verification.cleanup.cleanupDirectory = directory;
+    report.verification.cleanup.cleanupDirectory = temporaryDirectoryName(directory);
     report.verification.cleanup[field] = false;
   }
 }
