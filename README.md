@@ -18,11 +18,22 @@ The project is being built as an OmniRush Frontier Buildathon submission. The cu
 
 ## Install
 
-Install this CloneProof CLI directly from the GitHub repository:
+Install this CloneProof CLI directly from the GitHub repository archive:
 
 ```bash
-npm install -g github:psuvraneel-cyber/Clone-Proof
-npx github:psuvraneel-cyber/Clone-Proof --help
+npm install -g https://github.com/psuvraneel-cyber/Clone-Proof/archive/refs/heads/main.tar.gz
+```
+
+To run it once without installing:
+
+```bash
+npx github:psuvraneel-cyber/Clone-Proof check <project-folder>
+```
+
+To update an existing installation, run the same install command again:
+
+```bash
+npm install -g https://github.com/psuvraneel-cyber/Clone-Proof/archive/refs/heads/main.tar.gz
 ```
 
 Do not run `npm install -g cloneproof`: that installs a different, unrelated npm package. Run `cloneproof check <project-folder>` from inside a project folder, not from your home folder or a drive root.
