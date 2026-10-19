@@ -125,6 +125,46 @@ test('renderText and renderHtml explain a passed Docker verification', () => {
   assert.match(html, /Running build steps \(declared outputs are only checked for presence\)/);
 });
 
+test('renderText and renderHtml do not claim success when no tests ran', () => {
+  const report = {
+    schemaVersion: 2,
+    mode: 'verify',
+    target: { kind: 'local', name: 'empty-test-repository' },
+    status: 'passed_with_warnings',
+    coverage: { checked: ALL_CHECK_GROUPS, notChecked: NOT_CHECKED },
+    findings: [{
+      code: 'VERIFY_NO_TESTS_RAN',
+      status: 'warning',
+      severity: 'warning',
+      title: 'The Docker test command reported no tests',
+      message: 'npm test exited successfully, but bounded test output indicated that no tests ran.',
+      evidence: [{ path: 'verification.stdout', detail: 'Zero-test summary.' }],
+      recommendation: 'Add or select at least one test.'
+    }],
+    summary: { total: 1, passed: 0, failed: 0, warnings: 1, skipped: 0 },
+    verification: {
+      outcome: 'passed',
+      noTestsRan: true,
+      networkMode: 'none',
+      networkConsent: false,
+      exitCode: 0,
+      cleanup: { completed: true },
+      stdout: 'Test Files 0 passed (0)\n',
+      stderr: ''
+    }
+  };
+
+  const text = renderText(report, { color: false, isTTY: false });
+  const html = renderHtml(report);
+
+  assert.match(text, /VERIFY_NO_TESTS_RAN/);
+  assert.match(text, /Tests detected: no/);
+  assert.doesNotMatch(text, /npm ci and npm test succeeded/);
+  assert.match(html, /VERIFY_NO_TESTS_RAN/);
+  assert.match(html, /Tests detected.*no/);
+  assert.doesNotMatch(html, /npm ci and npm test succeeded/);
+});
+
 test('renderText includes the report summary and every finding status', () => {
   const output = renderText(reportFixture(), { color: false, isTTY: true });
 

@@ -143,6 +143,39 @@ test('successful Docker verification records evidence and cleans staging', async
   assert.equal(fs.existsSync(stagedPath), false);
 });
 
+test('zero-test success is reported for supported test-runner output', async () => {
+  const outputs = [
+    'TAP version 13\n1..0\n# tests 0\n# suites 0\n# pass 0\n# fail 0\n# duration_ms 1.2\n',
+    'No tests found, exiting with code 0\n',
+    'Test Files 0 passed (0)\nTests 0 passed (0)\n',
+    '0 passing (2ms)\n',
+    '0 tests passed\n',
+    'TAP version 13\n1..0\n# time=1ms\n'
+  ];
+
+  for (const output of outputs) {
+    const report = await verifyRepository(healthyFixture, {
+      execute: true,
+      runner: async (command, args) => {
+        if (args[0] === 'version' || args[0] === 'image') {
+          return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+        }
+        return { exitCode: 0, signal: null, stdout: output, stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+    });
+
+    assertSummaryMatchesFindings(report);
+    assert.equal(report.status, 'passed_with_warnings');
+    assert.equal(report.verification.outcome, 'passed');
+    assert.equal(report.verification.noTestsRan, true);
+    const finding = report.findings.find((item) => item.code === 'VERIFY_NO_TESTS_RAN');
+    assert.equal(finding.status, 'warning');
+    assert.equal(finding.severity, 'warning');
+    assert.equal(report.findings.some((item) => item.code === 'DOCKER_VERIFICATION_PASSED'), false);
+    assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
+  }
+});
+
 test('transient staging remover failures are retried without a cleanup notice', async () => {
   const { runner } = makeRunner();
   let stagingAttempts = 0;

@@ -179,6 +179,12 @@ function coverageLabel(id, labels) {
   return labels[id] || id;
 }
 
+function verificationHasNoTests(report) {
+  if (!report || !report.verification || typeof report.verification !== 'object') return false;
+  return report.verification.noTestsRan === true
+    || findingsFor(report).some((finding) => finding && finding.code === 'VERIFY_NO_TESTS_RAN');
+}
+
 function successExplanation(report, checkedCount) {
   const status = normalizeStatus(reportStatus(report));
   if (report && report.mode === 'check' && status === 'passed') {
@@ -190,6 +196,7 @@ function successExplanation(report, checkedCount) {
     && report.verification
     && typeof report.verification === 'object'
     && normalizeStatus(report.verification.outcome) === 'passed'
+    && !verificationHasNoTests(report)
   ) {
     return 'npm ci and npm test succeeded inside the controlled container.';
   }
@@ -423,6 +430,7 @@ function verificationLines(report) {
     `  Cleanup complete: ${verification.cleanup && verification.cleanup.completed ? 'yes' : 'no'}`
   ];
 
+  if (verification.noTestsRan) lines.push('  Tests detected: no');
   if (verification.failedPhase) lines.push(`  Failed phase: ${escapeControlCharacters(verification.failedPhase)}`);
   if (verification.timedOut) lines.push('  Timed out: yes');
   if (verification.outputTruncated) lines.push('  Output truncated: yes');
@@ -709,6 +717,9 @@ function htmlVerification(report) {
   }
   if (verification.outputTruncated) {
     optionalRows.push('<dt>Output truncated</dt><dd>yes</dd>');
+  }
+  if (verification.noTestsRan) {
+    optionalRows.push('<dt>Tests detected</dt><dd>no</dd>');
   }
 
   return [

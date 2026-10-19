@@ -570,6 +570,45 @@ function npmRunScriptNames(command) {
   return names;
 }
 
+const TEST_LIFECYCLE_SCRIPT_NAMES = Object.freeze(['pretest', 'test', 'posttest']);
+const GIT_METADATA_SCRIPT_REFERENCES = Object.freeze([
+  { label: '.git', expression: /(?:^|[^A-Za-z0-9])\.git(?:$|[^A-Za-z0-9])/i },
+  { label: 'git rev-parse', expression: /\bgit\b[^\r\n;&|]*\brev-parse\b/i },
+  { label: 'git describe', expression: /\bgit\b[^\r\n;&|]*\bdescribe\b/i },
+  { label: 'git ls-files', expression: /\bgit\b[^\r\n;&|]*\bls-files\b/i },
+  { label: 'husky', expression: /\bhusky\b/i }
+]);
+
+function testLifecycleGitMetadataReferences(scripts, packageText) {
+  const pending = [...TEST_LIFECYCLE_SCRIPT_NAMES];
+  const visited = new Set();
+  const references = [];
+
+  while (pending.length > 0) {
+    const scriptName = pending.shift();
+    if (visited.has(scriptName) || !Object.prototype.hasOwnProperty.call(scripts, scriptName)) continue;
+    visited.add(scriptName);
+    const command = scripts[scriptName];
+    const line = packageText
+      ? firstMatchLine(packageText, new RegExp(`"${escapeRegexText(scriptName)}"\\s*:`))
+      : undefined;
+
+    for (const reference of GIT_METADATA_SCRIPT_REFERENCES) {
+      if (!reference.expression.test(command)) continue;
+      references.push({ scriptName, label: reference.label, line });
+    }
+
+    for (const referencedScript of npmRunScriptNames(command)) {
+      if (!visited.has(referencedScript)) pending.push(referencedScript);
+    }
+  }
+
+  return references.sort((left, right) => (
+    compareStrings(left.scriptName, right.scriptName)
+    || compareStrings(left.label, right.label)
+  ));
+}
+
 function browserTestWorkflow(scripts) {
   const pending = ['test'];
   const visited = new Set();
@@ -2414,6 +2453,28 @@ function scanRepository(rootPath, options) {
         : [],
       'Provide a readable package.json and run the scan again.'
     );
+  }
+
+  if (packageValid) {
+    const gitMetadataReferences = testLifecycleGitMetadataReferences(scripts, packageText);
+    if (gitMetadataReferences.length > 0) {
+      const scriptNames = [...new Set(gitMetadataReferences.map((reference) => reference.scriptName))];
+      const referenceLabels = [...new Set(gitMetadataReferences.map((reference) => reference.label))];
+      addFinding(
+        findings,
+        'GIT_METADATA_REQUIRED',
+        'skipped',
+        'info',
+        'The test lifecycle may require Git metadata',
+        `Test lifecycle scripts ${scriptNames.join(', ')} refer to ${referenceLabels.join(', ')}; a Docker snapshot does not include the repository's .git metadata.`,
+        gitMetadataReferences.map((reference) => makeEvidence(
+          'package.json',
+          `scripts.${reference.scriptName} refers to ${reference.label}.`,
+          reference.line
+        )),
+        'Confirm that npm test works without .git metadata, or provide the required metadata through a separately trusted workflow.'
+      );
+    }
   }
 
   if (packageValid && typeof scripts.test === 'string' && scripts.test.trim() && !placeholderTestFinding) {

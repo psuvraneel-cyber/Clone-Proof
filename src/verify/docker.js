@@ -410,6 +410,7 @@ function staticPrerequisiteFailure(report) {
 }
 
 function verificationFinding(outcome, verification, staticReport) {
+  if (outcome === 'passed' && verification.noTestsRan) return null;
   if (outcome === 'passed') {
     return {
       code: 'DOCKER_VERIFICATION_PASSED',
@@ -479,6 +480,61 @@ function failedPhaseForResult(result) {
   if (/CLONEPROOF_PHASE=test/.test(output)) return 'test';
   if (/CLONEPROOF_PHASE=install/.test(output)) return 'install';
   return 'setup';
+}
+
+function detectNoTestsRan(output, outputPath = 'verification.stdout') {
+  const text = String(output || '')
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\r/g, '');
+  if (!text) return null;
+
+  const frameworks = new Set();
+  const hasZeroTestCount = /(?:^|\n)\s*(?:[#ℹ]\s*)?(?:tests?|test files?|test suites?)\s*:?\s*0\b/im.test(text)
+    || /\b(?:tests?|test files?)\s+0\s+(?:passed|total)\b/i.test(text);
+
+  if (
+    /(?:^|\n)\s*[#ℹ]\s+tests?\s+0\b/im.test(text)
+    || /(?:^|\n)\s*[#ℹ]\s+suites?\s+0\b/im.test(text)
+    || (/\btests?\s+0\b/i.test(text) && /\b(?:duration_ms|cancelled|skipped|todo)\b/i.test(text))
+  ) {
+    frameworks.add('node:test');
+  }
+  if (/\bno tests found\b/i.test(text) || /\btest suites?:\s*0\b[^\n]*\btotal\b/i.test(text)) {
+    frameworks.add('Jest');
+  }
+  if (/\bno test files found\b/i.test(text) || /\btest files\s+0\b/i.test(text)) {
+    frameworks.add('Vitest');
+  }
+  if (/(?:^|\n)\s*0\s+passing(?:\s|\(|$)/im.test(text)) {
+    frameworks.add('Mocha');
+  }
+  if (/\b0\s+tests?\s+passed\b/i.test(text)) {
+    frameworks.add('AVA');
+  }
+  if (/(?:^|\n)\s*1\.\.0(?:\s|$)/m.test(text) || /(?:^|\n)\s*#\s*tests\s+0\b/im.test(text)) {
+    frameworks.add('tap');
+  }
+
+  if (!hasZeroTestCount && frameworks.size === 0) return null;
+  return {
+    frameworks: [...frameworks].sort(compareStrings),
+    outputPath
+  };
+}
+
+function noTestsRanFinding(detection) {
+  const frameworkText = detection.frameworks.length > 0
+    ? ` (${detection.frameworks.join(', ')})`
+    : '';
+  return {
+    code: 'VERIFY_NO_TESTS_RAN',
+    status: 'warning',
+    severity: 'warning',
+    title: 'The Docker test command reported no tests',
+    message: `npm test exited successfully, but bounded test output${frameworkText} indicated that no tests ran.`,
+    evidence: makeEvidence(detection.outputPath, 'The bounded Docker test output contained a zero-test result.'),
+    recommendation: 'Add or select at least one test, and confirm the declared npm test command discovers the intended test files.'
+  };
 }
 
 async function probeDocker(runner, dockerCommand, context = {}) {
@@ -850,6 +906,7 @@ async function verifyRepository(rootPath, options = {}) {
     failedPhase: null,
     timedOut: false,
     outputTruncated: false,
+    noTestsRan: false,
     stdout: '',
     stderr: '',
     omittedPaths: [],
@@ -1149,6 +1206,20 @@ async function verifyRepository(rootPath, options = {}) {
     report.verification.outputTruncated = Boolean(result.outputTruncated);
     report.verification.stdout = redactOutput(result.stdout || '');
     report.verification.stderr = redactOutput(result.stderr || result.error || '');
+    const noTestsDetections = result.exitCode === 0 && !result.error && !result.timedOut
+      ? [
+        detectNoTestsRan(report.verification.stdout, 'verification.stdout'),
+        detectNoTestsRan(report.verification.stderr, 'verification.stderr')
+      ].filter(Boolean)
+      : [];
+    if (noTestsDetections.length > 0) {
+      const detection = {
+        frameworks: [...new Set(noTestsDetections.flatMap((item) => item.frameworks))].sort(compareStrings),
+        outputPath: noTestsDetections[0].outputPath
+      };
+      report.verification.noTestsRan = true;
+      addFinding(report, noTestsRanFinding(detection));
+    }
     if (
       report.verification.failedPhase === 'install'
       && !allowNetwork
@@ -1188,7 +1259,8 @@ async function verifyRepository(rootPath, options = {}) {
       report.verification.outcome = 'failed';
     }
     if (report.verification.outcome !== 'blocked') {
-      addFinding(report, verificationFinding(report.verification.outcome, report.verification, report));
+      const finding = verificationFinding(report.verification.outcome, report.verification, report);
+      if (finding) addFinding(report, finding);
     }
     recomputeSummary(report);
     report.status = report.verification.outcome === 'passed'

@@ -166,6 +166,30 @@ test('does not warn for browser tooling that is not part of the package test com
   assert.equal(finding(report, 'BROWSER_TESTS_DETECTED'), undefined);
 }));
 
+test('reports when test lifecycle scripts require Git metadata', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.scripts = {
+    pretest: 'git rev-parse --is-inside-work-tree',
+    test: 'git describe --always',
+    posttest: 'git ls-files -z && test -d .git && husky run'
+  };
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+
+  const report = scanRepository(root);
+  const metadata = finding(report, 'GIT_METADATA_REQUIRED');
+
+  assert.equal(metadata.status, 'skipped');
+  assert.equal(metadata.severity, 'info');
+  assert.match(metadata.message, /(?:pretest.*posttest|posttest.*pretest)/);
+  for (const reference of ['.git', 'git describe', 'git ls-files', 'git rev-parse', 'husky']) {
+    assert.match(metadata.message, new RegExp(reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.equal(metadata.evidence.every((item) => item.path === 'package.json'), true);
+  assert.ok(report.coverage.checked.includes(CHECK_GROUPS.TEST_SCRIPT));
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
+}));
+
 test('reports an unknown npm script referenced by README', () => withRepository((root) => {
   writeHealthyRepository(root);
   writeFile(root, 'README.md', 'Run `npm run release` after installing dependencies.\n');
