@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-19; the current implementation baseline is `bf1f8ae`, ahead of the latest pushed and CI-verified baseline `1d817e7`. The `docs-final` branch was pushed and fast-forwarded into `main` at `1d817e7`; later local implementation fixes are not represented by that CI receipt and remain pending the next push. This file records the final submission state for the current OmniRush session.
+Updated 2026-10-19; the current implementation baseline is `b59a8d9`, ahead of the latest pushed and CI-verified baseline `1d817e7`. The `docs-final` branch was pushed and fast-forwarded into `main` at `1d817e7`; later local implementation fixes are not represented by that CI receipt and remain pending the next push. This file records the final submission state for the current OmniRush session.
 
 ## Goal
 
