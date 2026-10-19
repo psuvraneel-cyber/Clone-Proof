@@ -47,7 +47,6 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Final Run 3 results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, 13 correct and 2 environment-limited failures, warning precision 83.3%, combined warning/failure precision 83.3%, and planted-bug detection of 13/13 offline plus 39/39 real-repository cases.
 - The Windows host still skips the real symlink-creation test because it returns `EPERM`; Linux CI is required to run it.
 - Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop; implementation, merge, and CI validation are complete.
-- The target-guard field recheck ran 15 sequential GitHub `check --format json` attempts with a one-second delay. Thirteen check conclusions remained compatible with the recorded run-3 verdicts; Express currently reports an additional `README_SCRIPT_UNKNOWN` failure on the main baseline, and the Linux check timed out before producing JSON. These are recorded in `docs/FIELD_TEST.md` rather than being hidden.
 
 ## Important files
 
