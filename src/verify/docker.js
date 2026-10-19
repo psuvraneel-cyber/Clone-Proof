@@ -498,6 +498,117 @@ function makeContainerName() {
   return `cloneproof-verify-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error && error.code !== 'ESRCH';
+  }
+}
+
+function removeSupervisorPaths(paths) {
+  for (const directory of paths) {
+    try {
+      fs.rmSync(directory, { recursive: true, force: true });
+    } catch {
+      // The normal verifier cleanup remains responsible for reporting failures.
+    }
+  }
+}
+
+function runCleanupSupervisor(payloadValue) {
+  let payload;
+  try {
+    payload = JSON.parse(payloadValue);
+  } catch {
+    process.exitCode = 2;
+    return;
+  }
+
+  const parentPid = Number(payload.parentPid);
+  if (!Number.isInteger(parentPid) || parentPid <= 0 || !payload.command || !Array.isArray(payload.args)) {
+    process.exitCode = 2;
+    return;
+  }
+
+  const poll = setInterval(() => {
+    if (processIsAlive(parentPid)) return;
+    clearInterval(poll);
+
+    let cleanup;
+    try {
+      cleanup = spawn(payload.command, payload.args, {
+        cwd: payload.cwd || os.tmpdir(),
+        env: payload.env || process.env,
+        shell: false,
+        windowsHide: true,
+        stdio: 'ignore'
+      });
+    } catch {
+      removeSupervisorPaths(payload.paths || []);
+      process.exitCode = 1;
+      return;
+    }
+
+    let settled = false;
+    const finish = (exitCode) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      removeSupervisorPaths(payload.paths || []);
+      process.exitCode = exitCode;
+    };
+    const timeout = setTimeout(() => {
+      if (!settled) cleanup.kill('SIGKILL');
+      finish(1);
+    }, DOCKER_PROBE_TIMEOUT_MS);
+    cleanup.once('error', () => finish(1));
+    cleanup.once('close', (exitCode) => finish(exitCode === 0 ? 0 : 1));
+  }, 100);
+}
+
+function startCleanupSupervisor(options = {}) {
+  const payload = {
+    parentPid: process.pid,
+    command: options.command,
+    args: options.args || [],
+    cwd: options.cwd || os.tmpdir(),
+    env: options.env || process.env,
+    paths: Array.isArray(options.paths) ? options.paths : []
+  };
+
+  let supervisor;
+  try {
+    supervisor = spawn(
+      process.execPath,
+      [__filename, '--cleanup-supervisor', JSON.stringify(payload)],
+      {
+        cwd: payload.cwd,
+        env: payload.env,
+        detached: true,
+        windowsHide: true,
+        stdio: 'ignore'
+      }
+    );
+  } catch {
+    return null;
+  }
+
+  supervisor.once('error', () => {});
+  supervisor.unref();
+  return supervisor;
+}
+
+function stopCleanupSupervisor(supervisor) {
+  if (!supervisor || supervisor.exitCode !== null) return;
+  try {
+    supervisor.kill('SIGTERM');
+  } catch {
+    // The supervisor may already have observed verifier process exit.
+  }
+}
+
 function resultSucceeded(result) {
   return Boolean(
     result
@@ -868,6 +979,7 @@ async function verifyRepository(rootPath, options = {}) {
   let interruptedSignal = null;
   let signalCleanupPromise = null;
   let signalContainerCleanup = null;
+  let cleanupSupervisor = null;
   const signalSource = options.signalSource || process;
   const signalHandlers = [];
 
@@ -936,6 +1048,19 @@ async function verifyRepository(rootPath, options = {}) {
   try {
     temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-verify-'));
     report.verification.cleanup.stagingAttempted = true;
+    const cleanupSupervisorEnabled = options.cleanupSupervisor === true
+      || (process.platform === 'win32' && !options.runner && options.cleanupSupervisor !== false);
+    if (cleanupSupervisorEnabled) {
+      cleanupSupervisor = startCleanupSupervisor({
+        command: options.cleanupSupervisorCommand || dockerCommand,
+        args: Array.isArray(options.cleanupSupervisorArgs)
+          ? options.cleanupSupervisorArgs
+          : ['rm', '-f', containerName],
+        cwd: dockerContext.cwd,
+        env: dockerContext.env,
+        paths: [temporaryRoot, dockerConfigRoot]
+      });
+    }
     const staged = stageRepository(rootPath, temporaryRoot, {
       ...(options.stagingLimits || {}),
       freshClone: options.freshClone === true,
@@ -1116,6 +1241,7 @@ async function verifyRepository(rootPath, options = {}) {
     });
     report.status = 'failed';
   } finally {
+    stopCleanupSupervisor(cleanupSupervisor);
     for (const [signal, handler] of signalHandlers) {
       signalSource.removeListener(signal, handler);
     }
@@ -1132,6 +1258,10 @@ async function verifyRepository(rootPath, options = {}) {
   }
 
   return finalizeVerificationReport(report);
+}
+
+if (require.main === module && process.argv[2] === '--cleanup-supervisor') {
+  runCleanupSupervisor(process.argv[3]);
 }
 
 module.exports = {

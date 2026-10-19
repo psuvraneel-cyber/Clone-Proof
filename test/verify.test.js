@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
 const { EventEmitter } = require('node:events');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -83,6 +84,15 @@ function assertSummaryMatchesFindings(report) {
     warnings: report.findings.filter((finding) => finding.status === 'warning').length,
     skipped: report.findings.filter((finding) => finding.status === 'skipped').length
   });
+}
+
+async function waitForFile(filePath, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(filePath)) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Timed out waiting for ${path.basename(filePath)}`);
 }
 
 test('Docker arguments use a controlled, non-privileged profile', () => {
@@ -449,6 +459,66 @@ test('SIGINT force-removes an interrupted verification container', async () => {
   assert.equal(signals.listenerCount('SIGINT'), 0);
   assert.equal(signals.listenerCount('SIGTERM'), 0);
   assert.ok(calls.some((call) => call.args[0] === 'rm' && call.args[1] === '-f'));
+});
+
+test('Windows process-level SIGINT cleanup removes the verification container', { skip: process.platform !== 'win32' }, async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-process-sigint-'));
+  const readyPath = path.join(root, 'ready');
+  const cleanedPath = path.join(root, 'cleaned');
+  const cleanupScript = path.join(root, 'cleanup.js');
+  const childScript = path.join(root, 'verify.js');
+  const dockerModule = path.join(__dirname, '..', 'src', 'verify', 'docker.js');
+
+  fs.writeFileSync(cleanupScript, [
+    "'use strict';",
+    "const fs = require('node:fs');",
+    `fs.writeFileSync(${JSON.stringify(cleanedPath)}, 'removed');`
+  ].join('\n'));
+  fs.writeFileSync(childScript, [
+    "'use strict';",
+    "const fs = require('node:fs');",
+    `const { verifyRepository } = require(${JSON.stringify(dockerModule)});`,
+    `const fixture = ${JSON.stringify(healthyFixture)};`,
+    `const readyPath = ${JSON.stringify(readyPath)};`,
+    'const success = { exitCode: 0, signal: null, stdout: "", stderr: "", timedOut: false, outputTruncated: false, error: null };',
+    'const runner = async (command, args) => {',
+    '  if (args[0] === "version" || args[0] === "image") return success;',
+    '  if (args[0] === "run") {',
+    '    fs.writeFileSync(readyPath, "running");',
+    '    await new Promise(() => setInterval(() => {}, 1000));',
+    '  }',
+    '  return success;',
+    '};',
+    `verifyRepository(fixture, { execute: true, runner, cleanupSupervisor: true, cleanupSupervisorCommand: process.execPath, cleanupSupervisorArgs: [${JSON.stringify(cleanupScript)}] }).catch(() => { process.exitCode = 1; });`
+  ].join('\n'));
+
+  const child = spawn(process.execPath, [childScript], {
+    cwd: path.join(__dirname, '..'),
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true
+  });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+  try {
+    await waitForFile(readyPath);
+    assert.equal(child.kill('SIGINT'), true);
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Verifier process did not exit: ${stderr}`)), 5000);
+      child.once('close', (exitCode, signal) => {
+        clearTimeout(timer);
+        assert.equal(exitCode, null);
+        assert.equal(signal, 'SIGINT');
+        resolve();
+      });
+    });
+    await waitForFile(cleanedPath);
+    assert.equal(fs.readFileSync(cleanedPath, 'utf8'), 'removed');
+  } finally {
+    if (child.exitCode === null) child.kill('SIGKILL');
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('static failures block Docker execution', async () => {
