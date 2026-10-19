@@ -351,12 +351,14 @@ function relativePath(rootPath, absolutePath) {
   return (path.relative(rootPath, absolutePath) || '.').split(path.sep).join('/');
 }
 
-function limitError(message, relative, limit) {
+function limitError(label, relative, limitName, limit, count) {
   const error = new GithubSourceError(
-    `GitHub checkout limit exceeded: ${message}${relative ? ` at ${relative}` : ''}`,
+    `GitHub checkout limit exceeded: ${label} exceeded configured ${limitName}=${limit}; count reached ${count}${relative ? ` at ${relative}` : ''}`,
     'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
   );
   error.limit = limit;
+  error.limitName = limitName;
+  error.count = count;
   error.path = relative || '.';
   return error;
 }
@@ -417,7 +419,7 @@ function inspectCheckout(rootPath, options = {}) {
       const relative = relativePath(root, absolute);
       metadata.entryCount += 1;
       if (metadata.entryCount > limits.maxEntries) {
-        throw limitError('entry count', relative, limits.maxEntries);
+        throw limitError('entry count', relative, 'maxEntries', limits.maxEntries, metadata.entryCount);
       }
 
       let stat;
@@ -440,7 +442,7 @@ function inspectCheckout(rootPath, options = {}) {
       if (stat.isDirectory()) {
         const nextDepth = depth + 1;
         if (nextDepth > limits.maxDepth) {
-          throw limitError('directory depth', relative, limits.maxDepth);
+          throw limitError('directory depth', relative, 'maxDepth', limits.maxDepth, nextDepth);
         }
         metadata.maxDepth = Math.max(metadata.maxDepth, nextDepth);
         walk(absolute, nextDepth);
@@ -449,13 +451,19 @@ function inspectCheckout(rootPath, options = {}) {
 
       if (!stat.isFile()) continue;
       if (stat.size > limits.maxFileBytes) {
-        throw limitError('file size', relative, limits.maxFileBytes);
+        throw limitError('file size', relative, 'maxFileBytes', limits.maxFileBytes, stat.size);
       }
       if (metadata.fileCount >= limits.maxFiles) {
-        throw limitError('file count', relative, limits.maxFiles);
+        throw limitError('file count', relative, 'maxFiles', limits.maxFiles, metadata.fileCount + 1);
       }
       if (metadata.totalBytes + stat.size > limits.maxTotalBytes) {
-        throw limitError('total file bytes', relative, limits.maxTotalBytes);
+        throw limitError(
+          'total file bytes',
+          relative,
+          'maxTotalBytes',
+          limits.maxTotalBytes,
+          metadata.totalBytes + stat.size
+        );
       }
 
       metadata.fileCount += 1;

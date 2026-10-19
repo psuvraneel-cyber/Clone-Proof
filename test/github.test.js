@@ -366,7 +366,13 @@ test('rejects a checkout that exceeds a bound and removes it', async () => {
         return successfulResult();
       }
     }),
-    (error) => error && error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
+    (error) => error
+      && error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
+      && error.limitName === 'maxFiles'
+      && error.limit === 1
+      && error.count === 2
+      && error.path === 'two.txt'
+      && error.message === 'GitHub checkout limit exceeded: file count exceeded configured maxFiles=1; count reached 2 at two.txt'
   );
   assert.ok(destination);
   assert.equal(calls.some((args) => args.includes('ls-files')), false);
@@ -406,6 +412,10 @@ test('checkout inspection visits root files before a .venv subtree reaches maxEn
       () => inspectCheckout(root, { maxEntries: 5 }),
       (error) => error && error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
         && error.path === '.venv/file-1.txt'
+        && error.limitName === 'maxEntries'
+        && error.limit === 5
+        && error.count === 6
+        && error.message === 'GitHub checkout limit exceeded: entry count exceeded configured maxEntries=5; count reached 6 at .venv/file-1.txt'
         && !path.isAbsolute(error.path)
     );
   } finally {
@@ -594,6 +604,69 @@ test('uses the configured GitHub token only on the API preflight and records aut
       assert.equal(call.options.env.GITHUB_TOKEN, undefined);
     }
     await result.cleanup();
+  }
+});
+
+test('checkout limit diagnostics name each configured bound and reached count', () => {
+  const cases = [
+    {
+      name: 'depth',
+      options: { maxDepth: 0 },
+      setup(root) {
+        fs.mkdirSync(path.join(root, 'nested'));
+        fs.writeFileSync(path.join(root, 'nested', 'file.txt'), 'x');
+      },
+      limitName: 'maxDepth',
+      limit: 0,
+      count: 1,
+      stopPath: 'nested',
+      label: 'directory depth'
+    },
+    {
+      name: 'file size',
+      options: { maxFileBytes: 1 },
+      setup(root) {
+        fs.writeFileSync(path.join(root, 'large.txt'), 'xx');
+      },
+      limitName: 'maxFileBytes',
+      limit: 1,
+      count: 2,
+      stopPath: 'large.txt',
+      label: 'file size'
+    },
+    {
+      name: 'total bytes',
+      options: { maxTotalBytes: 2 },
+      setup(root) {
+        fs.writeFileSync(path.join(root, 'first.txt'), 'x');
+        fs.writeFileSync(path.join(root, 'second.txt'), 'xx');
+      },
+      limitName: 'maxTotalBytes',
+      limit: 2,
+      count: 3,
+      stopPath: 'second.txt',
+      label: 'total file bytes'
+    }
+  ];
+
+  for (const item of cases) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), `cloneproof-checkout-${item.name.replace(/\s+/g, '-')}-`));
+    try {
+      item.setup(root);
+      assert.throws(
+        () => inspectCheckout(root, item.options),
+        (error) => error
+          && error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
+          && error.limitName === item.limitName
+          && error.limit === item.limit
+          && error.count === item.count
+          && error.path === item.stopPath
+          && error.message === `GitHub checkout limit exceeded: ${item.label} exceeded configured ${item.limitName}=${item.limit}; count reached ${item.count} at ${item.stopPath}`
+          && !path.isAbsolute(error.path)
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   }
 });
 
