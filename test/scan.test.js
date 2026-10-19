@@ -105,7 +105,7 @@ test('reports npm placeholder test scripts as a blocking finding', () => withRep
   const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   packageData.scripts.test = 'echo "Error: no test specified" && exit 1';
   writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
-  writeFile(root, 'README.md', 'Run `npm test` after installing dependencies.\n');
+  writeFile(root, 'README.md', '```bash\nnpm test\n```\n');
 
   const report = scanRepository(root);
   const placeholder = finding(report, 'TEST_SCRIPT_PLACEHOLDER');
@@ -192,7 +192,7 @@ test('reports when test lifecycle scripts require Git metadata', () => withRepos
 
 test('reports an unknown npm script referenced by README', () => withRepository((root) => {
   writeHealthyRepository(root);
-  writeFile(root, 'README.md', 'Run `npm run release` after installing dependencies.\n');
+  writeFile(root, 'README.md', '```bash\nnpm run release\n```\n');
 
   const report = scanRepository(root);
 
@@ -205,7 +205,7 @@ test('reports an unknown npm script referenced by README', () => withRepository(
 
 test('recognizes bare npm i as a README install command', () => withRepository((root) => {
   writeHealthyRepository(root);
-  writeFile(root, 'README.md', 'Install dependencies with `npm i`.\n');
+  writeFile(root, 'README.md', 'npm i\n');
 
   const report = scanRepository(root);
   const install = finding(report, 'README_INSTALL_COMMAND');
@@ -220,7 +220,7 @@ test('validates npm start against scripts.start or a root server.js', () => with
   const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   packageData.scripts.start = 'node src/server.js';
   writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
-  writeFile(root, 'README.md', 'Start the app with `npm start`.\n');
+  writeFile(root, 'README.md', '```bash\nnpm start\n```\n');
 
   const scripted = scanRepository(root);
   assert.equal(finding(scripted, 'README_SCRIPT_UNKNOWN'), undefined);
@@ -316,12 +316,13 @@ test('checks npm run-script, yarn run, and pnpm run against package scripts', ()
 
   for (const manager of ['npm', 'yarn', 'pnpm']) {
     const runCommand = manager === 'npm' ? 'npm run-script release' : `${manager} run release`;
-    writeFile(root, 'README.md', `Run \`${runCommand}\`.\n`);
+    writeFile(root, 'README.md', `\`\`\`bash\n${runCommand}\n\`\`\`\n`);
     const valid = scanRepository(root);
     assert.equal(finding(valid, 'README_SCRIPT_REFERENCE').status, 'passed', manager);
     assert.equal(finding(valid, 'README_SCRIPT_UNKNOWN'), undefined, manager);
 
-    writeFile(root, 'README.md', `Run \`${manager === 'npm' ? 'npm run-script missing' : `${manager} run missing`}\`.\n`);
+    const missingCommand = manager === 'npm' ? 'npm run-script missing' : `${manager} run missing`;
+    writeFile(root, 'README.md', `\`\`\`bash\n${missingCommand}\n\`\`\`\n`);
     const invalid = scanRepository(root);
     const unknown = finding(invalid, 'README_SCRIPT_UNKNOWN');
     assert.equal(unknown.status, 'failed', manager);
@@ -340,6 +341,24 @@ test('does not treat bare yarn or pnpm commands as script checks', () => withRep
 
   assert.equal(finding(report, 'README_SCRIPT_UNKNOWN'), undefined);
   assert.equal(finding(report, 'README_SCRIPT_REFERENCE'), undefined);
+}));
+
+test('ignores package-manager commands embedded in inline README prose', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    'Run `npm run missing` after setup.',
+    'Then run `npm test` and `npm install`.',
+    'The command `npm start` launches the app.'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'README_SCRIPT_UNKNOWN'), undefined);
+  assert.equal(finding(report, 'README_SCRIPT_REFERENCE'), undefined);
+  assert.equal(finding(report, 'README_TEST_COMMAND'), undefined);
+  assert.equal(finding(report, 'README_INSTALL_COMMAND'), undefined);
+  assert.equal(finding(report, 'README_START_COMMAND_UNKNOWN'), undefined);
+  assert.equal(finding(report, 'README_PACKAGE_MANAGER_MISMATCH'), undefined);
 }));
 
 test('warns on a README setup manager mismatch and suppresses it with a correct setup command', () => withRepository((root) => {
@@ -381,7 +400,7 @@ test('limits README package-manager mismatch checks to setup forms and ignores c
   ];
 
   for (const [command, shouldWarn] of cases) {
-    writeFile(root, 'README.md', `\`${command}\`\n`);
+    writeFile(root, 'README.md', `${command}\n`);
     const report = scanRepository(root);
     assert.equal(Boolean(finding(report, 'README_PACKAGE_MANAGER_MISMATCH')), shouldWarn, command);
   }
@@ -563,11 +582,23 @@ test('does not warn about a missing build output when README documents npm run b
   const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   packageData.main = 'dist/index.js';
   writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
-  writeFile(root, 'README.md', 'Run `npm ci`, `npm test`, and `npm run build`.\n');
+  writeFile(root, 'README.md', '```bash\nnpm ci\nnpm test\nnpm run build\n```\n');
 
   const report = scanRepository(root);
 
   assert.equal(finding(report, 'BUILD_OUTPUT_MISSING'), undefined);
+}));
+
+test('does not treat inline npm run build prose as build documentation', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.main = 'dist/index.js';
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, 'README.md', 'Run `npm run build` before publishing this library.\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'BUILD_OUTPUT_MISSING').status, 'skipped');
 }));
 
 test('does not warn when a declared build output file exists', () => withRepository((root) => {

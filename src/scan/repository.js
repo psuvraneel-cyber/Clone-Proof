@@ -1049,10 +1049,13 @@ function repositoryFileExists(rootPath, relativePath) {
   return false;
 }
 
-function packageBuildOutputFinding(rootPath, scanned, packageData, scripts, readmeState, readmeText) {
+function packageBuildOutputFinding(rootPath, scanned, packageData, scripts, readmeState, readmeReferences) {
   if (!packageData || typeof scripts.build !== 'string' || !scripts.build.trim()) return null;
   if (readmeState === 'unscanned' || readmeState === 'skipped') return null;
-  if (readmeState === 'scanned' && /\bnpm\s+run(?:-script)?\s+build(?:\s|$|[`'"),.;!?])/i.test(readmeText)) return null;
+  if (
+    readmeState === 'scanned'
+    && readmeReferences.some((reference) => reference.kind === 'run' && reference.scriptName === 'build')
+  ) return null;
 
   const missingPaths = packageOutputPaths(packageData)
     .filter((relativePath) => !scanned.discovered.has(relativePath) && !repositoryFileExists(rootPath, relativePath));
@@ -1329,6 +1332,77 @@ function stripReadmeCommandPunctuation(value) {
     .trim();
 }
 
+const README_DIRECT_COMMAND_NAMES = new Set([
+  'bash',
+  'bun',
+  'cargo',
+  'cd',
+  'corepack',
+  'cp',
+  'curl',
+  'deno',
+  'docker',
+  'express',
+  'git',
+  'go',
+  'java',
+  'make',
+  'mkdir',
+  'mv',
+  'node',
+  'npx',
+  'pip',
+  'pip3',
+  'pnpm',
+  'powershell',
+  'python',
+  'python3',
+  'rm',
+  'ruby',
+  'sh',
+  'wget',
+  'yarn',
+  'npm'
+]);
+
+function readmeFenceMarker(line) {
+  const match = /^\s{0,3}(`{3,}|~{3,})(?:.*)$/.exec(String(line));
+  if (!match) return null;
+  return {
+    character: match[1][0],
+    length: match[1].length
+  };
+}
+
+function isReadmeFenceClose(line, marker) {
+  if (!marker) return false;
+  const expression = new RegExp(`^\\s{0,3}${marker.character}{${marker.length},}\\s*$`);
+  return expression.test(String(line));
+}
+
+function readmeCommandLine(line, inFence) {
+  const raw = String(line);
+  if (inFence) return raw.trim();
+
+  if (/^(?:\t| {4})/.test(raw)) return raw.trim();
+
+  let value = raw.trim();
+  value = value.replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, '');
+  if (!value) return null;
+
+  if (/^(?:[$>]\s*)\S/.test(value)) {
+    const prompted = value.replace(/^(?:[$>]\s*)/, '').trim();
+    const commandMatch = /^([A-Za-z][A-Za-z0-9_-]*)(?=\s|$)/.exec(prompted);
+    return commandMatch && README_DIRECT_COMMAND_NAMES.has(commandMatch[1].toLowerCase())
+      ? prompted
+      : null;
+  }
+
+  const commandMatch = /^([A-Za-z][A-Za-z0-9_-]*)(?=\s|$)/.exec(value);
+  if (!commandMatch || !README_DIRECT_COMMAND_NAMES.has(commandMatch[1].toLowerCase())) return null;
+  return value;
+}
+
 function hasOnlyCommandFlags(value) {
   const normalized = stripReadmeCommandPunctuation(value);
   if (!normalized) return true;
@@ -1379,6 +1453,7 @@ function parseReadmeCommands(text, options = {}) {
     readmePackageName(options.packageName && String(options.packageName).split('/').pop())
   ].filter(Boolean).map((name) => name.toLowerCase()));
   let differentProject = false;
+  let fence = null;
 
   function addOtherProjectLine(lineNumber, line) {
     if (otherProjectLines.length >= 10) return;
@@ -1396,8 +1471,25 @@ function parseReadmeCommands(text, options = {}) {
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const line = lines[lineIndex];
     const lineNumber = lineIndex + 1;
-    if (/^\s*#{1,6}(?:\s|$)/.test(line)) differentProject = false;
-    const cdTarget = readmeCdTarget(line);
+    let commandLine = null;
+    if (fence) {
+      if (isReadmeFenceClose(line, fence)) {
+        fence = null;
+        continue;
+      }
+      commandLine = readmeCommandLine(line, true);
+    } else {
+      const marker = readmeFenceMarker(line);
+      if (marker) {
+        fence = marker;
+        continue;
+      }
+      if (/^\s*#{1,6}(?:\s|$)/.test(line)) differentProject = false;
+      commandLine = readmeCommandLine(line, false);
+    }
+    if (!commandLine) continue;
+
+    const cdTarget = readmeCdTarget(commandLine);
     if (cdTarget) {
       const normalizedTarget = cdTarget.toLowerCase();
       const isRepositoryTarget = cdTarget === '.'
@@ -1410,38 +1502,38 @@ function parseReadmeCommands(text, options = {}) {
       }
     }
     if (differentProject) {
-      if (/\b(?:npm|yarn|pnpm)\s+\S+/i.test(line)) addOtherProjectLine(lineNumber, line);
+      if (/\b(?:npm|yarn|pnpm)\s+\S+/i.test(commandLine)) addOtherProjectLine(lineNumber, line);
       continue;
     }
 
-    const setupCommand = setupCommandFromReadmeLine(line);
+    const setupCommand = setupCommandFromReadmeLine(commandLine);
     if (setupCommand) setupCommands.push({ ...setupCommand, line: lineNumber });
 
-    if (/\bnpm\s+test(?=$|[\s`'"),.;:!?])/i.test(line)) {
+    if (/\bnpm\s+test(?=$|[\s`'"),.;:!?])/i.test(commandLine)) {
       addReference('test', 'test', lineNumber, 'README references npm test.');
     }
 
     const installExpression = /\bnpm\s+(ci|install|i)(?=$|[\s`'"),.;:!?])/gi;
-    let installMatch = installExpression.exec(line);
+    let installMatch = installExpression.exec(commandLine);
     while (installMatch) {
       const kind = installMatch[1].toLowerCase();
-      const suffix = line.slice(installMatch.index + installMatch[0].length);
+      const suffix = commandLine.slice(installMatch.index + installMatch[0].length);
       if (kind !== 'i' || hasOnlyCommandFlags(suffix)) {
         const normalizedKind = kind === 'i' ? 'install' : kind;
         addReference(normalizedKind, normalizedKind, lineNumber, `README references npm ${normalizedKind}.`);
       }
-      installMatch = installExpression.exec(line);
+      installMatch = installExpression.exec(commandLine);
     }
 
     const startExpression = /\bnpm\s+start(?=$|[\s`'"),.;:!?])/gi;
-    let startMatch = startExpression.exec(line);
+    let startMatch = startExpression.exec(commandLine);
     while (startMatch) {
       addReference('start', 'start', lineNumber, 'README references npm start.');
-      startMatch = startExpression.exec(line);
+      startMatch = startExpression.exec(commandLine);
     }
 
     const runExpression = /\b(npm|yarn|pnpm)\s+(run-script|run)\s+([^\s`'"<>]+)/gi;
-    let runMatch = runExpression.exec(line);
+    let runMatch = runExpression.exec(commandLine);
     while (runMatch) {
       const manager = runMatch[1].toLowerCase();
       const verb = runMatch[2].toLowerCase();
@@ -1450,7 +1542,7 @@ function parseReadmeCommands(text, options = {}) {
         addReference(`run:${scriptName}`, 'run', lineNumber, `README references ${manager} ${verb} ${scriptName}.`);
         references.get(`run:${scriptName}`).scriptName = scriptName;
       }
-      runMatch = runExpression.exec(line);
+      runMatch = runExpression.exec(commandLine);
     }
   }
 
@@ -2624,7 +2716,7 @@ function scanRepository(rootPath, options) {
     packageData,
     scripts,
     readmeState,
-    readmeText
+    readmeReferences
   );
   if (
     packageValid
