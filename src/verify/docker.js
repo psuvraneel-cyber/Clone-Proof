@@ -841,6 +841,75 @@ async function verifyRepository(rootPath, options = {}) {
 
   let temporaryRoot = null;
   const containerName = makeContainerName();
+  let containerStarted = false;
+  let interruptedSignal = null;
+  let signalCleanupPromise = null;
+  let signalContainerCleanup = null;
+  const signalSource = options.signalSource || process;
+  const signalHandlers = [];
+
+  const handleVerificationSignal = (signal) => {
+    if (interruptedSignal) return signalCleanupPromise;
+
+    interruptedSignal = signal;
+    report.verification.outcome = 'failed';
+    report.verification.signal = signal;
+    report.verification.stderr = `Docker verification was interrupted by ${signal}.`;
+    addFinding(report, {
+      code: 'DOCKER_VERIFICATION_ERROR',
+      status: 'failed',
+      severity: 'error',
+      title: 'Docker verification was interrupted',
+      message: `Docker verification was interrupted by ${signal}; CloneProof is stopping the controlled container and cleaning its temporary files.`,
+      evidence: makeEvidence('verification', `Received ${signal}.`),
+      recommendation: 'Rerun verification after confirming that Docker has no remaining CloneProof container.'
+    });
+    report.status = 'failed';
+
+    signalCleanupPromise = (async () => {
+      if (!containerStarted) {
+        signalContainerCleanup = {
+          attempted: false,
+          completed: true,
+          detail: 'No verification container was started.'
+        };
+        return;
+      }
+
+      try {
+        const result = await runner(
+          dockerCommand,
+          ['rm', '-f', containerName],
+          { ...dockerContext, timeoutMs: DOCKER_PROBE_TIMEOUT_MS, maxOutputBytes: 16 * 1024 }
+        );
+        const completed = Boolean(result && result.exitCode === 0 && !result.error && !result.timedOut);
+        signalContainerCleanup = {
+          attempted: true,
+          completed,
+          detail: completed
+            ? 'Interrupted container was force-removed.'
+            : 'Interrupted container cleanup could not be confirmed.'
+        };
+      } catch (error) {
+        signalContainerCleanup = {
+          attempted: true,
+          completed: false,
+          detail: 'Interrupted container cleanup raised an error.'
+        };
+      }
+    })();
+
+    return signalCleanupPromise;
+  };
+
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    const handler = () => {
+      void handleVerificationSignal(signal);
+    };
+    signalHandlers.push([signal, handler]);
+    signalSource.once(signal, handler);
+  }
+
   try {
     temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-verify-'));
     report.verification.cleanup.stagingAttempted = true;
@@ -850,54 +919,80 @@ async function verifyRepository(rootPath, options = {}) {
       executablePaths: options.executablePaths || [],
       symlinkPaths: options.symlinkPaths || []
     });
-    report.verification.omittedPaths = staged.skippedSensitivePaths.slice().sort(compareStrings);
-    const ignoredPaths = staged.skippedIgnoredPaths.slice().sort(compareStrings);
-    report.verification.ignoredPathCount = ignoredPaths.length;
-    report.verification.ignoredPaths = ignoredPaths.slice(0, MAX_IGNORED_PATHS);
-    report.verification.ignoredPathsTruncated = ignoredPaths.length > report.verification.ignoredPaths.length;
-    if (report.verification.ignoredPathCount > 0) {
-      addFinding(report, {
-        code: 'DOCKER_GITIGNORED_PATHS_SKIPPED',
-        status: 'skipped',
-        severity: 'info',
-        title: 'Gitignored paths were omitted from the Docker snapshot',
-        message: `CloneProof excluded ${report.verification.ignoredPathCount} path${report.verification.ignoredPathCount === 1 ? '' : 's'} ignored by the local checkout rules from Docker verification.`,
-        evidence: report.verification.ignoredPaths
-          .slice(0, MAX_IGNORED_PATH_EVIDENCE)
-          .map((relative) => ({ path: relative, detail: 'Path matched the local Gitignore rules and was not staged.' })),
-        recommendation: 'Use a fresh GitHub clone for repository-tracked content, or confirm that ignored paths are not required by the root workflow.'
-      });
-    }
-    if (report.verification.omittedPaths.length > 0) {
-      addFinding(report, {
-        code: 'DOCKER_SENSITIVE_FILES_OMITTED',
-        status: 'warning',
-        severity: 'warning',
-        title: 'Sensitive files were omitted from the Docker snapshot',
-        message: 'CloneProof excluded sensitive configuration from the container snapshot, so verification does not cover those files.',
-        evidence: report.verification.omittedPaths.map((relative) => ({ path: relative, detail: 'Sensitive file was not staged.' })),
-        recommendation: 'Keep secrets out of the repository and use safe example configuration files for reproducibility.'
-      });
-    }
-    if (staged.symlinkPaths.length > 0) {
-      const symlinkCount = staged.symlinkPaths.length;
-      const visibleSymlinkPaths = staged.symlinkPaths.slice(0, MAX_IGNORED_PATH_EVIDENCE);
-      report.verification.stderr = `Symlinks were not staged (${symlinkCount} total): ${visibleSymlinkPaths.join(', ')}`;
-      addFinding(report, {
-        code: 'DOCKER_SYMLINKS_BLOCKED',
-        status: 'skipped',
-        severity: 'warning',
-        title: 'Docker verification was blocked by symlinks',
-        message: `CloneProof refuses to stage ${symlinkCount} symlink${symlinkCount === 1 ? '' : 's'} into the verification container.`,
-        evidence: visibleSymlinkPaths.map((relative) => ({ path: relative, detail: 'Symlink was not copied into the staged snapshot.' })),
-        recommendation: 'Replace or remove symlinks before running the Docker workflow.'
-      });
-      report.status = 'blocked';
-      return finalizeVerificationReport(report);
-    }
+    if (interruptedSignal) {
+      await signalCleanupPromise;
+    } else {
+      report.verification.omittedPaths = staged.skippedSensitivePaths.slice().sort(compareStrings);
+      const ignoredPaths = staged.skippedIgnoredPaths.slice().sort(compareStrings);
+      report.verification.ignoredPathCount = ignoredPaths.length;
+      report.verification.ignoredPaths = ignoredPaths.slice(0, MAX_IGNORED_PATHS);
+      report.verification.ignoredPathsTruncated = ignoredPaths.length > report.verification.ignoredPaths.length;
+      if (report.verification.ignoredPathCount > 0) {
+        addFinding(report, {
+          code: 'DOCKER_GITIGNORED_PATHS_SKIPPED',
+          status: 'skipped',
+          severity: 'info',
+          title: 'Gitignored paths were omitted from the Docker snapshot',
+          message: `CloneProof excluded ${report.verification.ignoredPathCount} path${report.verification.ignoredPathCount === 1 ? '' : 's'} ignored by the local checkout rules from Docker verification.`,
+          evidence: report.verification.ignoredPaths
+            .slice(0, MAX_IGNORED_PATH_EVIDENCE)
+            .map((relative) => ({ path: relative, detail: 'Path matched the local Gitignore rules and was not staged.' })),
+          recommendation: 'Use a fresh GitHub clone for repository-tracked content, or confirm that ignored paths are not required by the root workflow.'
+        });
+      }
+      if (report.verification.omittedPaths.length > 0) {
+        addFinding(report, {
+          code: 'DOCKER_SENSITIVE_FILES_OMITTED',
+          status: 'warning',
+          severity: 'warning',
+          title: 'Sensitive files were omitted from the Docker snapshot',
+          message: 'CloneProof excluded sensitive configuration from the container snapshot, so verification does not cover those files.',
+          evidence: report.verification.omittedPaths.map((relative) => ({ path: relative, detail: 'Sensitive file was not staged.' })),
+          recommendation: 'Keep secrets out of the repository and use safe example configuration files for reproducibility.'
+        });
+      }
+      if (staged.symlinkPaths.length > 0) {
+        const symlinkCount = staged.symlinkPaths.length;
+        const visibleSymlinkPaths = staged.symlinkPaths.slice(0, MAX_IGNORED_PATH_EVIDENCE);
+        report.verification.stderr = `Symlinks were not staged (${symlinkCount} total): ${visibleSymlinkPaths.join(', ')}`;
+        addFinding(report, {
+          code: 'DOCKER_SYMLINKS_BLOCKED',
+          status: 'skipped',
+          severity: 'warning',
+          title: 'Docker verification was blocked by symlinks',
+          message: `CloneProof refuses to stage ${symlinkCount} symlink${symlinkCount === 1 ? '' : 's'} into the verification container.`,
+          evidence: visibleSymlinkPaths.map((relative) => ({ path: relative, detail: 'Symlink was not copied into the staged snapshot.' })),
+          recommendation: 'Replace or remove symlinks before running the Docker workflow.'
+        });
+        report.status = 'blocked';
+        return finalizeVerificationReport(report);
+      }
 
-    const args = dockerRunArguments(staged.destinationRoot, allowNetwork, containerName);
-    const result = await runner(dockerCommand, args, { ...dockerContext, timeoutMs, maxOutputBytes });
+      if (interruptedSignal) {
+        await signalCleanupPromise;
+      } else {
+
+        const args = dockerRunArguments(staged.destinationRoot, allowNetwork, containerName);
+        containerStarted = true;
+        const result = await runner(dockerCommand, args, { ...dockerContext, timeoutMs, maxOutputBytes });
+    if (interruptedSignal) {
+      await signalCleanupPromise;
+      report.verification.outcome = 'failed';
+      report.verification.exitCode = result.exitCode;
+      report.verification.signal = interruptedSignal;
+      report.verification.failedPhase = failedPhaseForResult(result);
+      report.verification.timedOut = Boolean(result.timedOut);
+      report.verification.outputTruncated = Boolean(result.outputTruncated);
+      report.verification.stdout = redactOutput(result.stdout || '');
+      report.verification.stderr = `Docker verification was interrupted by ${interruptedSignal}.`;
+      report.verification.cleanup = signalContainerCleanup || {
+        attempted: true,
+        completed: false,
+        detail: 'Interrupted container cleanup could not be confirmed.'
+      };
+      recomputeSummary(report);
+      report.status = 'failed';
+    } else {
     report.verification.outcome = result.exitCode === 0 && !result.error && !result.timedOut ? 'passed' : 'failed';
     report.verification.exitCode = result.exitCode;
     report.verification.signal = result.signal || null;
@@ -951,6 +1046,9 @@ async function verifyRepository(rootPath, options = {}) {
     report.status = report.verification.outcome === 'passed'
       ? (report.summary.warnings > 0 || report.verification.omittedPaths.length > 0 ? 'passed_with_warnings' : 'passed')
       : report.verification.outcome === 'blocked' ? 'blocked' : 'failed';
+        }
+      }
+    }
   } catch (error) {
     if (error && error.code === 'STAGING_LIMIT_EXCEEDED') {
       report.verification.outcome = 'blocked';
@@ -995,6 +1093,9 @@ async function verifyRepository(rootPath, options = {}) {
     });
     report.status = 'failed';
   } finally {
+    for (const [signal, handler] of signalHandlers) {
+      signalSource.removeListener(signal, handler);
+    }
     if (temporaryRoot) {
       await cleanupVerificationDirectory(temporaryRoot, report, 'stagingRemoved', removeDirectory);
     }

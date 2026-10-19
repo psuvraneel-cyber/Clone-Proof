@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -376,6 +377,50 @@ test('timed-out container cleanup is explicitly attempted', async () => {
   assert.equal(report.verification.timedOut, true);
   assert.equal(report.verification.cleanup.attempted, true);
   assert.equal(report.verification.cleanup.completed, true);
+  assert.ok(calls.some((call) => call.args[0] === 'rm' && call.args[1] === '-f'));
+});
+
+test('SIGINT force-removes an interrupted verification container', async () => {
+  const signals = new EventEmitter();
+  const calls = [];
+  const success = {
+    exitCode: 0,
+    signal: null,
+    stdout: '',
+    stderr: '',
+    timedOut: false,
+    outputTruncated: false,
+    error: null
+  };
+  const runner = async (command, args) => {
+    calls.push({ command, args });
+    if (args[0] === 'version' || args[0] === 'image') return success;
+    if (args[0] === 'run') {
+      signals.emit('SIGINT');
+      return {
+        ...success,
+        exitCode: 137,
+        signal: 'SIGKILL',
+        stdout: 'CLONEPROOF_PHASE=test\n'
+      };
+    }
+    if (args[0] === 'rm') return success;
+    return { ...success, exitCode: 1, stderr: 'not found' };
+  };
+
+  const report = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner,
+    signalSource: signals
+  });
+
+  assertSummaryMatchesFindings(report);
+  assert.equal(report.status, 'failed');
+  assert.equal(report.verification.signal, 'SIGINT');
+  assert.equal(report.verification.cleanup.completed, true);
+  assert.equal(report.findings.some((finding) => finding.code === 'DOCKER_VERIFICATION_ERROR'), true);
+  assert.equal(signals.listenerCount('SIGINT'), 0);
+  assert.equal(signals.listenerCount('SIGTERM'), 0);
   assert.ok(calls.some((call) => call.args[0] === 'rm' && call.args[1] === '-f'));
 });
 
