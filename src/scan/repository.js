@@ -1109,7 +1109,13 @@ function parseDockerNodeDeclarations(text, relativePath) {
         : parsed.minor !== null
           ? `${parsed.major}.${parsed.minor}`
           : String(parsed.major);
-      declarations.push({ ...parsed, raw: normalizedRaw, tag, path: relativePath });
+      declarations.push({
+        ...parsed,
+        raw: normalizedRaw,
+        tag,
+        path: relativePath,
+        detail: 'Node base image declaration.'
+      });
     }
   }
   return declarations;

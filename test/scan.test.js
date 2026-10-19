@@ -1189,7 +1189,14 @@ test('warns when exact Node runtime declarations disagree', () => withRepository
   const report = scanRepository(root);
 
   assert.equal(report.status, 'passed_with_warnings');
-  assert.equal(finding(report, 'RUNTIME_VERSION_MISMATCH').status, 'warning');
+  const mismatch = finding(report, 'RUNTIME_VERSION_MISMATCH');
+  assert.equal(mismatch.status, 'warning');
+  const dockerEvidence = mismatch.evidence.find((item) => item.path === 'Dockerfile');
+  assert.deepEqual(dockerEvidence, {
+    path: 'Dockerfile',
+    detail: 'Node base image declaration. Found 20.0.0.'
+  });
+  assert.doesNotMatch(JSON.stringify(mismatch), /undefined/);
 }));
 
 test('warns when major Node runtime declarations disagree', () => withRepository((root) => {
