@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-19; the current implementation baseline is `b59a8d9`, ahead of the latest pushed and CI-verified baseline `1d817e7`. The `docs-final` branch was pushed and fast-forwarded into `main` at `1d817e7`; later local implementation fixes are not represented by that CI receipt and remain pending the next push. This file records the final submission state for the current OmniRush session.
+Updated 2026-10-19; the current implementation baseline is `b59a8d9`, and local `main` was at `0c61257` before this handoff update. The latest pushed and CI-verified baseline is `1d817e7`; this handoff records the subsequent local fix commits and their verification receipts, while CI for the new revision remains unrecorded. This file records the final submission state for the current OmniRush session.
 
 ## Goal
 
@@ -47,7 +47,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn profiles, external service health, OS-specific scripts, and custom setup remain outside the execution profile.
 - Final Run 3 results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, 13 correct and 2 environment-limited failures, warning precision 83.3%, combined warning/failure precision 83.3%, and static planted-bug detection of 13/13 offline plus 39/39 in the separate network-dependent real-repository procedure.
 - The Windows host still skips the real symlink-creation test because it returns `EPERM`; Linux CI is required to run it.
-- Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop. The docs-final baseline was merged and CI-validated; the current local implementation fixes still need a subsequent push and CI run.
+- Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop. The current fix commits are included in this handoff's GitHub push; a new remote CI receipt for them is not yet recorded.
 
 ## Important files
 
@@ -141,7 +141,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `node src/cli.js setup` — passed; the exact verifier image was already present and no pull was needed.
 - `node src/cli.js verify examples/healthy-node --docker --execute --format json` — passed, exit `0`, network `none`, cleanup complete.
 - `node src/cli.js verify examples/broken-node --docker --execute --format json` — blocked, exit `2`, `DOCKER_PREREQUISITES_FAILED`, no target container started.
-- Current local test run — `npm test` passed with 193 tests, 192 passed, 0 failed, and 1 expected Windows symlink `EPERM` skip. Docker was unavailable during this refresh, so no new Docker receipt is claimed; the latest recorded Linux container run remains 189/189 for the earlier CI-verified baseline.
+- Current local verification — `npm test` passed with 193 tests, 192 passed, 0 failed, and 1 expected Windows symlink `EPERM` skip; `docker build -t cloneproof .` passed; `docker run --rm --network none cloneproof npm test` passed with 193 tests, 192 passed, 0 failed, and 1 skipped; and the default `docker run --rm --network none cloneproof` smoke run passed. A live Windows process-level SIGINT reproduction exited with `SIGINT` and left zero matching `cloneproof-verify-*` containers; the final Docker cleanup audit also returned no `cloneproof-verify-*` or `cloneproof-github-*` containers.
 - From the user's home directory, `npx --yes github:psuvraneel-cyber/Clone-Proof#target-guard-fixes check .` exited `2` immediately with one `WRONG_TARGET` finding and no traversal output.
 - Target branch CI run `39036000461` — passed on Ubuntu, macOS, Windows, and Docker E2E; pack-content and global packed-CLI smoke steps passed.
 - `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` after the final implementation push — passed, exit `0`, `target.commit: 1b919eccaa43804addbc2fe47ba61e962862724a`, preflight `checked`, authenticated `false`, 10 checked groups, 10 passed / 1 skipped / 0 failed.
@@ -229,6 +229,14 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `bfb8cd3 docs: correct field-test report`
 - `4c0900e docs: record final field-test checks`
 - `a3f5031 docs: record pushed check result`
+- `4daa427 fix: label Docker runtime evidence`
+- `5b0de0d docs: remove machine-specific handoff path`
+- `f910584 fix: clean Docker verification on signals`
+- `71df55e fix: fail on verification cleanup errors`
+- `bf1f8ae fix: map all report findings to coverage`
+- `eb4c595 fix: supervise interrupted Docker verification`
+- `b59a8d9 fix: harden build context and docs`
+- `0c61257 docs: record current local baseline`
 
 ## OmniRush sessions for submission
 
@@ -244,7 +252,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Next user follow-up
 
-Implementation and verification are complete. The remaining user-facing follow-ups are to record the CI URLs in the submission, publish the demo video, submit the Buildathon dashboard entry, and add the Submission ID in Unstop. The final commands already run were:
+Local implementation and verification are complete. The remaining user-facing follow-ups are to record the new CI URL in the submission, publish the demo video, submit the Buildathon dashboard entry, and add the Submission ID in Unstop. The final local commands already run were:
 
 ```bash
 git status --short --branch
@@ -254,12 +262,10 @@ git diff --check
 git log --oneline -10
 docker build -t cloneproof .
 docker run --rm --network none cloneproof npm test
+docker run --rm --network none cloneproof
 node src/cli.js setup
-git push origin pre-submit
-git switch main
-git merge --ff-only pre-submit
 git push origin main
 node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```
 
-CI URLs: docs-final `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39247229775`; main `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39247368837`.
+Historical CI URLs: docs-final `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39247229775`; main `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39247368837`. CI for the new pushed revision is pending.
