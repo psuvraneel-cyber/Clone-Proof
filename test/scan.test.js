@@ -691,10 +691,25 @@ test('filters environment warnings by tooling, example, fixture, and root config
   const cases = [
     ['scripts/build.js', false],
     ['examples/a.js', false],
+    ['src/examples/a.js', false],
+    ['src/example/a.js', false],
+    ['src/documentation/a.js', false],
+    ['src/docs/a.js', false],
+    ['src/bench/a.js', false],
+    ['src/benchmark/a.js', false],
+    ['src/benchmarks/a.js', false],
+    ['src/perf/a.js', false],
+    ['src/perf-measures/a.js', false],
+    ['src/ci/a.js', false],
+    ['src/tooling/a.js', false],
+    ['src/tools/a.js', false],
+    ['src/.github/a.js', false],
     ['test/fixtures/x.js', false],
+    ['src/__fixtures__/x.js', false],
+    ['src/e2e/x.js', false],
     ['rollup.config.js', false],
     ['src/index.js', true],
-    ['src/scripts/x.js', true]
+    ['src/scripts/x.js', false]
   ];
 
   for (const [relativePath, shouldWarn] of cases) {
@@ -759,6 +774,33 @@ test('treats proxy variables as conventional but still warns for custom keys', (
   assert.equal(missing.status, 'warning');
   assert.match(missing.message, /CUSTOM_PROXY_SETTING/);
   for (const key of ['HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'all_proxy']) {
+    assert.doesNotMatch(missing.message, new RegExp(`\\b${key}\\b`));
+  }
+}));
+
+test('treats CI and test-service prefixes as conventional but preserves custom src warnings', () => withRepository((root) => {
+  writeEnvironmentFixture(root, 'console.log("fixture");\n');
+  writeFile(root, 'src/service.js', [
+    'process.env.BROWSERSTACK_USERNAME;',
+    'process.env.SAUCE_ACCESS_KEY;',
+    'process.env.CI_JOB_ID;',
+    'process.env.GITHUB_ACTIONS;',
+    'process.env.CODECOV_TOKEN;',
+    'process.env.NETLIFY_SITE_ID;',
+    'process.env.VERCEL_URL;',
+    'process.env.REAL_APPLICATION_SETTING;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /REAL_APPLICATION_SETTING/);
+  assert.equal(missing.evidence[0].path, 'src/service.js');
+  for (const key of [
+    'BROWSERSTACK_USERNAME', 'SAUCE_ACCESS_KEY', 'CI_JOB_ID', 'GITHUB_ACTIONS',
+    'CODECOV_TOKEN', 'NETLIFY_SITE_ID', 'VERCEL_URL'
+  ]) {
     assert.doesNotMatch(missing.message, new RegExp(`\\b${key}\\b`));
   }
 }));

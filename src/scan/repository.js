@@ -131,37 +131,53 @@ const CONVENTIONAL_ENV_KEYS = new Set([
   'no_proxy',
   'all_proxy'
 ]);
-const ENVIRONMENT_ANALYSIS_EXCLUDED_FIRST_SEGMENTS = new Set([
+const CONVENTIONAL_ENV_PREFIXES = [
+  'npm_',
+  'GITHUB_',
+  'RUNNER_',
+  'BROWSERSTACK_',
+  'SAUCE_',
+  'CI_',
+  'CODECOV_',
+  'NETLIFY_',
+  'VERCEL_'
+];
+const ENVIRONMENT_ANALYSIS_EXCLUDED_SEGMENTS = new Set([
   'scripts',
   'script',
   'tools',
+  'tooling',
+  'ci',
+  '.ci',
+  'ci-tools',
+  'ci_tooling',
   'examples',
   'example',
+  'documentation',
+  'docs',
+  'doc',
   'benchmark',
   'benchmarks',
   'bench',
-  'docs',
-  'doc',
-  'website'
-]);
-const ENVIRONMENT_ANALYSIS_EXCLUDED_SEGMENTS = new Set([
+  'perf',
+  'perf-measures',
+  'website',
+  '.github',
   'fixtures',
   '__fixtures__',
-  '__mocks__'
+  '__mocks__',
+  'e2e'
 ]);
 
 function isConventionalEnvironmentKey(key) {
   return CONVENTIONAL_ENV_KEYS.has(key)
-    || key.startsWith('npm_')
-    || key.startsWith('GITHUB_')
-    || key.startsWith('RUNNER_');
+    || CONVENTIONAL_ENV_PREFIXES.some((prefix) => key.startsWith(prefix));
 }
 
 function isEnvironmentAnalysisExcludedPath(relativePath) {
   const normalized = String(relativePath).split('\\').join('/');
   const segments = normalized.split('/').filter(Boolean).map((segment) => segment.toLowerCase());
   if (segments.length === 0) return false;
-  if (ENVIRONMENT_ANALYSIS_EXCLUDED_FIRST_SEGMENTS.has(segments[0])) return true;
   if (segments.some((segment) => ENVIRONMENT_ANALYSIS_EXCLUDED_SEGMENTS.has(segment))) return true;
   if (segments.length !== 1) return false;
 
