@@ -6,6 +6,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const { resolveGitExecutable } = require('../util/executable');
+const { runCleanupSupervisor, startCleanupSupervisor, stopCleanupSupervisor } = require('../util/cleanup-supervisor');
 
 const DEFAULT_CLONE_LIMITS = Object.freeze({
   maxDepth: 25,
@@ -687,10 +688,28 @@ async function cloneGithubRepository(value, options = {}) {
   }
   let temporaryRoot;
   let temporaryParent;
+  let cleanupSupervisor;
 
   try {
     temporaryParent = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'cloneproof-github-'));
     temporaryRoot = path.join(temporaryParent, 'checkout');
+    const cleanupSupervisorEnabled = config.cleanupSupervisor === true
+      || ((config.platform || process.platform) === 'win32' && config.cleanupSupervisor !== false);
+    if (cleanupSupervisorEnabled) {
+      cleanupSupervisor = startCleanupSupervisor({
+        scriptPath: __filename,
+        cwd: os.tmpdir(),
+        env: buildGitCloneInvocation({
+          url: source.url,
+          checkoutPath: temporaryRoot,
+          parentPath: temporaryParent,
+          platform: config.platform || process.platform,
+          hostEnvironment,
+          useGlobalConfig: false
+        }).env,
+        paths: [temporaryParent]
+      });
+    }
     await fs.promises.mkdir(temporaryRoot);
     const emptyGitConfig = path.join(temporaryParent, 'empty-gitconfig');
     await fs.promises.writeFile(emptyGitConfig, '', 'utf8');
@@ -786,6 +805,7 @@ async function cloneGithubRepository(value, options = {}) {
     let cleaned = false;
     const cleanup = async () => {
       if (cleaned) return;
+      stopCleanupSupervisor(cleanupSupervisor);
       try {
         await removeDirectory(temporaryParent);
         cleaned = true;
@@ -833,6 +853,7 @@ async function cloneGithubRepository(value, options = {}) {
       if (error.message) error.message = redactGithubToken(error.message, githubToken);
       if (error.stack) error.stack = redactGithubToken(error.stack, githubToken);
     }
+    stopCleanupSupervisor(cleanupSupervisor);
     if (temporaryParent) {
       try {
         await removeDirectory(temporaryParent);
@@ -843,6 +864,10 @@ async function cloneGithubRepository(value, options = {}) {
     }
     throw error;
   }
+}
+
+if (require.main === module && process.argv[2] === '--cleanup-supervisor') {
+  runCleanupSupervisor(process.argv[3]);
 }
 
 module.exports = {

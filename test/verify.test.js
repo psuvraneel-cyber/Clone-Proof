@@ -95,6 +95,15 @@ async function waitForFile(filePath, timeoutMs = 5000) {
   throw new Error(`Timed out waiting for ${path.basename(filePath)}`);
 }
 
+async function waitForCondition(predicate, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('Timed out waiting for condition');
+}
+
 test('Docker arguments use a controlled, non-privileged profile', () => {
   const args = dockerRunArguments('C:/temporary/source', false);
 
@@ -548,6 +557,72 @@ test('Windows process-level SIGINT cleanup removes the verification container', 
     });
     await waitForFile(cleanedPath);
     assert.equal(fs.readFileSync(cleanedPath, 'utf8'), 'removed');
+  } finally {
+    if (child.exitCode === null) child.kill('SIGKILL');
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('abrupt verifier termination removes the staging parent and Docker config directory', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-abrupt-cleanup-'));
+  const readyPath = path.join(root, 'ready');
+  const pathsPath = path.join(root, 'paths.json');
+  const cleanupScript = path.join(root, 'cleanup.js');
+  const childScript = path.join(root, 'verify.js');
+  const dockerModule = path.join(__dirname, '..', 'src', 'verify', 'docker.js');
+
+  fs.writeFileSync(cleanupScript, "'use strict';\nprocess.exitCode = 0;\n");
+  fs.writeFileSync(childScript, [
+    "'use strict';",
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    `const { verifyRepository } = require(${JSON.stringify(dockerModule)});`,
+    `const fixture = ${JSON.stringify(healthyFixture)};`,
+    `const readyPath = ${JSON.stringify(readyPath)};`,
+    `const pathsPath = ${JSON.stringify(pathsPath)};`,
+    'const success = { exitCode: 0, signal: null, stdout: "", stderr: "", timedOut: false, outputTruncated: false, error: null };',
+    'const runner = async (command, args, options) => {',
+    '  if (args[0] === "version" || args[0] === "image") return success;',
+    '  if (args[0] === "run") {',
+    '    const mount = args.find((value) => value.startsWith("type=bind,src="));',
+    '    const stagedSource = mount.slice("type=bind,src=".length).split(",dst=")[0];',
+    '    fs.writeFileSync(pathsPath, JSON.stringify({ stagingParent: path.dirname(stagedSource), dockerConfig: options.env.DOCKER_CONFIG }));',
+    '    fs.writeFileSync(readyPath, "running");',
+    '    await new Promise(() => setInterval(() => {}, 1000));',
+    '  }',
+    '  return success;',
+    '};',
+    `verifyRepository(fixture, { execute: true, runner, cleanupSupervisor: true, cleanupSupervisorCommand: process.execPath, cleanupSupervisorArgs: [${JSON.stringify(cleanupScript)}] }).catch(() => { process.exitCode = 1; });`
+  ].join('\n'));
+
+  const child = spawn(process.execPath, [childScript], {
+    cwd: path.join(__dirname, '..'),
+    stdio: ['ignore', 'ignore', 'pipe'],
+    windowsHide: true
+  });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+  try {
+    await waitForFile(readyPath);
+    await waitForFile(pathsPath);
+    const paths = JSON.parse(fs.readFileSync(pathsPath, 'utf8'));
+    assert.equal(fs.existsSync(paths.stagingParent), true);
+    assert.equal(fs.existsSync(paths.dockerConfig), true);
+
+    child.kill('SIGKILL');
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Verifier process did not exit: ${stderr}`)), 10000);
+      child.once('close', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+
+    await waitForCondition(() => !fs.existsSync(paths.stagingParent) && !fs.existsSync(paths.dockerConfig));
+    assert.equal(fs.existsSync(paths.stagingParent), false);
+    assert.equal(fs.existsSync(paths.dockerConfig), false);
   } finally {
     if (child.exitCode === null) child.kill('SIGKILL');
     fs.rmSync(root, { recursive: true, force: true });
