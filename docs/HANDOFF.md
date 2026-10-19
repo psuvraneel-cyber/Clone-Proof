@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-19; the current implementation baseline is `b59a8d9`, and local `main` was at `0c61257` before this handoff update. The latest pushed and CI-verified baseline is `1d817e7`; this handoff records the subsequent local fix commits and their verification receipts, while CI for the new revision remains unrecorded. This file records the final submission state for the current OmniRush session.
+Updated 2026-10-19; the current implementation baseline is `b59a8d9`, and local `main` includes handoff revision `a762ec1`. Main CI run `39289281815` passed on Ubuntu, macOS, Windows, and Docker E2E for that pushed revision; this documentation-only update preserves that receipt. This file records the final submission state for the current OmniRush session.
 
 ## Goal
 
@@ -47,7 +47,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn profiles, external service health, OS-specific scripts, and custom setup remain outside the execution profile.
 - Final Run 3 results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, 13 correct and 2 environment-limited failures, warning precision 83.3%, combined warning/failure precision 83.3%, and static planted-bug detection of 13/13 offline plus 39/39 in the separate network-dependent real-repository procedure.
 - The Windows host still skips the real symlink-creation test because it returns `EPERM`; Linux CI is required to run it.
-- Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop. The current fix commits are included in this handoff's GitHub push; a new remote CI receipt for them is not yet recorded.
+- Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop. The current fix commits are pushed to `main`, and main CI run `39289281815` passed all four jobs for the preceding pushed revision.
 
 ## Important files
 
@@ -147,6 +147,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json` after the final implementation push — passed, exit `0`, `target.commit: 1b919eccaa43804addbc2fe47ba61e962862724a`, preflight `checked`, authenticated `false`, 10 checked groups, 10 passed / 1 skipped / 0 failed.
 - The preflight-redaction regression test covers a token-bearing GitHub API error: reports and stderr contain only `[REDACTED]`.
 - Pre-submit CI run `39028051301` and main CI run `39028381054` — passed for implementation revision `1b919ec`; later history includes additional implementation fixes that need a subsequent CI run.
+- Main CI run `39289281815` — passed for pushed revision `a762ec1`; Docker E2E and Ubuntu, macOS, and Windows package/archive smoke checks all passed.
 - Docker/container cleanup audit after the final checks — no `cloneproof-verify` containers and no CloneProof GitHub clone directories remained.
 
 ## Historical final submission checks (`ec026ef`)
@@ -237,6 +238,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `eb4c595 fix: supervise interrupted Docker verification`
 - `b59a8d9 fix: harden build context and docs`
 - `0c61257 docs: record current local baseline`
+- `a762ec1 docs: update final handoff`
 
 ## OmniRush sessions for submission
 
@@ -268,4 +270,4 @@ git push origin main
 node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```
 
-Historical CI URLs: docs-final `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39247229775`; main `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39247368837`. CI for the new pushed revision is pending.
+Historical CI URLs: docs-final `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39247229775`; main `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39247368837`. Current main CI URL: `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39289281815`.
