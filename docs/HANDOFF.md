@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-19; implementation and verification remain complete on `main`. The implementation revision is `ec026ef`; subsequent commits `e0de5cf` and this refresh are documentation-only handoff updates. The `precision-fixes` branch was pushed, its CI passed, and it was fast-forwarded into `main`; the final `main` CI also passed. This file records the final submission state for the current OmniRush session.
+Updated 2026-10-19; implementation and verification remain complete on `main`. The implementation revision remains `ec026ef`; the latest verified documentation/CI revision is `1d817e7`. The `docs-final` branch was pushed, its CI passed, and it was fast-forwarded into `main`; the final `main` CI also passed. This file records the final submission state for the current OmniRush session.
 
 ## Goal
 
@@ -36,6 +36,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Unsupported roots stop after classification. They emit only `UNSUPPORTED_ROOT`/`EMPTY_REPOSITORY`, nested-package, scan-limit, and read-error findings; coverage matches those attempted groups and no Node package checks run.
 - Text and HTML render at most ten evidence entries per finding with a JSON pointer. `ENV_CHECK_SKIPPED` JSON evidence is capped at 50 with its total in the message, and nested-package messages show the count plus five paths.
 - npm packaging now whitelists `src/`, `README.md`, and `LICENSE`; CI checks `npm pack --dry-run --json`, installs the archive globally in all three matrix operating systems, and runs `cloneproof --help`. `cloneproof --version` reports package.json's version.
+- CI also installs the commit-specific GitHub archive from `https://github.com/psuvraneel-cyber/Clone-Proof/archive/${{ github.sha }}.tar.gz` with `npm install --global` on Ubuntu, macOS, and Windows, then requires `cloneproof --version` to exit `0`.
 
 ### Remaining gaps
 
@@ -158,12 +159,26 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Final GitHub check against pushed `main` — passed, exit `0`, target commit `ec026efc186c81b89bbbdc6f24a8b1f108c2512d`, preflight `checked`, repository size `401 KiB`, complete scan, 11 passed / 1 skipped / 0 failed.
 - Final cleanup audit — no `cloneproof-*` directories in the Windows temp directory and no containers matching `cloneproof-verify`.
 
-## Current handoff refresh
+## Previous handoff refresh
 
 - At the start of this refresh, local `main` matched `origin/main` at `e0de5cf` and the working tree was clean.
 - `npm test` — passed in this session: build checked 7 source files; 189 tests, 188 passed, 0 failed, and 1 expected Windows symlink `EPERM` skip.
 - `git diff --check` — passed after this documentation-only edit; Git emitted only the normal Windows LF/CRLF normalization warning.
 - No source, test, package, Docker, or workflow behavior changed in this refresh; only this handoff document was updated.
+
+## Final documentation submission refresh
+
+- `docs-final` started from the local `main` baseline and was pushed at `1d817e726877c69e6af3fc295b3bb2c559eaf027`. The branch was then fast-forwarded into `main`; before this handoff-only update, local `main`, `origin/main`, and `origin/docs-final` all pointed to that revision.
+- `5135653` updates the README install section to use the GitHub `main.tar.gz` archive, documents `npx github:psuvraneel-cyber/Clone-Proof check <project-folder>`, preserves the unrelated-package warning, and keeps the project-folder note.
+- `4c2ae26` removes the superseded target-guard recheck claims from the README and handoff and replaces the detailed `FIELD_TEST.md` recheck with the requested short paragraph.
+- `a4f19f2` repairs `docs/FIELD_TEST.md`: earlier runs are clearly labeled, Run 3 follows them, and the five known limitations now appear at the end of the file.
+- `1d817e7` adds the commit-specific GitHub archive install/version smoke step to the Ubuntu, macOS, and Windows test matrix.
+- Changed paths in this documentation pass: `README.md`, `docs/FIELD_TEST.md`, `docs/HANDOFF.md`, and `.github/workflows/ci.yml`; no `src/` or test files changed.
+- `npm test` — passed in this session after each working change: build checked 7 source files; 189 tests, 188 passed, 0 failed, and 1 expected Windows symlink `EPERM` skip.
+- `git diff --check` — passed after each working change; Git emitted only the normal Windows LF/CRLF normalization warning.
+- Branch CI `39247229775` — passed on Ubuntu, macOS, Windows, and Docker E2E. The new archive install step passed on all three operating systems.
+- Main CI `39247368837` — passed on Ubuntu, macOS, Windows, and Docker E2E. The new archive install step passed on all three operating systems.
+- The final README install command is `npm install -g https://github.com/psuvraneel-cyber/Clone-Proof/archive/refs/heads/main.tar.gz`; the documented no-install command is `npx github:psuvraneel-cyber/Clone-Proof check <project-folder>`.
 
 ## Commits in this review pass
 
@@ -247,4 +262,4 @@ git push origin main
 node src/cli.js check https://github.com/psuvraneel-cyber/Clone-Proof --format json
 ```
 
-CI URLs: pre-submit `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39025517137`; main `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39025568167`.
+CI URLs: docs-final `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39247229775`; main `https://github.com/psuvraneel-cyber/Clone-Proof/actions/runs/39247368837`.
