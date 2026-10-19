@@ -1309,6 +1309,66 @@ test('recognizes bun as a supported package manager and lockfile', () => withRep
   assert.equal(finding(report, 'LOCKFILE_PRESENT').status, 'passed');
 }));
 
+test('warns instead of failing when a workspace root has no root test script', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'workspace-root',
+    private: true,
+    workspaces: ['packages/*'],
+    scripts: { build: 'node build.js' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"workspace-root","lockfileVersion":3,"packages":{}}\n');
+  writeFile(root, 'packages/one/package.json', JSON.stringify({
+    name: '@workspace/one',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'MONOREPO_ROOT_TEST_SCRIPT_MISSING');
+
+  assert.equal(report.status, 'passed_with_warnings');
+  assert.equal(missing.status, 'warning');
+  assert.equal(missing.severity, 'warning');
+  assert.equal(finding(report, 'TEST_SCRIPT_MISSING'), undefined);
+  assert.match(missing.message, /workspace root/i);
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
+}));
+
+test('single-package roots without a test script still fail', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'single-package',
+    scripts: { build: 'node build.js' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"single-package","lockfileVersion":3,"packages":{}}\n');
+  writeFile(root, 'src/index.js', 'module.exports = 1;\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.status, 'failed');
+  assert.equal(finding(report, 'TEST_SCRIPT_MISSING').status, 'failed');
+  assert.equal(finding(report, 'MONOREPO_ROOT_TEST_SCRIPT_MISSING'), undefined);
+}));
+
+test('recognizes workspace markers and private nested-package roots', () => {
+  const cases = [
+    { name: 'marker', packageData: {}, nestedPath: 'services/one/package.json', marker: 'pnpm-workspace.yaml' },
+    { name: 'private', packageData: { private: true }, nestedPath: 'client/package.json' }
+  ];
+
+  for (const item of cases) {
+    withRepository((root) => {
+      writeFile(root, 'package.json', JSON.stringify({ name: `${item.name}-root`, ...item.packageData }, null, 2));
+      writeFile(root, 'package-lock.json', `{"name":"${item.name}-root","lockfileVersion":3,"packages":{}}\n`);
+      writeFile(root, item.nestedPath, '{"name":"nested-package"}\n');
+      if (item.marker) writeFile(root, item.marker, 'packages:\n  - services/*\n');
+
+      const report = scanRepository(root);
+
+      assert.equal(finding(report, 'MONOREPO_ROOT_TEST_SCRIPT_MISSING').status, 'warning', item.name);
+      assert.equal(finding(report, 'TEST_SCRIPT_MISSING'), undefined, item.name);
+    });
+  }
+});
+
 test('warns when exact Node runtime declarations disagree', () => withRepository((root) => {
   writeFile(root, 'package.json', JSON.stringify({
     name: 'runtime-mismatch',

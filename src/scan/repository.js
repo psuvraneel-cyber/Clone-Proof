@@ -501,6 +501,70 @@ function parsePackageManager(value) {
   };
 }
 
+function hasWorkspaceDeclaration(packageData) {
+  const workspaces = packageData && packageData.workspaces;
+  if (Array.isArray(workspaces)) return workspaces.length > 0;
+  return Boolean(
+    workspaces
+    && typeof workspaces === 'object'
+    && !Array.isArray(workspaces)
+    && Array.isArray(workspaces.packages)
+    && workspaces.packages.length > 0
+  );
+}
+
+const WORKSPACE_ROOT_MARKERS = new Set([
+  'pnpm-workspace.yaml',
+  'lerna.json',
+  'rush.json',
+  'nx.json',
+  'turbo.json'
+]);
+const WORKSPACE_DIRECTORY_NAMES = new Set([
+  'packages',
+  'apps',
+  'modules',
+  'workspaces',
+  'projects'
+]);
+const NON_WORKSPACE_NESTED_DIRECTORY_NAMES = new Set([
+  'test',
+  'tests',
+  'fixtures',
+  '__fixtures__',
+  'examples',
+  'example',
+  'documentation',
+  'docs',
+  'scripts',
+  'script',
+  'tools',
+  'tooling',
+  'ci',
+  '.ci',
+  'ci-tools',
+  'ci_tooling',
+  '.github',
+  'e2e'
+]);
+
+function isMonorepoRoot(packageData, nestedPaths, discovered) {
+  if (hasWorkspaceDeclaration(packageData)) return true;
+
+  const rootMarkers = [...discovered.keys()]
+    .filter((relativePath) => !relativePath.includes('/'))
+    .map((relativePath) => relativePath.toLowerCase());
+  if (rootMarkers.some((relativePath) => WORKSPACE_ROOT_MARKERS.has(relativePath))) return true;
+
+  return nestedPaths.some((relativePath) => {
+    const firstDirectory = relativePath.split('/')[0].toLowerCase();
+    return WORKSPACE_DIRECTORY_NAMES.has(firstDirectory)
+      || (packageData
+        && packageData.private === true
+        && !NON_WORKSPACE_NESTED_DIRECTORY_NAMES.has(firstDirectory));
+  });
+}
+
 function normalizeScripts(packageData) {
   if (!packageData || !packageData.scripts || typeof packageData.scripts !== 'object' || Array.isArray(packageData.scripts)) {
     return {};
@@ -2114,6 +2178,7 @@ function scanRepository(rootPath, options) {
     }
   }
 
+  const monorepoRoot = packageValid && isMonorepoRoot(packageData, nestedPackageFiles, scanned.discovered);
   const declaredPackageManager = packageValid ? parsePackageManager(packageData.packageManager) : null;
   let packageManagerInfo = declaredPackageManager;
   const lockfiles = LOCKFILES.filter((lockfile) => scanned.discovered.has(lockfile.name));
@@ -2557,15 +2622,20 @@ function scanRepository(rootPath, options) {
         'Keep the test script deterministic and documented.'
       );
     } else {
+      const missingCode = monorepoRoot ? 'MONOREPO_ROOT_TEST_SCRIPT_MISSING' : 'TEST_SCRIPT_MISSING';
       missingTestFinding = addFinding(
         findings,
-        'TEST_SCRIPT_MISSING',
-        'failed',
-        'error',
-        'The package test script is missing',
-        'package.json does not define a non-empty scripts.test entry.',
+        missingCode,
+        monorepoRoot ? 'warning' : 'failed',
+        monorepoRoot ? 'warning' : 'error',
+        monorepoRoot ? 'The monorepo root test script is missing' : 'The package test script is missing',
+        monorepoRoot
+          ? 'The workspace root package.json does not define a non-empty scripts.test entry; tests may be defined by nested packages.'
+          : 'package.json does not define a non-empty scripts.test entry.',
         [makeEvidence('package.json', 'scripts.test is missing or empty.')],
-        'Add a deterministic scripts.test command that runs the repository test suite.'
+        monorepoRoot
+          ? 'Define a root test orchestrator when the workspace is tested from its root, or run CloneProof separately for each nested package.'
+          : 'Add a deterministic scripts.test command that runs the repository test suite.'
       );
     }
   } else if (
