@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-20; the last committed implementation baseline is `1370967`, preceded by independent test-pass fixes `9aef27f` and `1fd2020`. Local `main` is ahead of `origin/main`; no CI receipt exists yet for these local commits. The working tree also contains unrelated uncommitted changes in `src/verify/docker.js` and `test/verify.test.js` that are not part of this pass. The preceding pushed revision `a762ec1` passed main CI run `39289281815` on Ubuntu, macOS, Windows, and Docker E2E. This file records the current resumable state for the OmniRush session.
+Updated 2026-10-20; the current local baseline is `507df21`, with the requested independent test-pass fixes in `1fd2020`, `9aef27f`, and `1370967`. Local `main` is ahead of `origin/main`; no CI receipt exists yet for these local commits. Separate follow-on commits `c797cbd`, `4495268`, and `507df21` add verification, bounded-path-suggestion, and CI cleanup work outside the requested three-fix pass. The preceding pushed revision `a762ec1` passed main CI run `39289281815` on Ubuntu, macOS, Windows, and Docker E2E. This file records the current resumable state for the OmniRush session.
 
 ## Goal
 
@@ -85,7 +85,8 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `1fd2020 fix: accept safe GitHub URL variants` updates `src/input/github.js`, `src/cli.js`, `test/github.test.js`, and `test/cli.test.js`. Safe public GitHub roots are canonicalized; tree/blob links are rejected with the canonical root; missing local `owner/repo` paths remain local and receive deterministic suggestions.
 - `9aef27f fix: retry GitHub preflight after token rejection` updates `src/input/github.js`, `src/cli.js`, `test/github.test.js`, and `test/cli.test.js`. A configured-token 401 gets one unauthenticated retry, checked fallback metadata reports `preflightAuthenticated: false`, and only a boolean rejection diagnostic crosses into reports.
 - `1370967 fix: explain GitHub checkout limits` updates `src/input/github.js` and `test/github.test.js`. All checkout bounds identify their configured limit and reached count at the relative stop path while preserving existing limit/path metadata.
-- This pass intentionally changed no credentials, tokens, absolute machine paths, protected security/decision documentation, README, CI configuration, or unrelated files; separate uncommitted changes in `src/verify/docker.js` and `test/verify.test.js` are currently present in the shared worktree.
+- Separate follow-ons: `c797cbd fix: preserve zero-test evidence`, `4495268 fix: bound GitHub path suggestions`, and `507df21 fix: repeat Windows cleanup in CI`; these are outside the requested three-fix pass.
+- This pass intentionally changed no credentials, tokens, absolute machine paths, protected security/decision documentation, README, CI configuration, or unrelated files. Separate committed follow-ons `c797cbd`, `4495268`, and `507df21` changed verification behavior, GitHub path-suggestion bounds, and `.github/workflows/ci.yml` after the requested three-fix commits.
 
 ## Decisions to preserve
 
@@ -103,7 +104,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Focused GitHub tests after issue 10 — passed: 33 tests, 33 passed, 0 failed.
 - Final `npm test` at `1370967` — passed: build checked 8 source files; 213 tests, 212 passed, 0 failed, and 1 expected Windows symlink `EPERM` skip.
 - `git diff --check` — passed. No Docker or CI run was needed for these offline changes; the latest CI receipt remains `39289281815` for `a762ec1`.
-- Current `npm test` after the handoff edit — not green because of the unrelated uncommitted verification changes: 215 tests, 213 passed, 1 failed, and 1 expected Windows symlink `EPERM` skip. The failure is `test/verify.test.js:155` (`zero-test success is reported for supported test-runner output`), where the changed code reports generic evidence instead of the expected `# tests 0`; resolve or revert that separate change before claiming the current worktree passes.
+- Current `npm test` at `507df21` — passed: 216 tests, 215 passed, 0 failed, and 1 expected Windows symlink `EPERM` skip. The separate verification and bounded-suggestion follow-ons are covered by their added tests; the CI cleanup change has not yet received a remote CI receipt.
 
 ## Historical checks observed
 
@@ -274,7 +275,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Next user follow-up
 
-The independent test-pass fixes are complete and green at committed baseline `1370967`. Commits `1fd2020`, `9aef27f`, and `1370967` are present on local `main` but are not yet pushed; local `main` is ahead of `origin/main`. The shared worktree also has the unrelated uncommitted verification changes described above. Next action: resolve or commit/revert those separate changes and restore a green `npm test`, then review the current commit range, push `main`, and record the resulting CI receipt before completing the remaining Buildathon submission tasks.
+The independent test-pass fixes are complete and green at committed baseline `1370967`; the current local baseline also includes follow-ons through `507df21`, and the worktree is clean. Commits `1fd2020`, `9aef27f`, `1370967`, `c797cbd`, `4495268`, and `507df21` are present on local `main` but are not yet pushed; local `main` is ahead of `origin/main`. Next action: review the current commit range, push `main`, and record the resulting CI receipt before completing the remaining Buildathon submission tasks.
 
 ```bash
 git status --short --branch
