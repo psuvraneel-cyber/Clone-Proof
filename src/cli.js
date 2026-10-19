@@ -191,16 +191,6 @@ function githubRepositorySuggestion(target) {
   if (!match) {
     match = /^([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*?)(?:\.git)?\/?$/.exec(normalized);
   }
-  if (!match) {
-    const components = normalized.split('/').filter(Boolean);
-    if (components.length >= 2) {
-      const owner = components.at(-2);
-      const repo = components.at(-1).replace(/\.git$/i, '');
-      if (/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(owner) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(repo)) {
-        match = [null, owner, repo];
-      }
-    }
-  }
   if (!match) return null;
 
   return `Did you mean https://github.com/${match[1]}/${match[2]}?`;

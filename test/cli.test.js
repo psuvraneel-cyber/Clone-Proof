@@ -182,7 +182,8 @@ test('invalid GitHub URLs return a blocked machine-readable report without invok
 
 test('non-existing owner/repo paths stay local and include a GitHub suggestion', () => {
   const directory = fs.mkdtempSync(path.join(projectRoot, 'tmp-cli-github-suggestion-'));
-  const target = path.relative(projectRoot, path.join(directory, 'example', 'project'));
+  const owner = path.basename(directory);
+  const target = path.join(owner, 'project');
   try {
     const result = spawnSync(process.execPath, [cliPath, 'check', target, '--format', 'json'], {
       cwd: projectRoot,
@@ -197,7 +198,27 @@ test('non-existing owner/repo paths stay local and include a GitHub suggestion',
     assert.notEqual(report.findings[0].code, 'GITHUB_URL_INVALID');
     const rootFinding = report.findings.find((finding) => finding.code === 'SCAN_ROOT_UNAVAILABLE');
     assert.ok(rootFinding);
-    assert.match(rootFinding.message, /Did you mean https:\/\/github\.com\/example\/project\?/);
+    assert.match(rootFinding.message, new RegExp(`Did you mean https://github\\.com/${owner}/project\\?`));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('nested local paths do not guess a GitHub owner and repository from the last segments', () => {
+  const directory = fs.mkdtempSync(path.join(projectRoot, 'tmp-cli-github-nested-'));
+  const target = path.relative(projectRoot, path.join(directory, 'nested', 'project'));
+  try {
+    const result = spawnSync(process.execPath, [cliPath, 'check', target, '--format', 'json'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: { ...process.env, NO_COLOR: '1' }
+    });
+
+    assert.equal(result.status, 2);
+    const report = JSON.parse(result.stdout);
+    const rootFinding = report.findings.find((finding) => finding.code === 'SCAN_ROOT_UNAVAILABLE');
+    assert.ok(rootFinding);
+    assert.doesNotMatch(rootFinding.message, /Did you mean https:\/\/github\.com\//);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
