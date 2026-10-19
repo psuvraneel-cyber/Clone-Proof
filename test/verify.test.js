@@ -16,7 +16,11 @@ const {
   verifyRepository
 } = require('../src/verify/docker');
 const { scanRepository } = require('../src/scan/repository');
-const { CHECK_GROUPS, NOT_CHECKED } = require('../src/report/coverage');
+const {
+  CHECK_GROUPS,
+  NOT_CHECKED,
+  assertCoverageConsistency
+} = require('../src/report/coverage');
 const { exitCodeForReport } = require('../src/report/render');
 
 const healthyFixture = path.join(__dirname, '..', 'examples', 'healthy-node');
@@ -117,6 +121,7 @@ test('successful Docker verification records evidence and cleans staging', async
   assert.equal(report.verification.cleanup.completed, true);
   assert.equal(report.verification.imageAvailable, true);
   assert.equal(report.findings.find((finding) => finding.code === 'DOCKER_VERIFICATION_PASSED').status, 'passed');
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
   assert.deepEqual(report.coverage, scanRepository(healthyFixture).coverage);
 
   const runCall = calls.find((call) => call.args[0] === 'run');

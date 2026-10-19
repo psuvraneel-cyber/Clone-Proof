@@ -10,6 +10,7 @@ const test = require('node:test');
 const cliPath = path.join(__dirname, '..', 'src', 'cli.js');
 const projectRoot = path.join(__dirname, '..');
 const { parseArguments, reportCleanupFailure, reportPreflightNotice } = require('../src/cli');
+const { assertCoverageConsistency } = require('../src/report/coverage');
 
 test('setup accepts no target and defaults to text output', () => {
   assert.deepEqual(parseArguments(['node', cliPath, 'setup']), {
@@ -149,6 +150,7 @@ test('invalid GitHub URLs return a blocked machine-readable report without invok
   assert.equal(report.status, 'blocked');
   assert.equal(report.findings[0].code, 'GITHUB_URL_INVALID');
   assert.deepEqual(report.coverage.checked, []);
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
 });
 
 test('GitHub-shaped targets without https are rejected with a canonical URL hint', () => {

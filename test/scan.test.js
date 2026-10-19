@@ -1376,6 +1376,7 @@ test('blocks an injected home-folder target before traversal', () => {
     assert.equal(report.status, 'blocked');
     assert.equal(finding(report, 'WRONG_TARGET').status, 'skipped');
     assert.equal(finding(report, 'WRONG_TARGET').severity, 'warning');
+    assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
     assert.equal(traversalCalled, false);
   } finally {
     fs.readdirSync = originalReaddir;
@@ -1697,6 +1698,7 @@ test('marks a traversal that exceeds maxEntries incomplete', () => withRepositor
   assert.equal(limitFinding.recommendation, 'Point CloneProof at a single project folder.');
   assert.equal(limitFinding.evidence.length, 1);
   assert.equal(path.isAbsolute(limitFinding.evidence[0].path), false);
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
 }));
 
 test('reads root files before descending into a large hidden directory', () => withRepository((root) => {
