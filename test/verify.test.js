@@ -250,23 +250,31 @@ test('transient staging remover failures are retried without a cleanup notice', 
 
 test('cleanup failure fails verification without exposing an absolute directory', async () => {
   const { runner } = makeRunner();
-  const report = await verifyRepository(healthyFixture, {
-    execute: true,
-    runner,
-    removeTemporaryDirectory: async () => {
-      throw new Error('injected cleanup failure');
-    }
-  });
+  const retainedDirectories = new Set();
+  try {
+    const report = await verifyRepository(healthyFixture, {
+      execute: true,
+      runner,
+      removeTemporaryDirectory: async (directory) => {
+        retainedDirectories.add(directory);
+        throw new Error('injected cleanup failure');
+      }
+    });
 
-  assertSummaryMatchesFindings(report);
-  assert.equal(report.status, 'failed');
-  assert.equal(exitCodeForReport(report), 1);
-  assert.equal(report.verification.cleanup.cleanupFailed, true);
-  assert.equal(report.verification.cleanup.completed, false);
-  assert.equal(report.verification.cleanup.cleanupDirectory.includes('\\'), false);
-  assert.equal(report.verification.cleanup.cleanupDirectory.includes('/'), false);
-  assert.equal(report.findings.some((finding) => finding.code === 'DOCKER_CLEANUP_INCOMPLETE'), true);
-  assert.doesNotMatch(JSON.stringify(report), /AppData|C:\\Users|\/home\//);
+    assertSummaryMatchesFindings(report);
+    assert.equal(report.status, 'failed');
+    assert.equal(exitCodeForReport(report), 1);
+    assert.equal(report.verification.cleanup.cleanupFailed, true);
+    assert.equal(report.verification.cleanup.completed, false);
+    assert.equal(report.verification.cleanup.cleanupDirectory.includes('\\'), false);
+    assert.equal(report.verification.cleanup.cleanupDirectory.includes('/'), false);
+    assert.equal(report.findings.some((finding) => finding.code === 'DOCKER_CLEANUP_INCOMPLETE'), true);
+    assert.doesNotMatch(JSON.stringify(report), /AppData|C:\\Users|\/home\//);
+  } finally {
+    for (const directory of retainedDirectories) {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  }
 });
 
 test('gitignored Docker paths are informational and have bounded sorted evidence', async () => {
