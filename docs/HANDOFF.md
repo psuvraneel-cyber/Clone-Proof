@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-19; the current implementation baseline is `b59a8d9`, and local `main` includes handoff revision `a762ec1`. Main CI run `39289281815` passed on Ubuntu, macOS, Windows, and Docker E2E for that pushed revision; this documentation-only update preserves that receipt. This file records the final submission state for the current OmniRush session.
+Updated 2026-10-20; the last committed implementation baseline is `1370967`, preceded by independent test-pass fixes `9aef27f` and `1fd2020`. Local `main` is ahead of `origin/main`; no CI receipt exists yet for these local commits. The working tree also contains unrelated uncommitted changes in `src/verify/docker.js` and `test/verify.test.js` that are not part of this pass. The preceding pushed revision `a762ec1` passed main CI run `39289281815` on Ubuntu, macOS, Windows, and Docker E2E. This file records the current resumable state for the OmniRush session.
 
 ## Goal
 
@@ -17,9 +17,9 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Project classification checks a root package manifest first, then other-ecosystem markers, then supported root/application source locations.
 - Partial `.nvmrc`, `.node-version`, and Docker Node pins use prefix/existential engine-range semantics; full versions retain exact comparison.
 - Partial `>` engine ranges follow npm release semantics: `>X` is treated as `>=X+1.0.0` and `>X.Y` as `>=X.Y+1.0`.
-- GitHub input performs a ten-second public visibility/size preflight. Repositories over `MAX_REPOSITORY_BYTES` (4 GiB), private repositories, and missing repositories are blocked before cloning; the GitHub `size` value and `target.repositorySizeKb` describe full history, not the shallow checkout. `target.preflightReason` uses fixed values for checked, HTTP, rate-limit, timeout, network, invalid-response, and no-fetch outcomes. An optional rejected token produces a safe 401 notice without exposing its value.
+- GitHub input accepts canonical public repository roots from `github.com` or `www.github.com`, strips trailing query/fragment data, and rejects `/tree/<ref>` and `/blob/...` paths with a deterministic canonical-root message. Non-existing local paths ending in `owner/repo` remain local and receive a GitHub suggestion without changing `target.name`. The ten-second public visibility/size preflight blocks repositories over `MAX_REPOSITORY_BYTES` (4 GiB), private repositories, and missing repositories before cloning; the GitHub `size` value and `target.repositorySizeKb` describe full history, not the shallow checkout. `target.preflightReason` uses fixed values for checked, HTTP, rate-limit, timeout, network, invalid-response, and no-fetch outcomes. A configured token rejected with 401 is retried exactly once without authorization; the safe notice and `preflightTokenRejected` diagnostic never expose its value, and successful fallback metadata records `preflightAuthenticated: false`.
 - GitHub cloning resolves a trusted absolute Git executable, uses an allow-listed environment and empty Git config, disables credential helpers/LFS smudging, uses no shell, records `100755` and `120000` paths with `git ls-files -s -z` before deleting `.git`, and cleans its parent directory on success and failure. Cleanup retries ten times at 100 ms and reports only a temporary-folder basename if a Windows file lock persists.
-- GitHub checkout limits are enforced before the non-fatal Git mode read. `parseGitFileModes` returns sorted `executablePaths` and `symlinkPaths`; NUL-delimited parsing preserves paths with spaces and non-English characters. `target.commit` records a valid 40-character `rev-parse HEAD` result when available, and `target.executableModes` records `checked` or `unavailable`. Git-listed symlinks skip static reads and block Docker staging consistently on every OS.
+- GitHub checkout limits are enforced before the non-fatal Git mode read. Limit failures identify the specific bound, configured value, reached count, and deterministic relative stop path while retaining numeric `limit`/`path` metadata. `parseGitFileModes` returns sorted `executablePaths` and `symlinkPaths`; NUL-delimited parsing preserves paths with spaces and non-English characters. `target.commit` records a valid 40-character `rev-parse HEAD` result when available, and `target.executableModes` records `checked` or `unavailable`. Git-listed symlinks skip static reads and block Docker staging consistently on every OS.
 - Docker verification uses the pinned image `node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`, `--pull=never`, a read-only source mount, non-root UID/GID 1000, dropped capabilities, no-new-privileges, no network by default, and bounded CPU/memory/PID/tmpfs/output/time policies.
 - Docker staging honors the root `.gitignore` and root `.git/info/exclude` for local targets, keeps ignored core files, reports skipped ignored paths, and does not read nested `.gitignore` files. Ignored-path findings are informational/skipped, evidence is capped at 50, and verification metadata is capped at 500 paths with `ignoredPathCount` and `ignoredPathsTruncated`. GitHub fresh clones copy committed sensitive fixtures; local staging still omits them and reports `DOCKER_SENSITIVE_FILES_OMITTED`. The project `.dockerignore` separately keeps credential-like files out of CloneProof's own image build context. Command-line `npm ci --ignore-scripts` remains authoritative.
 - Static npm checks add informational/skipped `INSTALL_SCRIPTS_SKIPPED` and advisory `BROWSER_TESTS_DETECTED` findings. Test-phase Docker failures include targeted explanations when either limitation is present; install scripts and browsers remain disabled/not installed.
@@ -47,11 +47,11 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Dynamic execution supports only the root npm/Node workflow. pnpm/Yarn profiles, external service health, OS-specific scripts, and custom setup remain outside the execution profile.
 - Final Run 3 results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, 13 correct and 2 environment-limited failures, warning precision 83.3%, combined warning/failure precision 83.3%, and static planted-bug detection of 13/13 offline plus 39/39 in the separate network-dependent real-repository procedure.
 - The Windows host still skips the real symlink-creation test because it returns `EPERM`; Linux CI is required to run it.
-- Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop. The current fix commits are pushed to `main`, and main CI run `39289281815` passed all four jobs for the preceding pushed revision.
+- Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop. Main CI run `39289281815` passed all four jobs for the preceding pushed revision; the independent test-pass commits listed below remain local pending push and CI.
 
 ## Important files
 
-- `src/cli.js` — argument parsing, GitHub-shaped target validation, output files, exit codes, and source metadata.
+- `src/cli.js` — argument parsing, GitHub/local target handling and suggestions, output files, exit codes, and source metadata.
 - `src/input/github.js` — URL validation, API preflight, trusted Git clone invocation, bounded checkout inspection, and cleanup.
 - `src/util/executable.js` — trusted absolute Git and Docker executable discovery.
 - `src/scan/repository.js` — deterministic scanner, bounded environment parser, project classification, Gitignore matcher, and findings.
@@ -80,6 +80,13 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - `test/planted-bugs.test.js`: offline detection is 13/13; the documented real-repository extension detected 39/39 cases, including three whitespace-only README controls.
 - `docs/FIELD_TEST.md`: the pre-run expectations, original first-run columns, fixed verdicts, 16 rerun invocations, workflow evidence, counted summaries, and current limitations are recorded. React's rerun measured 7,260 checkout files and 41,784,802 checkout bytes (~39.85 MiB) against the 1,119,361 KiB full-history API value.
 
+## Independent test-pass fixes (2026-10-20)
+
+- `1fd2020 fix: accept safe GitHub URL variants` updates `src/input/github.js`, `src/cli.js`, `test/github.test.js`, and `test/cli.test.js`. Safe public GitHub roots are canonicalized; tree/blob links are rejected with the canonical root; missing local `owner/repo` paths remain local and receive deterministic suggestions.
+- `9aef27f fix: retry GitHub preflight after token rejection` updates `src/input/github.js`, `src/cli.js`, `test/github.test.js`, and `test/cli.test.js`. A configured-token 401 gets one unauthenticated retry, checked fallback metadata reports `preflightAuthenticated: false`, and only a boolean rejection diagnostic crosses into reports.
+- `1370967 fix: explain GitHub checkout limits` updates `src/input/github.js` and `test/github.test.js`. All checkout bounds identify their configured limit and reached count at the relative stop path while preserving existing limit/path metadata.
+- This pass intentionally changed no credentials, tokens, absolute machine paths, protected security/decision documentation, README, CI configuration, or unrelated files; separate uncommitted changes in `src/verify/docker.js` and `test/verify.test.js` are currently present in the shared worktree.
+
 ## Decisions to preserve
 
 - Keep static inspection separate from execution. Never run repository scripts, README commands, lifecycle hooks, or target Dockerfiles.
@@ -88,6 +95,15 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Require `--docker --execute`; keep `--network=none` unless `--allow-network` is explicitly supplied.
 - Do not trust target Dockerfiles, accept arbitrary Docker flags, mount the Docker socket, pass host secrets, inherit host Git config/credentials, or silently enable network access.
 - Keep report fields relative, sorted, canonical, bounded, and free of timestamps.
+
+## Current checks for independent test-pass fixes (`1370967`)
+
+- Focused GitHub/CLI tests after issue 8 — passed: 44 tests, 44 passed, 0 failed.
+- Focused GitHub/CLI tests after issue 9 — passed: 48 tests, 48 passed, 0 failed.
+- Focused GitHub tests after issue 10 — passed: 33 tests, 33 passed, 0 failed.
+- Final `npm test` at `1370967` — passed: build checked 8 source files; 213 tests, 212 passed, 0 failed, and 1 expected Windows symlink `EPERM` skip.
+- `git diff --check` — passed. No Docker or CI run was needed for these offline changes; the latest CI receipt remains `39289281815` for `a762ec1`.
+- Current `npm test` after the handoff edit — not green because of the unrelated uncommitted verification changes: 215 tests, 213 passed, 1 failed, and 1 expected Windows symlink `EPERM` skip. The failure is `test/verify.test.js:155` (`zero-test success is reported for supported test-runner output`), where the changed code reports generic evidence instead of the expected `# tests 0`; resolve or revert that separate change before claiming the current worktree passes.
 
 ## Historical checks observed
 
@@ -183,6 +199,10 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Commits in this review pass
 
+- `1370967 fix: explain GitHub checkout limits`
+- `9aef27f fix: retry GitHub preflight after token rejection`
+- `1fd2020 fix: accept safe GitHub URL variants`
+
 - `2e308e8 fix: explain scan entry limits`
 - `79d7b68 fix: prioritize root files during scans`
 - `0c3a6bd chore: harden npm package publishing`
@@ -254,13 +274,15 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Next user follow-up
 
-Local implementation and verification are complete. The remaining user-facing follow-ups are to record the new CI URL in the submission, publish the demo video, submit the Buildathon dashboard entry, and add the Submission ID in Unstop. The final local commands already run were:
+The independent test-pass fixes are complete and green at committed baseline `1370967`. Commits `1fd2020`, `9aef27f`, and `1370967` are present on local `main` but are not yet pushed; local `main` is ahead of `origin/main`. The shared worktree also has the unrelated uncommitted verification changes described above. Next action: resolve or commit/revert those separate changes and restore a green `npm test`, then review the current commit range, push `main`, and record the resulting CI receipt before completing the remaining Buildathon submission tasks.
 
 ```bash
 git status --short --branch
 git log --oneline --decorate -10
 git show --stat --oneline HEAD
 git diff --check
+git show --stat --oneline 1370967
+npm test
 git log --oneline -10
 docker build -t cloneproof .
 docker run --rm --network none cloneproof npm test
