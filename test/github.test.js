@@ -69,17 +69,13 @@ async function waitForCondition(predicate, timeoutMs = 10000) {
   throw new Error('Timed out waiting for condition');
 }
 
-test('validates only exact public HTTPS GitHub repository URLs', () => {
+test('validates public GitHub repository roots and canonicalizes safe URL variants', () => {
   for (const value of [
     'http://github.com/example/project',
-    'https://www.github.com/example/project',
     'https://gitlab.com/example/project',
     'https://github.com/example/project/issues',
-    'https://github.com/example/project/tree/main',
     'https://github.com/example',
     'https://github.com/example/project/extra',
-    'https://github.com/example/project?tab=readme',
-    'https://github.com/example/project#readme',
     'https://user:password@github.com/example/project',
     'https://github.com.evil.example/example/project',
     'https://github.com/example/project/../other',
@@ -96,12 +92,15 @@ test('validates only exact public HTTPS GitHub repository URLs', () => {
 
   for (const [value, repo] of [
     [VALID_URL, 'example/project'],
+    ['https://www.github.com/example/project', 'example/project'],
     ['https://github.com/example/project/', 'example/project'],
     ['https://github.com/example/project.git', 'example/project'],
-    ['https://github.com/example/project.git/', 'example/project']
+    ['https://github.com/example/project.git/', 'example/project'],
+    ['https://github.com/example/project?tab=readme', 'example/project'],
+    ['https://www.github.com/example/project#readme', 'example/project']
   ]) {
     assert.deepEqual(validateGithubUrl(value), {
-      url: value,
+      url: VALID_URL,
       owner: 'example',
       repo: 'project',
       repository: repo
@@ -227,6 +226,18 @@ test('reports a cleanup failure without losing the clone result', async () => {
     if (cleanupDirectory) {
       await fs.promises.rm(cleanupDirectory, { recursive: true, force: true });
     }
+  }
+});
+
+test('rejects GitHub tree and blob URLs with the canonical repository root', () => {
+  for (const [kind, suffix] of [['tree', 'main'], ['blob', 'main/src/index.js']]) {
+    const value = `https://www.github.com/example/project/${kind}/${suffix}?plain=1`;
+    assert.throws(
+      () => validateGithubUrl(value),
+      (error) => error
+        && error.code === 'GITHUB_URL_INVALID'
+        && error.message === `Invalid GitHub repository URL: GitHub ${kind} URLs are not supported; use the canonical repository URL ${VALID_URL}`
+    );
   }
 });
 

@@ -138,6 +138,10 @@ function invalidUrl(message) {
   throw new GithubSourceError(`Invalid GitHub repository URL: ${message}`, 'GITHUB_URL_INVALID');
 }
 
+function canonicalGithubRepositoryUrl(owner, repo) {
+  return `https://github.com/${owner}/${repo}`;
+}
+
 /**
  * Validate and describe a public GitHub repository URL.
  *
@@ -170,8 +174,8 @@ function validateGithubUrl(value) {
   if (parsed.protocol !== 'https:') {
     invalidUrl('only HTTPS URLs are supported');
   }
-  if (parsed.hostname !== 'github.com') {
-    invalidUrl('the host must be github.com');
+  if (parsed.hostname !== 'github.com' && parsed.hostname !== 'www.github.com') {
+    invalidUrl('the host must be github.com or www.github.com');
   }
   if (parsed.port !== '') {
     invalidUrl('custom ports are not supported');
@@ -179,22 +183,24 @@ function validateGithubUrl(value) {
   if (parsed.username !== '' || parsed.password !== '') {
     invalidUrl('credentials are not allowed');
   }
-  if (parsed.search !== '' || parsed.hash !== '' || /[?#]/.test(value)) {
-    invalidUrl('query strings and fragments are not allowed');
-  }
-
   // GitHub names do not need URL decoding here. Rejecting escapes also
   // prevents encoded slashes and other alternate path spellings from
   // bypassing the exact two-component check.
   const pathMatch = /^\/([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*?)(?:\.git)?\/?$/.exec(parsed.pathname);
   if (!pathMatch) {
+    const subpathMatch = /^\/([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*?)(?:\.git)?\/(tree|blob)(?:\/|$)/i.exec(parsed.pathname);
+    if (subpathMatch) {
+      invalidUrl(
+        `GitHub ${subpathMatch[3].toLowerCase()} URLs are not supported; use the canonical repository URL ${canonicalGithubRepositoryUrl(subpathMatch[1], subpathMatch[2])}`
+      );
+    }
     invalidUrl('expected exactly /owner/repository with an optional .git suffix or trailing slash');
   }
 
   const owner = pathMatch[1];
   const repo = pathMatch[2];
   return Object.freeze({
-    url: parsed.href,
+    url: canonicalGithubRepositoryUrl(owner, repo),
     owner,
     repo,
     repository: `${owner}/${repo}`
