@@ -133,7 +133,7 @@ The real-repository extension used read-only `git clone --depth 1` for `psuvrane
 
 There were no missed planted bugs after applying the documented adaptations. The control mutation produced no new finding for all three real repositories and in the offline suite, so it did not add a false positive.
 
-## Results
+## Runs 1–2 results (earlier code; superseded by Run 3)
 
 The first check for every repository was run from the pre-run plan above. For repositories whose check was not blocked, both verification modes were exercised. The first-run columns below preserve those original observations; the added rerun columns describe the post-fix runs. Durations are wall-clock milliseconds measured around each CLI invocation. A verdict is assigned once per repository per run from the fixed set `correct`, `false fail`, `false block`, `environment-limited failure`, or `tool error`.
 
@@ -209,8 +209,6 @@ Counting rule: each of the 15 table rows contributes exactly one verdict to the 
 
 A check-only recheck on the target-guard-fixes branch was made before that branch was merged with the precision fixes, so its results are superseded by Run 3 below.
 
-## Known limitations
-
 ## Run 3: final precision-fixes code (2026-10-17, commit `54141a5`)
 
 Run 3 was measured after all Part 1 precision fixes and after the final pinned Docker image was prepared. Expectations were retained from the pre-run plan above before the commands were started. All 15 `check` commands ran against the public URLs. Every non-blocked check also received `verify --docker --execute` with and without `--allow-network`; `npm-cli`, Linux, and Flask were blocked by check and therefore had no verify invocation. `target.preflightReason` was recorded for every GitHub check. No target repository code ran on the host.
@@ -272,6 +270,8 @@ The repeatable procedure is committed as `scripts/planted-bugs-real.js`; it does
 ### Temporary-folder measurement
 
 On the Windows host, all existing `cloneproof-*` directories were removed before the measurement. The directory count was **0 before** and **0 after** ten exact `npm test` repetitions; **0 new directories** were created. Every run exited `0`. The cleanup-failure regression test now removes its intentionally retained fixture in a `finally` block, so repeated test runs do not leave clone directories behind.
+
+## Known limitations
 
 1. **Sensitive-file omission applies to local folders only.** Local staging still omits `.env*`, npm configuration, credentials, and certificate/key files and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Fresh public GitHub clones copy committed versions because they are already public; command-line flags still force `npm ci --ignore-scripts`.
 2. **Symlink suites are blocked consistently but not reproduced.** Git-listed mode `120000` paths and real `lstat` symlinks are skipped during scanning and block Docker verification on every OS. A Windows checkout created with `core.symlinks=false` cannot be detected without Git metadata, and recreating symlinks inside the container is out of scope. The Windows symlink integration test remains skipped because creation returns `EPERM`.
