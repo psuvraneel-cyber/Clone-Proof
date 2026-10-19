@@ -136,6 +136,28 @@ test('configured token rejection notice contains no token value', () => {
   ]);
 });
 
+test('retried token rejection notice is safe and does not require an authenticated result', () => {
+  const writes = [];
+  const originalWrite = process.stderr.write;
+  process.stderr.write = (value) => {
+    writes.push(String(value));
+    return true;
+  };
+  try {
+    reportPreflightNotice({
+      preflightReason: 'checked',
+      preflightAuthenticated: false,
+      preflightTokenRejected: true
+    });
+  } finally {
+    process.stderr.write = originalWrite;
+  }
+
+  assert.deepEqual(writes, [
+    'CloneProof: GitHub rejected the configured token (401); retried the public preflight without it.\n'
+  ]);
+});
+
 test('invalid GitHub URLs return a blocked machine-readable report without invoking git', () => {
   const result = spawnSync(process.execPath, [
     cliPath,

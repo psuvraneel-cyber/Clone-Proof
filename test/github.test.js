@@ -597,6 +597,90 @@ test('uses the configured GitHub token only on the API preflight and records aut
   }
 });
 
+test('retries one token-rejected preflight without authorization and uses checked public metadata', async () => {
+  const token = 'retry-token-value';
+  const calls = [];
+  const result = await preflightGithubRepository(
+    { owner: 'example', repo: 'project' },
+    async (url, options) => {
+      calls.push({ url, options });
+      if (calls.length === 1) return { status: 401 };
+      return {
+        status: 200,
+        async json() {
+          return { private: false, size: 42 };
+        }
+      };
+    },
+    { hostEnvironment: { CLONEPROOF_GITHUB_TOKEN: token } }
+  );
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].options.headers.Authorization, `Bearer ${token}`);
+  assert.equal(calls[1].options.headers.Authorization, undefined);
+  assert.equal(result.state, 'checked');
+  assert.equal(result.preflightReason, 'checked');
+  assert.equal(result.preflightAuthenticated, false);
+  assert.equal(result.preflightTokenRejected, true);
+  assert.equal(result.repositorySizeKb, 42);
+  assert.equal(JSON.stringify(result).includes(token), false);
+});
+
+test('redacts token-bearing errors from the unauthenticated retry', async () => {
+  const token = 'retry-redaction-token';
+  const result = await preflightGithubRepository(
+    { owner: 'example', repo: 'project' },
+    async (url, options) => {
+      if (options.headers.Authorization) return { status: 401 };
+      throw new Error(`public retry failed after ${token}`);
+    },
+    { hostEnvironment: { CLONEPROOF_GITHUB_TOKEN: token } }
+  );
+
+  assert.equal(result.state, 'unavailable');
+  assert.equal(result.preflightReason, 'network-error');
+  assert.equal(result.preflightAuthenticated, false);
+  assert.equal(result.preflightTokenRejected, true);
+  assert.match(result.error, /\[REDACTED\]/);
+  assert.equal(result.error.includes(token), false);
+});
+
+test('clone metadata records a checked unauthenticated retry without the token', async () => {
+  const token = 'clone-retry-token';
+  let fetchCount = 0;
+  const result = await cloneGithubRepository(VALID_URL, {
+    gitExecutable: process.execPath,
+    platform: 'linux',
+    hostEnvironment: { PATH: '/usr/bin', CLONEPROOF_GITHUB_TOKEN: token },
+    fetcher: async () => {
+      fetchCount += 1;
+      if (fetchCount === 1) return { status: 401 };
+      return {
+        status: 200,
+        async json() {
+          return { private: false, size: 7 };
+        }
+      };
+    },
+    runner: async (command, args) => {
+      if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+      if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+      if (args.includes('rev-parse')) return commitResult();
+      fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
+      return successfulResult();
+    }
+  });
+
+  assert.equal(fetchCount, 2);
+  assert.equal(result.preflight, 'checked');
+  assert.equal(result.preflightReason, 'checked');
+  assert.equal(result.preflightAuthenticated, false);
+  assert.equal(result.preflightTokenRejected, true);
+  assert.equal(result.repositorySizeKb, 7);
+  assert.equal(JSON.stringify(result).includes(token), false);
+  await result.cleanup();
+});
+
 test('redacts a configured token from a GitHub fetch error', async () => {
   const token = 'fetch-token-value';
   const result = await preflightGithubRepository(

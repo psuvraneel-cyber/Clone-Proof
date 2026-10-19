@@ -246,6 +246,7 @@ function cloneFailureReport(target, error, mode) {
     name: targetName,
     preflightAuthenticated: Boolean(error && error.preflightAuthenticated === true),
     ...(error && error.preflightReason ? { preflightReason: error.preflightReason } : {}),
+    ...(error && error.preflightTokenRejected === true ? { preflightTokenRejected: true } : {}),
     ...(error && error.cleanupError ? { cleanupFailed: true } : {})
   };
   if (error && error.preflight) reportTarget.preflight = error.preflight;
@@ -327,6 +328,7 @@ function applySourceTarget(report, source) {
     preflight: source.preflight,
     preflightReason: source.preflightReason,
     preflightAuthenticated: source.preflightAuthenticated === true,
+    ...(source.preflightTokenRejected === true ? { preflightTokenRejected: true } : {}),
     ...(source.repositorySizeKb === undefined ? {} : { repositorySizeKb: source.repositorySizeKb }),
     ...(source.executableModes === undefined ? {} : { executableModes: source.executableModes }),
     ...(typeof source.commit === 'string' && /^[0-9a-f]{40}$/i.test(source.commit)
@@ -337,6 +339,10 @@ function applySourceTarget(report, source) {
 }
 
 function reportPreflightNotice(source) {
+  if (source && source.preflightTokenRejected === true) {
+    process.stderr.write('CloneProof: GitHub rejected the configured token (401); retried the public preflight without it.\n');
+    return;
+  }
   if (source && source.preflightReason === 'http-401' && source.preflightAuthenticated === true) {
     process.stderr.write('CloneProof: GitHub rejected the configured token (401); continuing without the size check.\n');
   }
