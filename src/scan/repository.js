@@ -52,8 +52,11 @@ const LOCKFILES = [
   { name: 'package-lock.json', packageManager: 'npm' },
   { name: 'npm-shrinkwrap.json', packageManager: 'npm' },
   { name: 'pnpm-lock.yaml', packageManager: 'pnpm' },
-  { name: 'yarn.lock', packageManager: 'yarn' }
+  { name: 'yarn.lock', packageManager: 'yarn' },
+  { name: 'bun.lock', packageManager: 'bun' },
+  { name: 'bun.lockb', packageManager: 'bun' }
 ];
+const KNOWN_PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
 const PUBLIC_REGISTRY_HOSTNAMES = new Set([
   'registry.npmjs.org',
   'registry.yarnpkg.com'
@@ -1450,6 +1453,8 @@ function isCoreFile(relativePath) {
     || lower === 'npm-shrinkwrap.json'
     || lower === 'pnpm-lock.yaml'
     || lower === 'yarn.lock'
+    || lower === 'bun.lock'
+    || lower === 'bun.lockb'
     || lower === '.npmrc'
     || lower === 'readme'
     || lower === 'readme.md'
@@ -1618,7 +1623,9 @@ function isLockfilePath(relativePath) {
   return lower === 'package-lock.json'
     || lower === 'npm-shrinkwrap.json'
     || lower === 'pnpm-lock.yaml'
-    || lower === 'yarn.lock';
+    || lower === 'yarn.lock'
+    || lower === 'bun.lock'
+    || lower === 'bun.lockb';
 }
 
 function isReadableSourcePath(relativePath) {
@@ -2007,10 +2014,28 @@ function scanRepository(rootPath, options) {
     packageManagerInfo = { name: selectedLockfile.packageManager, version: null };
   }
 
-  if (declaredPackageManager && lockfiles.length > 0) {
-    if (supportedProject && scanned.rootState === 'ok') {
-      coverage.mark(CHECK_GROUPS.PACKAGE_MANAGER);
-    }
+  if (declaredPackageManager && supportedProject && scanned.rootState === 'ok') {
+    coverage.mark(CHECK_GROUPS.PACKAGE_MANAGER);
+  }
+
+  if (declaredPackageManager && !KNOWN_PACKAGE_MANAGERS.has(declaredPackageManager.name)) {
+    addFinding(
+      findings,
+      'PACKAGE_MANAGER_UNRECOGNIZED',
+      'warning',
+      'warning',
+      'The package manager name is not recognized',
+      `package.json declares ${declaredPackageManager.name}, but CloneProof recognizes npm, pnpm, yarn, and bun for package-manager consistency checks.`,
+      [makeEvidence(
+        'package.json',
+        `packageManager declares ${declaredPackageManager.name}.`,
+        packageText ? firstMatchLine(packageText, /"packageManager"\s*:/) : undefined
+      )],
+      'Use npm, pnpm, yarn, or bun consistently with the checked-in root lockfile, or review the package-manager metadata manually.'
+    );
+  }
+
+  if (declaredPackageManager && KNOWN_PACKAGE_MANAGERS.has(declaredPackageManager.name) && lockfiles.length > 0) {
     const lockfileManagers = [...new Set(lockfiles.map((lockfile) => lockfile.packageManager))].sort(compareStrings);
     if (!lockfileManagers.includes(declaredPackageManager.name)) {
       addFinding(

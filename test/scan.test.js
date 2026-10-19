@@ -1200,6 +1200,42 @@ test('fails when packageManager disagrees with the root lockfile', () => withRep
   assert.equal(finding(report, 'PACKAGE_MANAGER_LOCKFILE_MISMATCH').status, 'failed');
 }));
 
+test('warns without failing when packageManager names an unrecognized manager', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'unknown-manager',
+    packageManager: 'nub@1.1.0',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"unknown-manager","lockfileVersion":3,"packages":{}}\n');
+
+  const report = scanRepository(root);
+  const unrecognized = finding(report, 'PACKAGE_MANAGER_UNRECOGNIZED');
+
+  assert.equal(report.status, 'passed_with_warnings');
+  assert.equal(unrecognized.status, 'warning');
+  assert.equal(unrecognized.severity, 'warning');
+  assert.equal(finding(report, 'PACKAGE_MANAGER_LOCKFILE_MISMATCH'), undefined);
+  assert.equal(report.project.packageManager, 'nub');
+  assert.ok(report.coverage.checked.includes(CHECK_GROUPS.PACKAGE_MANAGER));
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
+}));
+
+test('recognizes bun as a supported package manager and lockfile', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'bun-project',
+    packageManager: 'bun@1.1.0',
+    scripts: { test: 'bun test' }
+  }, null, 2));
+  writeFile(root, 'bun.lock', 'lockfileVersion = 1\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.project.packageManager, 'bun');
+  assert.equal(finding(report, 'PACKAGE_MANAGER_UNRECOGNIZED'), undefined);
+  assert.equal(finding(report, 'PACKAGE_MANAGER_LOCKFILE_MISMATCH'), undefined);
+  assert.equal(finding(report, 'LOCKFILE_PRESENT').status, 'passed');
+}));
+
 test('warns when exact Node runtime declarations disagree', () => withRepository((root) => {
   writeFile(root, 'package.json', JSON.stringify({
     name: 'runtime-mismatch',
