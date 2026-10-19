@@ -185,10 +185,10 @@ function verificationHasNoTests(report) {
     || findingsFor(report).some((finding) => finding && finding.code === 'VERIFY_NO_TESTS_RAN');
 }
 
-function successExplanation(report, checkedCount) {
+function successExplanation(report, checkedCount, findingCount) {
   const status = normalizeStatus(reportStatus(report));
   if (report && report.mode === 'check' && status === 'passed') {
-    return `No known setup problems were found (${checkedCount} checks). This is not a guarantee that a fresh clone works; see Not checked.`;
+    return `No known setup problems were found across ${checkedCount} check groups (${findingCount} findings). This is not a guarantee that a fresh clone works; see Not checked.`;
   }
   if (
     report
@@ -462,7 +462,7 @@ function renderText(report, options = {}) {
   const status = escapeControlCharacters(reportStatus(safeReport));
   const commit = targetCommit(safeReport);
   const coverage = reportCoverage(safeReport);
-  const explanation = successExplanation(safeReport, coverage.checked.length);
+  const explanation = successExplanation(safeReport, coverage.checked.length, counts.total);
   const lines = [
     paint('CloneProof — repository setup verification', ANSI.bold, enabled),
     `Target: ${escapeControlCharacters(targetName(safeReport))}`,
@@ -472,7 +472,7 @@ function renderText(report, options = {}) {
     '',
     ...textCoverageLines(safeReport),
     '',
-    'Counts:',
+    'Findings:',
     `  Total: ${escapeControlCharacters(counts.total)}`,
     `  Passed: ${escapeControlCharacters(counts.passed)}`,
     `  Failed: ${escapeControlCharacters(counts.failed)}`,
@@ -763,7 +763,7 @@ function renderHtml(report) {
   const statusClass = htmlStatusClass(status);
   const commit = targetCommit(safeReport);
   const coverage = reportCoverage(safeReport);
-  const explanation = successExplanation(safeReport, coverage.checked.length);
+  const explanation = successExplanation(safeReport, coverage.checked.length, counts.total);
   const findingMarkup = findings.length > 0
     ? findings.map(htmlFinding).join('\n')
     : '<p class="muted">No findings recorded.</p>';
@@ -787,7 +787,7 @@ function renderHtml(report) {
     '      <h2 id="summary-heading">Summary</h2>',
     `      <p>Status: <span class="status status-${statusClass}">${htmlValue(status)}</span></p>`,
     ...(explanation ? [`      <p class="report-explanation">${htmlValue(explanation)}</p>`] : []),
-    '      <h3 id="counts-heading">Counts</h3>',
+    '      <h3 id="counts-heading">Findings</h3>',
     '      <dl class="counts" aria-labelledby="counts-heading">',
     `        <dt>Total</dt><dd>${htmlValue(counts.total)}</dd>`,
     `        <dt>Passed</dt><dd>${htmlValue(counts.passed)}</dd>`,

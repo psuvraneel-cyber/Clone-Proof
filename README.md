@@ -193,7 +193,7 @@ The fixed `coverage.notChecked` scope is precise: running build steps (declared 
 | `blocked` | No target code was run because consent, static prerequisites, network consent, Docker, the pinned image, staging limits, or symlink policy prevented execution. |
 | `incomplete` | The source could not be scanned or staged completely, so verification could not provide a complete result. |
 
-For a passed static check, text and HTML reports say: “No known setup problems were found (N checks). This is not a guarantee that a fresh clone works; see Not checked.” For a passed verification, they say: “npm ci and npm test succeeded inside the controlled container.”
+For a passed static check, text and HTML reports say: “No known setup problems were found across N check groups (M findings). This is not a guarantee that a fresh clone works; see Not checked.” For a passed verification, they say: “npm ci and npm test succeeded inside the controlled container.”
 
 ## Architecture
 

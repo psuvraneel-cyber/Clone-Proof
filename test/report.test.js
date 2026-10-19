@@ -77,20 +77,27 @@ test('renderText explains a passed static check and renders coverage sections', 
     mode: 'check',
     target: { kind: 'local', name: 'healthy-repository' },
     status: 'passed',
-    coverage: { checked: ALL_CHECK_GROUPS, notChecked: NOT_CHECKED },
-    findings: [],
-    summary: { total: 0, passed: 0, failed: 0, warnings: 0, skipped: 0 }
+    coverage: { checked: ALL_CHECK_GROUPS.slice(0, 12), notChecked: NOT_CHECKED },
+    findings: Array.from({ length: 6 }, (_, index) => ({
+      status: 'passed',
+      code: `CHECK-${index + 1}`,
+      title: `Check group ${index + 1} passed`,
+      message: 'No setup problem was found.'
+    })),
+    summary: { total: 6, passed: 6, failed: 0, warnings: 0, skipped: 0 }
   };
 
   const output = renderText(report, { color: false, isTTY: false });
   const html = renderHtml(report);
 
-  assert.match(output, /Status: passed\nNo known setup problems were found \(15 checks\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(output, /Status: passed\nNo known setup problems were found across 12 check groups \(6 findings\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(output, /Findings:\n  Total: 6/);
   assert.match(output, /What was checked:/);
   assert.match(output, /Package manifest \(package-manifest\)/);
   assert.match(output, /Not checked:/);
   assert.match(output, /Running build steps \(declared outputs are only checked for presence\) \(build-steps-generated-output\)/);
-  assert.match(html, /No known setup problems were found \(15 checks\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(html, /No known setup problems were found across 12 check groups \(6 findings\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(html, /<h3 id="counts-heading">Findings<\/h3>/);
   assert.match(html, /What was checked/);
   assert.match(html, /Not checked/);
 });
@@ -312,7 +319,7 @@ test('renderHtml is self-contained and includes the accessible report sections',
   assert.match(output, /Target:.*sample-repository/);
   assert.match(output, /Summary/);
   assert.match(output, /Status:.*passed_with_warnings/);
-  assert.match(output, /Counts/);
+  assert.match(output, /<h3 id="counts-heading">Findings<\/h3>/);
   assert.match(output, /Total.*4/);
   assert.match(output, /Findings/);
   assert.match(output, /PKG-001/);
