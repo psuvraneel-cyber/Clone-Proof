@@ -31,6 +31,11 @@ jobs:
         run: npm ci
       - name: Run tests
         run: npm test
+      - name: Smoke test GitHub archive global CLI
+        shell: bash
+        run: |
+          npm install --global "https://github.com/psuvraneel-cyber/Clone-Proof/archive/${{ github.sha }}.tar.gz"
+          cloneproof --version
       - name: Assert npm package contents
         shell: bash
         run: |
