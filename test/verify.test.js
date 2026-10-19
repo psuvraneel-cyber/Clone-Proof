@@ -154,22 +154,23 @@ test('successful Docker verification records evidence and cleans staging', async
 
 test('zero-test success is reported for supported test-runner output', async () => {
   const outputs = [
-    'TAP version 13\n1..0\n# tests 0\n# suites 0\n# pass 0\n# fail 0\n# duration_ms 1.2\n',
-    'No tests found, exiting with code 0\n',
-    'Test Files 0 passed (0)\nTests 0 passed (0)\n',
-    '0 passing (2ms)\n',
-    '0 tests passed\n',
-    'TAP version 13\n1..0\n# time=1ms\n'
+    { output: 'TAP version 13\n1..0\n# tests 0\n# suites 0\n# pass 0\n# fail 0\n# duration_ms 1.2\n', match: '# tests 0' },
+    { output: 'No tests found, exiting with code 0\n', match: 'No tests found' },
+    { output: 'Test Files 0 passed (0)\nTests 0 passed (0)\n', match: 'Test Files 0' },
+    { output: '0 passing (2ms)\n', match: '0 passing' },
+    { output: '0 tests passed\n', match: '0 tests passed' },
+    { output: "Couldn't find any files to test\n", match: "Couldn't find any files to test" },
+    { output: 'TAP version 13\n1..0\n# { total: 0, passed: 0 }\n', match: '# { total: 0' }
   ];
 
-  for (const output of outputs) {
+  for (const item of outputs) {
     const report = await verifyRepository(healthyFixture, {
       execute: true,
       runner: async (command, args) => {
         if (args[0] === 'version' || args[0] === 'image') {
           return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
         }
-        return { exitCode: 0, signal: null, stdout: output, stderr: '', timedOut: false, outputTruncated: false, error: null };
+        return { exitCode: 0, signal: null, stdout: item.output, stderr: '', timedOut: false, outputTruncated: false, error: null };
       }
     });
 
@@ -180,8 +181,49 @@ test('zero-test success is reported for supported test-runner output', async () 
     const finding = report.findings.find((item) => item.code === 'VERIFY_NO_TESTS_RAN');
     assert.equal(finding.status, 'warning');
     assert.equal(finding.severity, 'warning');
+    assert.ok(finding.evidence[0].detail.includes(item.match));
     assert.equal(report.findings.some((item) => item.code === 'DOCKER_VERIFICATION_PASSED'), false);
     assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
+  }
+});
+
+test('a non-zero test count remains a passed verification', async () => {
+  const { runner } = makeRunner();
+  const report = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner: async (command, args, options) => {
+      const result = await runner(command, args, options);
+      if (args[0] === 'run') result.stdout = 'TAP version 13\n1..2\n# tests 2\n# pass 2\n# fail 0\n';
+      return result;
+    }
+  });
+
+  assert.equal(report.status, 'passed');
+  assert.equal(report.verification.noTestsRan, false);
+  assert.equal(report.findings.some((item) => item.code === 'VERIFY_NO_TESTS_RAN'), false);
+  assert.equal(report.findings.some((item) => item.code === 'DOCKER_VERIFICATION_PASSED'), true);
+});
+
+test('Git metadata requirements are advisory during verification', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-git-metadata-'));
+  fs.cpSync(healthyFixture, root, { recursive: true });
+  const packagePath = path.join(root, 'package.json');
+  const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  packageData.scripts.pretest = 'test -d .git';
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageData, null, 2)}\n`);
+
+  try {
+    const { runner } = makeRunner();
+    const report = await verifyRepository(root, { execute: true, runner });
+    const finding = report.findings.find((item) => item.code === 'GIT_METADATA_REQUIRED');
+
+    assert.equal(finding.status, 'warning');
+    assert.equal(finding.severity, 'warning');
+    assert.equal(report.status, 'passed_with_warnings');
+    assert.match(finding.message, /removes \.git metadata/i);
+    assertSummaryMatchesFindings(report);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 

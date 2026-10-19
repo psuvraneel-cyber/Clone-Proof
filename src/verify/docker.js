@@ -489,9 +489,11 @@ function detectNoTestsRan(output, outputPath = 'verification.stdout') {
     .replace(/\r/g, '');
   if (!text) return null;
 
+  const lines = text.split('\n');
   const frameworks = new Set();
   const hasZeroTestCount = /(?:^|\n)\s*(?:[#ℹ]\s*)?(?:tests?|test files?|test suites?)\s*:?\s*0\b/im.test(text)
-    || /\b(?:tests?|test files?)\s+0\s+(?:passed|total)\b/i.test(text);
+    || /\b(?:tests?|test files?)\s+0\s+(?:passed|total)\b/i.test(text)
+    || /#\s*\{\s*total:\s*0\b/i.test(text);
 
   if (
     /(?:^|\n)\s*[#ℹ]\s+tests?\s+0\b/im.test(text)
@@ -500,26 +502,37 @@ function detectNoTestsRan(output, outputPath = 'verification.stdout') {
   ) {
     frameworks.add('node:test');
   }
-  if (/\bno tests found\b/i.test(text) || /\btest suites?:\s*0\b[^\n]*\btotal\b/i.test(text)) {
+  if (/\bno tests found\b/i.test(text) || /\btests?:\s*0\s+total\b/i.test(text) || /\btest suites?:\s*0\b[^\n]*\btotal\b/i.test(text)) {
     frameworks.add('Jest');
   }
   if (/\bno test files found\b/i.test(text) || /\btest files\s+0\b/i.test(text)) {
     frameworks.add('Vitest');
   }
-  if (/(?:^|\n)\s*0\s+passing(?:\s|\(|$)/im.test(text)) {
+  if (/(?:^|\n)\s*0\s+passing(?:\s|\(|$)/im.test(text) && !/(?:^|\n)\s*\d+\s+failing\b/im.test(text)) {
     frameworks.add('Mocha');
   }
-  if (/\b0\s+tests?\s+passed\b/i.test(text)) {
+  if (/\b0\s+tests?\s+passed\b/i.test(text) || /couldn't find any files to test/i.test(text)) {
     frameworks.add('AVA');
   }
-  if (/(?:^|\n)\s*1\.\.0(?:\s|$)/m.test(text) || /(?:^|\n)\s*#\s*tests\s+0\b/im.test(text)) {
+  if (/(?:^|\n)\s*1\.\.0(?:\s|$)/m.test(text) || /(?:^|\n)\s*#\s*tests\s+0\b/im.test(text) || /#\s*\{\s*total:\s*0\b/i.test(text)) {
     frameworks.add('tap');
   }
 
   if (!hasZeroTestCount && frameworks.size === 0) return null;
+  const matchedLine = lines.find((line) => (
+    /(?:^|\s)(?:#\s*)?tests?\s*:?\s*0\b/i.test(line)
+    || /(?:^|\s)(?:#\s*)?test files?\s*:?\s*0\b/i.test(line)
+    || /(?:^|\s)(?:#\s*)?test suites?\s*:?\s*0\b/i.test(line)
+    || /tests?:\s*0\s+total/i.test(line)
+    || /no tests? found|no test files found|couldn't find any files to test/i.test(line)
+    || /\b0\s+passing\b/i.test(line)
+    || /\b0\s+tests?\s+passed\b/i.test(line)
+    || /#\s*\{\s*total:\s*0\b/i.test(line)
+  )) || lines.find((line) => /^\s*1\.\.0\s*$/i.test(line));
   return {
     frameworks: [...frameworks].sort(compareStrings),
-    outputPath
+    outputPath,
+    matchedLine: (matchedLine || lines.find((line) => /\b0\b/.test(line)) || '').trim()
   };
 }
 
@@ -533,7 +546,7 @@ function noTestsRanFinding(detection) {
     severity: 'warning',
     title: 'The Docker test command reported no tests',
     message: `npm test exited successfully, but bounded test output${frameworkText} indicated that no tests ran.`,
-    evidence: makeEvidence(detection.outputPath, 'The bounded Docker test output contained a zero-test result.'),
+    evidence: makeEvidence(detection.outputPath, detection.matchedLine || 'The bounded Docker test output contained a zero-test result.'),
     recommendation: 'Add or select at least one test, and confirm the declared npm test command discovers the intended test files.'
   };
 }
@@ -774,6 +787,12 @@ async function verifyRepository(rootPath, options = {}) {
   });
   const report = cloneReport(staticReport);
   report.mode = 'verify';
+  const gitMetadataFinding = report.findings.find((finding) => finding.code === 'GIT_METADATA_REQUIRED');
+  if (gitMetadataFinding) {
+    gitMetadataFinding.status = 'warning';
+    gitMetadataFinding.severity = 'warning';
+    gitMetadataFinding.message = `${gitMetadataFinding.message} Verification removes .git metadata before running the controlled workflow.`;
+  }
   report.verification = {
     requested: true,
     authorized: execute,
@@ -1106,7 +1125,8 @@ async function verifyRepository(rootPath, options = {}) {
     if (noTestsDetections.length > 0) {
       const detection = {
         frameworks: [...new Set(noTestsDetections.flatMap((item) => item.frameworks))].sort(compareStrings),
-        outputPath: noTestsDetections[0].outputPath
+        outputPath: noTestsDetections[0].outputPath,
+        matchedLine: noTestsDetections.find((item) => item.matchedLine)?.matchedLine || ''
       };
       report.verification.noTestsRan = true;
       addFinding(report, noTestsRanFinding(detection));
