@@ -7,6 +7,7 @@ const {
   NOT_CHECKED,
   NOT_CHECKED_LABELS
 } = require('./coverage');
+const { sanitizeValue, sanitizeText } = require('../util/sanitize-paths');
 
 const ANSI = Object.freeze({
   reset: '\u001b[0m',
@@ -63,8 +64,8 @@ function canonicalize(value, seen = new WeakSet()) {
  * @returns {string}
  */
 function renderJson(report) {
-  const json = JSON.stringify(canonicalize(report), null, 2);
-  return `${json === undefined ? 'null' : json}\n`;
+  const json = JSON.stringify(canonicalize(sanitizeValue(report)), null, 2);
+  return `${sanitizeText(json === undefined ? 'null' : json)}\n`;
 }
 
 function normalizeStatus(value) {
@@ -455,7 +456,7 @@ function verificationLines(report) {
  * @returns {string}
  */
 function renderText(report, options = {}) {
-  const safeReport = report && typeof report === 'object' ? report : {};
+  const safeReport = report && typeof report === 'object' ? sanitizeValue(report) : {};
   const enabled = colorEnabled(options);
   const findings = findingsFor(safeReport);
   const counts = reportCounts(safeReport, findings);
@@ -756,7 +757,7 @@ function htmlVerification(report) {
  * @returns {string}
  */
 function renderHtml(report) {
-  const safeReport = report && typeof report === 'object' ? report : {};
+  const safeReport = report && typeof report === 'object' ? sanitizeValue(report) : {};
   const findings = findingsFor(safeReport);
   const counts = reportCounts(safeReport, findings);
   const status = reportStatus(safeReport);

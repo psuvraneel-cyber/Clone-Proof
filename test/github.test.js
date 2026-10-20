@@ -23,6 +23,9 @@ const { scanRepository } = require('../src/scan/repository');
 const { stageRepository, verifyRepository } = require('../src/verify/docker');
 const { resolveGitExecutable } = require('../src/util/executable');
 const { processIsAlive } = require('../src/util/cleanup-supervisor');
+const { sanitizeText } = require('../src/util/sanitize-paths');
+const { cloneFailureReport } = require('../src/cli');
+const { renderHtml, renderJson, renderText } = require('../src/report/render');
 
 const VALID_URL = 'https://github.com/example/project';
 const COMMIT_SHA = '0123456789abcdef0123456789abcdef01234567';
@@ -700,6 +703,52 @@ test('uses the configured GitHub token only on the API preflight and records aut
     }
     await result.cleanup();
   }
+});
+
+test('sanitizes Git and Docker paths from every report format', async () => {
+  let destination;
+  const home = os.homedir();
+  const temp = os.tmpdir();
+  const homeSlash = home.replace(/\\/g, '/');
+  const tempSlash = temp.replace(/\\/g, '/');
+  let cloneError;
+
+  await assert.rejects(
+    cloneGithubRepository(VALID_URL, {
+      gitExecutable: process.execPath,
+      fetcher: publicFetcher(),
+      runner: async (command, args) => {
+        if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+        destination = args.at(-1);
+        const raw = `fatal: Cloning into '${destination}'... ${home} ${homeSlash} ${temp} ${tempSlash}`;
+        return { ...successfulResult(), exitCode: 128, stderr: raw };
+      }
+    }),
+    (error) => {
+      cloneError = error;
+      return error && error.code === 'GITHUB_CLONE_FAILED';
+    }
+  );
+
+  const report = cloneFailureReport(VALID_URL, cloneError, 'check');
+  const outputs = [
+    renderJson(report),
+    renderText(report, { color: false }),
+    renderHtml(report)
+  ];
+  const escaped = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const output of outputs) {
+    assert.doesNotMatch(output, new RegExp(escaped(home), 'i'));
+    assert.doesNotMatch(output, new RegExp(escaped(homeSlash), 'i'));
+    assert.doesNotMatch(output, new RegExp(escaped(temp), 'i'));
+    assert.doesNotMatch(output, new RegExp(escaped(tempSlash), 'i'));
+    assert.match(output, /(?:<temporary-checkout>|&lt;temporary-checkout&gt;)/);
+  }
+  assert.equal(sanitizeText(home.toUpperCase(), { platform: 'win32', homeDirectory: home }), '~');
+  assert.equal(sanitizeText(`${temp.toUpperCase()}\\artifact.log`, { platform: 'win32', tempDirectory: temp }), '<temp>\\artifact.log');
+  assert.equal(fs.existsSync(destination), false);
+  assert.equal(fs.existsSync(path.dirname(destination)), false);
 });
 
 test('checkout limit diagnostics name each configured bound and reached count', () => {

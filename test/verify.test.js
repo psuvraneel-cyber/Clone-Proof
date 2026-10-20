@@ -23,7 +23,7 @@ const {
   NOT_CHECKED,
   assertCoverageConsistency
 } = require('../src/report/coverage');
-const { exitCodeForReport } = require('../src/report/render');
+const { exitCodeForReport, renderHtml, renderJson, renderText } = require('../src/report/render');
 
 const healthyFixture = path.join(__dirname, '..', 'examples', 'healthy-node');
 const brokenFixture = path.join(__dirname, '..', 'examples', 'broken-node');
@@ -151,6 +151,46 @@ test('successful Docker verification records evidence and cleans staging', async
   assert.ok(mount);
   const stagedPath = mount.slice('type=bind,src='.length).split(',dst=')[0];
   assert.equal(fs.existsSync(stagedPath), false);
+});
+
+test('sanitizes Docker temporary paths from every report format', async () => {
+  const home = os.homedir();
+  const temp = os.tmpdir();
+  const homeSlash = home.replace(/\\/g, '/');
+  const tempSlash = temp.replace(/\\/g, '/');
+  let rawOutput;
+
+  const report = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner: async (command, args, options = {}) => {
+      if (args[0] === 'version' || args[0] === 'image') {
+        return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+      if (args[0] === 'rm') {
+        return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+      const mount = args.find((value) => value.startsWith('type=bind,src='));
+      const stagingPath = mount.slice('type=bind,src='.length).split(',dst=')[0];
+      const dockerConfig = options.env.DOCKER_CONFIG;
+      rawOutput = `docker staging ${stagingPath} config ${dockerConfig} home ${home} ${homeSlash} temp ${temp} ${tempSlash}`;
+      return { exitCode: 1, signal: null, stdout: rawOutput, stderr: rawOutput, timedOut: false, outputTruncated: false, error: null };
+    }
+  });
+
+  const outputs = [
+    renderJson(report),
+    renderText(report, { color: false }),
+    renderHtml(report)
+  ];
+  const escaped = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  assert.ok(rawOutput);
+  for (const output of outputs) {
+    assert.doesNotMatch(output, new RegExp(escaped(home), 'i'));
+    assert.doesNotMatch(output, new RegExp(escaped(homeSlash), 'i'));
+    assert.doesNotMatch(output, new RegExp(escaped(temp), 'i'));
+    assert.doesNotMatch(output, new RegExp(escaped(tempSlash), 'i'));
+    assert.match(output, /(?:<temporary-checkout>|&lt;temporary-checkout&gt;)/);
+  }
 });
 
 test('zero-test output fails verification for supported test runners', async () => {

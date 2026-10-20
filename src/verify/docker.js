@@ -9,6 +9,7 @@ const { isCoreFile, loadGitignoreMatcher, scanRepository } = require('../scan/re
 const { removeTemporaryDirectory } = require('../input/github');
 const { resolveDockerExecutable } = require('../util/executable');
 const { runCleanupSupervisor, startCleanupSupervisor, stopCleanupSupervisor } = require('../util/cleanup-supervisor');
+const { sanitizeInPlace, sanitizeText } = require('../util/sanitize-paths');
 
 const DEFAULT_VERIFY_IMAGE = 'node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90';
 const DEFAULT_TIMEOUT_MS = 300000;
@@ -357,12 +358,13 @@ function makeEvidence(pathValue, detail) {
   return [{ path: pathValue, detail }];
 }
 
-function redactOutput(value) {
+function redactOutput(value, temporaryPaths = []) {
   if (!value) return '';
-  return String(value)
+  return sanitizeText(String(value)
     .replace(/(Bearer\s+)[^\s]+/gi, '$1[REDACTED]')
     .replace(/(https?:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1[REDACTED]@')
-    .replace(/((?:npm[_-]?token|auth[_-]?token|api[_-]?key|secret|password)\s*[=:]\s*)[^\s&]+/gi, '$1[REDACTED]');
+    .replace(/((?:npm[_-]?token|auth[_-]?token|api[_-]?key|secret|password)\s*[=:]\s*)[^\s&]+/gi, '$1[REDACTED]'),
+  { temporaryPaths });
 }
 
 function escapeEvidenceControls(value) {
@@ -403,6 +405,7 @@ function recomputeSummary(report) {
 }
 
 function finalizeVerificationReport(report) {
+  sanitizeInPlace(report);
   const cleanup = report.verification && report.verification.cleanup;
   if (cleanup && typeof cleanup === 'object') {
     cleanup.attempted = Boolean(cleanup.attempted);
@@ -1018,6 +1021,7 @@ async function verifyRepository(rootPath, options = {}) {
   }
 
   let temporaryRoot = null;
+  const reportTemporaryPaths = [dockerConfigRoot];
   const containerName = makeContainerName();
   let containerStarted = false;
   let interruptedSignal = null;
@@ -1091,6 +1095,7 @@ async function verifyRepository(rootPath, options = {}) {
 
   try {
     temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-verify-'));
+    reportTemporaryPaths.push(temporaryRoot);
     report.verification.cleanup.stagingAttempted = true;
     const cleanupSupervisorEnabled = options.cleanupSupervisor === true
       || (process.platform === 'win32' && !options.runner && options.cleanupSupervisor !== false);
@@ -1183,7 +1188,7 @@ async function verifyRepository(rootPath, options = {}) {
           report.verification.failedPhase = failedPhaseForResult(result);
           report.verification.timedOut = Boolean(result.timedOut);
           report.verification.outputTruncated = Boolean(result.outputTruncated);
-          report.verification.stdout = redactOutput(result.stdout || '');
+          report.verification.stdout = redactOutput(result.stdout || '', reportTemporaryPaths);
           report.verification.stderr = `Docker verification was interrupted by ${interruptedSignal}.`;
           report.verification.cleanup = signalContainerCleanup || {
             attempted: true,
@@ -1199,8 +1204,8 @@ async function verifyRepository(rootPath, options = {}) {
           report.verification.failedPhase = failedPhaseForResult(result);
           report.verification.timedOut = Boolean(result.timedOut);
           report.verification.outputTruncated = Boolean(result.outputTruncated);
-          report.verification.stdout = redactOutput(result.stdout || '');
-          report.verification.stderr = redactOutput(result.stderr || result.error || '');
+          report.verification.stdout = redactOutput(result.stdout || '', reportTemporaryPaths);
+          report.verification.stderr = redactOutput(result.stderr || result.error || '', reportTemporaryPaths);
           const noTestsDetections = result.exitCode === 0 && !result.error && !result.timedOut
             ? [
               detectNoTestsRan(report.verification.stdout, 'verification.stdout'),

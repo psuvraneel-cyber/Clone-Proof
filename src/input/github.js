@@ -7,6 +7,7 @@ const { spawn } = require('node:child_process');
 
 const { resolveGitExecutable } = require('../util/executable');
 const { runCleanupSupervisor, startCleanupSupervisor, stopCleanupSupervisor } = require('../util/cleanup-supervisor');
+const { sanitizeText } = require('../util/sanitize-paths');
 
 const DEFAULT_CLONE_LIMITS = Object.freeze({
   maxDepth: 25,
@@ -610,7 +611,7 @@ function outputString(value, maxBytes) {
   return bytes.subarray(0, maxBytes).toString('utf8');
 }
 
-function cloneFailure(result, maxOutputBytes, token) {
+function cloneFailure(result, maxOutputBytes, token, temporaryPaths = []) {
   const exitCode = resultExitCode(result);
   const reason = result && result.timedOut
     ? 'timed out'
@@ -621,19 +622,18 @@ function cloneFailure(result, maxOutputBytes, token) {
         : `exited with code ${exitCode === null ? 'unknown' : exitCode}`;
   const stderr = outputString(result && result.stderr, maxOutputBytes);
   const stdout = outputString(result && result.stdout, maxOutputBytes);
-  const details = redactGithubToken(stderr || stdout, token);
+  const details = sanitizeText(redactGithubToken(stderr || stdout, token), { temporaryPaths });
   const error = new GithubSourceError(
-    `GitHub clone failed: ${reason}${details ? `: ${details.trim()}` : ''}`,
+    sanitizeText(`GitHub clone failed: ${reason}${details ? `: ${details.trim()}` : ''}`, { temporaryPaths }),
     'GITHUB_CLONE_FAILED'
   );
-  error.result = token
-    ? {
-      ...result,
-      stdout: redactGithubToken(result && result.stdout, token),
-      stderr: redactGithubToken(result && result.stderr, token),
-      error: redactGithubToken(result && result.error, token)
-    }
-    : result;
+  error.temporaryPaths = temporaryPaths;
+  error.result = {
+    ...result,
+    stdout: sanitizeText(redactGithubToken(result && result.stdout, token), { temporaryPaths }),
+    stderr: sanitizeText(redactGithubToken(result && result.stderr, token), { temporaryPaths }),
+    error: sanitizeText(redactGithubToken(result && result.error, token), { temporaryPaths })
+  };
   return error;
 }
 
@@ -817,7 +817,7 @@ async function cloneGithubRepository(value, options = {}) {
     });
 
     if (!cloneSucceeded(result, maxOutputBytes)) {
-      const error = cloneFailure(result, maxOutputBytes, githubToken);
+      const error = cloneFailure(result, maxOutputBytes, githubToken, [temporaryParent]);
       error.preflightReason = preflight.preflightReason;
       if (preflight.preflightTokenRejected === true) error.preflightTokenRejected = true;
       throw error;
@@ -904,8 +904,8 @@ async function cloneGithubRepository(value, options = {}) {
       metadata,
       process: {
         exitCode: resultExitCode(result),
-        stdout: outputString(result.stdout, maxOutputBytes),
-        stderr: outputString(result.stderr, maxOutputBytes),
+        stdout: sanitizeText(outputString(result.stdout, maxOutputBytes), { temporaryPaths: [temporaryParent] }),
+        stderr: sanitizeText(outputString(result.stderr, maxOutputBytes), { temporaryPaths: [temporaryParent] }),
         timedOut: Boolean(result.timedOut),
         outputTruncated: Boolean(result.outputTruncated)
       },
