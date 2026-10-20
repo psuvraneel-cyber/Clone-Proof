@@ -836,6 +836,57 @@ test('treats CI and test-service prefixes as conventional but preserves custom s
   }
 }));
 
+test('treats broad CI and test-tool prefixes as conventional', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'process.env.TRAVIS_BUILD_NUMBER;',
+    'process.env.CIRCLE_WORKFLOW_ID;',
+    'process.env.GITLAB_CI;',
+    'process.env.BITBUCKET_BUILD_NUMBER;',
+    'process.env.BUILDKITE_BUILD_ID;',
+    'process.env.JENKINS_URL;',
+    'process.env.TEAMCITY_VERSION;',
+    'process.env.APPVEYOR_BUILD_ID;',
+    'process.env.DRONE_BUILD_NUMBER;',
+    'process.env.CODEBUILD_BUILD_ID;',
+    'process.env.JEST_WORKER_ID;',
+    'process.env.VITEST_POOL_ID;',
+    'process.env.PLAYWRIGHT_BROWSERS_PATH;',
+    'process.env.CYPRESS_BASE_URL;',
+    'process.env.PUPPETEER_EXECUTABLE_PATH;',
+    'process.env.KARMA_BROWSER;',
+    'process.env.MOCHA_FILE;',
+    'process.env.AVA_PATH;',
+    'process.env.TAP_DOT;',
+    'process.env.WEB_TEST_RUNNER_PORT;',
+    'process.env.REAL_APPLICATION_SETTING;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /REAL_APPLICATION_SETTING/);
+  for (const key of [
+    'TRAVIS_BUILD_NUMBER', 'CIRCLE_WORKFLOW_ID', 'GITLAB_CI', 'BITBUCKET_BUILD_NUMBER',
+    'BUILDKITE_BUILD_ID', 'JENKINS_URL', 'TEAMCITY_VERSION', 'APPVEYOR_BUILD_ID',
+    'DRONE_BUILD_NUMBER', 'CODEBUILD_BUILD_ID', 'JEST_WORKER_ID', 'VITEST_POOL_ID',
+    'PLAYWRIGHT_BROWSERS_PATH', 'CYPRESS_BASE_URL', 'PUPPETEER_EXECUTABLE_PATH',
+    'KARMA_BROWSER', 'MOCHA_FILE', 'AVA_PATH', 'TAP_DOT', 'WEB_TEST_RUNNER_PORT'
+  ]) {
+    assert.doesNotMatch(missing.message, new RegExp(`\\b${key}\\b`));
+  }
+}));
+
+test('does not treat AZURE_ application settings as conventional environment keys', () => withRepository((root) => {
+  writeEnvironmentFixture(root, 'process.env.AZURE_STORAGE_CONNECTION_STRING;\n');
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /AZURE_STORAGE_CONNECTION_STRING/);
+}));
+
 test('does not treat an earlier object destructuring as environment access', () => withRepository((root) => {
   writeEnvironmentFixture(root, [
     "const { join, resolve } = require('path');",
@@ -1352,6 +1403,39 @@ test('warns without failing when packageManager names an unrecognized manager', 
   assert.equal(report.project.packageManager, 'nub');
   assert.ok(report.coverage.checked.includes(CHECK_GROUPS.PACKAGE_MANAGER));
   assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
+}));
+
+test('uses the lockfile manager for README comparison when packageManager is unrecognized', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'unknown-manager-readme',
+    packageManager: 'nub@0.8.3',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'pnpm-lock.yaml', 'lockfileVersion: 9.0\n');
+  writeFile(root, 'README.md', 'pnpm install\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.project.packageManager, 'nub');
+  assert.equal(finding(report, 'PACKAGE_MANAGER_UNRECOGNIZED').status, 'warning');
+  assert.equal(finding(report, 'README_PACKAGE_MANAGER_MISMATCH'), undefined);
+}));
+
+test('recognized package managers still warn when README setup uses another manager', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'yarn-readme-mismatch',
+    packageManager: 'yarn@4',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'yarn.lock', '# yarn lockfile v1\n');
+  writeFile(root, 'README.md', 'npm install\n');
+
+  const report = scanRepository(root);
+  const mismatch = finding(report, 'README_PACKAGE_MANAGER_MISMATCH');
+
+  assert.equal(mismatch.status, 'warning');
+  assert.match(mismatch.message, /npm/);
+  assert.match(mismatch.message, /yarn/);
 }));
 
 test('recognizes bun as a supported package manager and lockfile', () => withRepository((root) => {

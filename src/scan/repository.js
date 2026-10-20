@@ -138,6 +138,26 @@ const CONVENTIONAL_ENV_PREFIXES = [
   'BROWSERSTACK_',
   'SAUCE_',
   'CI_',
+  'TRAVIS_',
+  'CIRCLE',
+  'GITLAB_',
+  'BITBUCKET_',
+  'BUILDKITE_',
+  'JENKINS_',
+  'TEAMCITY_',
+  'APPVEYOR_',
+  'DRONE_',
+  'CODEBUILD_',
+  'JEST_',
+  'VITEST_',
+  'PLAYWRIGHT_',
+  'CYPRESS_',
+  'PUPPETEER_',
+  'KARMA_',
+  'MOCHA_',
+  'AVA_',
+  'TAP_',
+  'WEB_TEST_RUNNER_',
   'CODECOV_',
   'NETLIFY_',
   'VERCEL_'
@@ -1619,7 +1639,7 @@ function setupCommandFromReadmeLine(line) {
   value = stripReadmeCommandPunctuation(value);
   if (!value || value.startsWith('```')) return null;
 
-  const match = /^(npm\s+ci|yarn(?:\s+install)?|pnpm\s+(?:install|i))(?:\s+(.*))?$/i.exec(value);
+  const match = /^(npm\s+(?:ci|install)|yarn(?:\s+install)?|pnpm\s+(?:install|i))(?:\s+(.*))?$/i.exec(value);
   if (!match || !hasOnlyCommandFlags(match[2] || '')) return null;
 
   const command = match[1].toLowerCase();
@@ -2323,6 +2343,11 @@ function scanRepository(rootPath, options) {
     const selectedLockfile = lockfiles[0];
     packageManagerInfo = { name: selectedLockfile.packageManager, version: null };
   }
+  const readmePackageManager = packageManagerInfo && KNOWN_PACKAGE_MANAGERS.has(packageManagerInfo.name)
+    ? packageManagerInfo.name
+    : lockfiles.length === 1
+      ? lockfiles[0].packageManager
+      : null;
 
   if (declaredPackageManager && supportedProject && scanned.rootState === 'ok') {
     coverage.mark(CHECK_GROUPS.PACKAGE_MANAGER);
@@ -2948,11 +2973,11 @@ function scanRepository(rootPath, options) {
 
   if (
     readmeSetupCommands.length > 0
-    && packageManagerInfo
+    && readmePackageManager
     && supportedProject
     && scanned.rootState === 'ok'
   ) {
-    const expectedManager = packageManagerInfo.name;
+    const expectedManager = readmePackageManager;
     const hasCorrectSetup = readmeSetupCommands.some((command) => command.manager === expectedManager);
     if (!hasCorrectSetup) {
       const managers = [...new Set(readmeSetupCommands.map((command) => command.manager))].sort(compareStrings);
