@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-20; the implementation baseline for this review is `ef8056d`, with the documentation commit containing this handoff following it on local `main`. The review-fix series is on top of the earlier independent fixes and remains unpushed; no CI receipt exists yet for the local review-fix commits. The preceding pushed revision `a762ec1` passed main CI run `39289281815` on Ubuntu, macOS, Windows, and Docker E2E. This file records the current resumable state for the OmniRush session.
+Updated 2026-10-20; the implementation baseline for this CI-fix pass is `fef9119`, with the documentation commit containing this handoff following it on local `main`. The fixes are prepared for the `review-fixes` branch but have not yet been pushed in this pass. GitHub Actions run `39434993722` failed on the prior `6f6df5d` revision because the package-content assertion was hard-coded, `node:test` output with `suites 0` was misclassified as zero tests, and the verifier image probe had no retry. The preceding pushed revision `a762ec1` passed main CI run `39289281815` on Ubuntu, macOS, Windows, and Docker E2E. This file records the current resumable state for the OmniRush session.
 
 ## Goal
 
@@ -35,12 +35,14 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Bounded scans report `SCAN_ENTRY_LIMIT_EXCEEDED` with a relative stop path and the configured limit. Every scanner, GitHub checkout inspector, and Docker staging walker processes sorted files before sorted subdirectories.
 - Unsupported roots stop after classification. They emit only `UNSUPPORTED_ROOT`/`EMPTY_REPOSITORY`, nested-package, scan-limit, and read-error findings; coverage matches those attempted groups and no Node package checks run.
 - Text and HTML render at most ten evidence entries per finding with a JSON pointer. `ENV_CHECK_SKIPPED` JSON evidence is capped at 50 with its total in the message, and nested-package messages show the count plus five paths.
-- npm packaging now whitelists `src/`, `README.md`, and `LICENSE`; CI checks `npm pack --dry-run --json`, installs the archive globally in all three matrix operating systems, and runs `cloneproof --help`. `cloneproof --version` reports package.json's version.
+- npm packaging now whitelists `src/`, `README.md`, and `LICENSE`; CI checks `npm pack --dry-run --json` against the sorted `git ls-files src` list plus `LICENSE`, `README.md`, and `package.json`, installs the archive globally in all three matrix operating systems, and runs `cloneproof --help`. `cloneproof --version` reports package.json's version.
 - CI also installs the commit-specific GitHub archive from `https://github.com/psuvraneel-cyber/Clone-Proof/archive/${{ github.sha }}.tar.gz` with `npm install --global` on Ubuntu, macOS, and Windows, then requires `cloneproof --version` to exit `0`.
 - Test hygiene is covered by `npm run test:leaks`, which runs `node --test` with `TEMP`, `TMP`, and `TMPDIR` redirected to an isolated fresh folder, waits for detached cleanup supervisors, and fails while leaving any remaining entries for inspection. CI runs it after `npm test` on Ubuntu, macOS, and Windows; `npm test` itself is unchanged.
 - Text reports use distinct `Finding counts:` and `Findings:` headings; HTML uses `Finding counts` for the summary and `Findings` for the list.
 - Environment references with literal `??`/`||` fallbacks or destructuring defaults are optional only when every reference is defaulted. Mixed references warn with evidence for only non-defaulted lines; bounded path and CI/test-service exclusions remain deterministic.
 - `VERIFY_NO_TESTS_RAN` is a failed verification even when the container exits `0`; it records `verification.noTestsRan: true`, preserves the real container exit code, leaves `failedPhase` unset, and shows one bounded matched-line evidence item. `GIT_METADATA_REQUIRED` is skipped/info in `check`, warning/warning in `verify`, and a combined zero-test message identifies missing `.git` metadata as a likely cause.
+- Zero-test detection ignores `# suites 0`/`ℹ suites 0` by themselves. Positive node:test, Jest, Vitest, Mocha, AVA, and tap counts veto a zero-test result; the real `examples/healthy-node` `node --test` output is covered as a regression and produces no `VERIFY_NO_TESTS_RAN` finding.
+- Verifier image inspection retries once after a failed local probe, waiting two seconds without pulling; injected tests cover transient recovery, persistent failure, and exactly two probes. The unavailable-image recommendation tells users to run `cloneproof setup` and retry while Docker Desktop wakes.
 - `PACKAGE_MANAGER_UNRECOGNIZED` and `MONOREPO_ROOT_TEST_SCRIPT_MISSING` are advisory warnings; single-package missing test scripts remain blocking. Run 4 rechecks and actual measurements are recorded in `docs/FIELD_TEST.md`.
 
 ### Remaining gaps
@@ -53,7 +55,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Final Run 3 results are recorded in `docs/FIELD_TEST.md`: 15 public repositories, 13 correct and 2 environment-limited failures, warning precision 83.3%, combined warning/failure precision 83.3%, and static planted-bug detection of 13/13 offline plus 39/39 in the separate network-dependent real-repository procedure.
 - The Windows host still skips the real symlink-creation test because it returns `EPERM`; Linux CI is required to run it.
 - Remaining user-facing follow-ups are the Buildathon dashboard submission, demo video, and Submission ID in Unstop. Main CI run `39289281815` passed all four jobs for the preceding pushed revision; the independent test-pass commits listed below remain local pending push and CI.
-- The leftover `stash@{0}` named `temporary issue 3-6 split` was inspected by SHA and was not dropped: its changes are not all on current `main`. Missing hunks include broader CI/test-service environment prefixes and conventional keys in `src/scan/repository.js`, the guard that skips README package-manager mismatch checks for unknown managers, and the corresponding broad-prefix regression test in `test/scan.test.js`. Protected `stash@{1}` and `stash@{2}` were not touched.
+- The temporary stash named `On main: temporary issue 3-6 split` was re-found by message, its requested changes were salvaged, and SHA `2f25b5ac99bfe900af231c4698c034991298619c` was dropped. The two `precision-fixes` stashes were preserved.
 
 ## Important files
 
@@ -117,6 +119,14 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 - Focused verification/report tests — passed: 58 tests, 58 passed; zero-test failure, bounded stdout/stderr evidence, real exit-code preservation, and `.git` advisory behavior are covered.
 - Docker checks — `docker build -t cloneproof .` passed; the default `docker run --rm --network none cloneproof` smoke run passed; `docker run --rm --network none cloneproof npm test` passed with 223 tests, 222 passed, 0 failed, and 1 skipped; `docker run --rm --network none cloneproof npm run test:leaks` passed with the same counts; `docker ps -a --filter name=cloneproof` was empty.
 - Leak-guard scratch experiment — after removing the cleanup-fix `finally` block in an uncommitted scratch copy, `npm run test:leaks` exited `1` and reported the remaining `cloneproof-docker-config-*` and `cloneproof-verify-*` entries; the scratch copy and retained leak directory were then removed.
+
+## CI-fix pass (2026-10-20)
+
+- `3393290 ci: derive expected npm package contents from tracked files` updates `.github/workflows/ci.yml` so the exact npm-pack comparison derives all `src/` entries from `git ls-files src`; the local comparison passed with 11 files.
+- `040ff96 fix: stop treating suites 0 as a zero-test run` removes suite-count-only triggers, adds positive-count vetoes, exports `detectNoTestsRan` for direct regression coverage, and confirms real top-level `node:test` output is not a zero-test result.
+- `fef9119 fix: retry the verifier image probe once` retries a failed image inspect once after two seconds without pulling and updates the unavailable-image recommendation.
+- Current local `npm test` — passed: 232 tests, 231 passed, 0 failed, and 1 expected Windows symlink `EPERM` skip. Focused verification tests passed: 49 tests, 49 passed, 0 failed.
+- The required leak, Docker Desktop E2E, and network field checks for this pass are still pending until the branch is pushed. CI run `39434993722` remains the pre-fix failure receipt; no replacement CI receipt exists yet.
 
 ## Historical checks observed
 

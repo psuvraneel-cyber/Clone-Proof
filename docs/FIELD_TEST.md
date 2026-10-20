@@ -289,7 +289,7 @@ The following expectations were written before any Run 4 command was started. Th
 
 ### Run 4 actual results
 
-The commands were run against local CloneProof commit `ef8056d` (`test: cover Git metadata verification warnings`). This table records the actual status, exit code, reported target commit where available, and wall-clock duration for every direct recheck. The JSON-repeat rows also record the byte-identity result.
+The commands were run against local CloneProof commit `ef8056d` (`test: cover Git metadata verification warnings`), before the later CI-fix pass. This table records the actual status, exit code, reported target commit where available, and wall-clock duration for every direct recheck. The JSON-repeat rows also record the byte-identity result.
 
 | Command / target | Actual result | Target commit | Exit | Duration | Notes |
 |---|---|---|---:|---:|---|
@@ -312,6 +312,15 @@ The commands were run against local CloneProof commit `ef8056d` (`test: cover Gi
 | JSON repeat: ky | both `passed_with_warnings`; byte-identical | `3541888878c4d303a8bc2ad61815f4e048f55a5d` | 0 / 0 | 4619 | — |
 | JSON repeat: trpc | both `passed`; byte-identical | `1c9bf51ea572fd46fa52fb725999b8d0c6950386` | 0 / 0 | 6844 | — |
 | JSON repeat: zod | both `passed_with_warnings`; byte-identical | `afdac65e0f80c0ccf9e8909da97c411567908b57` | 0 / 0 | 6377 | — |
+
+### Run 4 regression follow-up (2026-10-20)
+
+Run 4's target results above remain valid historical measurements from `ef8056d`; the following fixes address the separate CI regressions reported by Actions run `39434993722` and do not rewrite those target verdicts:
+
+- The npm package-content assertion failed because its hard-coded source list omitted `src/util/cleanup-supervisor.js`. Commit `3393290` now derives the expected source list from sorted `git ls-files src`, normalizes separators, and keeps exact equality against `npm pack --dry-run --json`.
+- The healthy fixture exposed a false zero-test result because top-level `node:test` output includes `# suites 0`/`ℹ suites 0`. Commit `040ff96` removes suite-count-only triggers, vetoes detection when any positive test evidence is present, and adds a real child-process regression using `examples/healthy-node`.
+- A first local verifier image inspect can transiently miss an existing image while Docker Desktop wakes from Resource Saver. Commit `fef9119` waits two seconds and retries exactly once without pulling; injected tests cover both recovery and persistent failure.
+- The post-fix `npm test` count is 232 tests (231 passed, 0 failed, 1 expected Windows symlink `EPERM` skip). The replacement CI receipt and the requested Docker/network rechecks are pending the next `review-fixes` push.
 
 ## Known limitations
 
