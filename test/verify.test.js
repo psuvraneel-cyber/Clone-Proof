@@ -152,7 +152,7 @@ test('successful Docker verification records evidence and cleans staging', async
   assert.equal(fs.existsSync(stagedPath), false);
 });
 
-test('zero-test success is reported for supported test-runner output', async () => {
+test('zero-test output fails verification for supported test runners', async () => {
   const outputs = [
     { output: 'TAP version 13\n1..0\n# tests 0\n# suites 0\n# pass 0\n# fail 0\n# duration_ms 1.2\n', match: '# tests 0' },
     { output: 'No tests found, exiting with code 0\n', match: 'No tests found' },
@@ -175,16 +175,57 @@ test('zero-test success is reported for supported test-runner output', async () 
     });
 
     assertSummaryMatchesFindings(report);
-    assert.equal(report.status, 'passed_with_warnings');
-    assert.equal(report.verification.outcome, 'passed');
+    assert.equal(report.status, 'failed');
+    assert.equal(exitCodeForReport(report), 1);
+    assert.equal(report.verification.outcome, 'failed');
+    assert.equal(report.verification.exitCode, 0);
+    assert.notEqual(report.verification.failedPhase, 'test');
     assert.equal(report.verification.noTestsRan, true);
     const finding = report.findings.find((item) => item.code === 'VERIFY_NO_TESTS_RAN');
-    assert.equal(finding.status, 'warning');
-    assert.equal(finding.severity, 'warning');
-    assert.ok(finding.evidence[0].detail.includes(item.match));
+    assert.equal(finding.status, 'failed');
+    assert.equal(finding.severity, 'error');
+    assert.equal(finding.evidence.length, 1);
+    assert.equal(finding.evidence[0].path, 'verification.stdout');
+    assert.match(finding.evidence[0].detail, new RegExp(`Matched zero-test line: .*${item.match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
     assert.equal(report.findings.some((item) => item.code === 'DOCKER_VERIFICATION_PASSED'), false);
     assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
   }
+});
+
+test('zero-test evidence is bounded and identifies a stderr-only match', async () => {
+  const longLine = `# tests 0 ${'x'.repeat(260)}`;
+  const longReport = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner: async (command, args) => {
+      if (args[0] === 'version' || args[0] === 'image') {
+        return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+      return { exitCode: 0, signal: null, stdout: longLine, stderr: '', timedOut: false, outputTruncated: false, error: null };
+    }
+  });
+  const longFinding = longReport.findings.find((item) => item.code === 'VERIFY_NO_TESTS_RAN');
+  const detailPrefix = 'Matched zero-test line: ';
+
+  assert.equal(longReport.status, 'failed');
+  assert.ok(longFinding);
+  assert.ok(longFinding.evidence[0].detail.startsWith(detailPrefix));
+  assert.ok(longFinding.evidence[0].detail.slice(detailPrefix.length).length <= 200);
+
+  const stderrReport = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner: async (command, args) => {
+      if (args[0] === 'version' || args[0] === 'image') {
+        return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+      return { exitCode: 0, signal: null, stdout: 'ordinary output\n', stderr: '# tests 0\n', timedOut: false, outputTruncated: false, error: null };
+    }
+  });
+  const stderrFinding = stderrReport.findings.find((item) => item.code === 'VERIFY_NO_TESTS_RAN');
+
+  assert.equal(stderrReport.status, 'failed');
+  assert.equal(stderrFinding.evidence.length, 1);
+  assert.equal(stderrFinding.evidence[0].path, 'verification.stderr');
+  assert.match(stderrFinding.evidence[0].detail, /# tests 0/);
 });
 
 test('a non-zero test count remains a passed verification', async () => {
@@ -202,6 +243,24 @@ test('a non-zero test count remains a passed verification', async () => {
   assert.equal(report.verification.noTestsRan, false);
   assert.equal(report.findings.some((item) => item.code === 'VERIFY_NO_TESTS_RAN'), false);
   assert.equal(report.findings.some((item) => item.code === 'DOCKER_VERIFICATION_PASSED'), true);
+});
+
+test('ordinary passing text and non-zero counts do not trigger zero-test detection', async () => {
+  for (const output of ['1 passing\n', '# tests 10\n']) {
+    const report = await verifyRepository(healthyFixture, {
+      execute: true,
+      runner: async (command, args) => {
+        if (args[0] === 'version' || args[0] === 'image') {
+          return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+        }
+        return { exitCode: 0, signal: null, stdout: output, stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+    });
+
+    assert.equal(report.status, 'passed');
+    assert.equal(report.verification.noTestsRan, false);
+    assert.equal(report.findings.some((item) => item.code === 'VERIFY_NO_TESTS_RAN'), false);
+  }
 });
 
 test('Git metadata requirements are advisory during verification', async () => {

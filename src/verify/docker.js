@@ -344,6 +344,29 @@ function redactOutput(value) {
     .replace(/((?:npm[_-]?token|auth[_-]?token|api[_-]?key|secret|password)\s*[=:]\s*)[^\s&]+/gi, '$1[REDACTED]');
 }
 
+function escapeEvidenceControls(value) {
+  return String(value).replace(/[\u0000-\u001f\u007f\u0080-\u009f]/g, (character) => {
+    switch (character) {
+      case '\b':
+        return '\\b';
+      case '\t':
+        return '\\t';
+      case '\n':
+        return '\\n';
+      case '\f':
+        return '\\f';
+      case '\r':
+        return '\\r';
+      default:
+        return `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`;
+    }
+  });
+}
+
+function boundedRedactedEvidenceLine(value) {
+  return redactOutput(escapeEvidenceControls(String(value || '').trim()).slice(0, 200)).slice(0, 200);
+}
+
 function addFinding(report, finding) {
   report.findings.push(finding);
 }
@@ -411,7 +434,7 @@ function staticPrerequisiteFailure(report) {
 }
 
 function verificationFinding(outcome, verification, staticReport) {
-  if (outcome === 'passed' && verification.noTestsRan) return null;
+  if (verification.noTestsRan) return null;
   if (outcome === 'passed') {
     return {
       code: 'DOCKER_VERIFICATION_PASSED',
@@ -483,6 +506,17 @@ function failedPhaseForResult(result) {
   return 'setup';
 }
 
+function isZeroTestLine(line) {
+  return /(?:^|\s)(?:#\s*)?tests?\s*:?\s*0\b/i.test(line)
+    || /(?:^|\s)(?:#\s*)?test files?\s*:?\s*0\b/i.test(line)
+    || /(?:^|\s)(?:#\s*)?test suites?\s*:?\s*0\b/i.test(line)
+    || /tests?:\s*0\s+total/i.test(line)
+    || /no tests? found|no test files found|couldn't find any files to test/i.test(line)
+    || /\b0\s+passing\b/i.test(line)
+    || /\b0\s+tests?\s+passed\b/i.test(line)
+    || /#\s*\{\s*total:\s*0\b/i.test(line);
+}
+
 function detectNoTestsRan(output, outputPath = 'verification.stdout') {
   const text = String(output || '')
     .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
@@ -519,22 +553,15 @@ function detectNoTestsRan(output, outputPath = 'verification.stdout') {
   }
 
   if (!hasZeroTestCount && frameworks.size === 0) return null;
-  const matchedLine = lines.find((line) => (
-    /(?:^|\s)(?:#\s*)?tests?\s*:?\s*0\b/i.test(line)
-    || /(?:^|\s)(?:#\s*)?test files?\s*:?\s*0\b/i.test(line)
-    || /(?:^|\s)(?:#\s*)?test suites?\s*:?\s*0\b/i.test(line)
-    || /tests?:\s*0\s+total/i.test(line)
-    || /no tests? found|no test files found|couldn't find any files to test/i.test(line)
-    || /\b0\s+passing\b/i.test(line)
-    || /\b0\s+tests?\s+passed\b/i.test(line)
-    || /#\s*\{\s*total:\s*0\b/i.test(line)
-  )) || lines.find((line) => /^\s*1\.\.0\s*$/i.test(line));
+  const matchedLine = lines.find(isZeroTestLine) || lines.find((line) => /^\s*1\.\.0\s*$/i.test(line));
   return {
     frameworks: [...frameworks].sort(compareStrings),
     outputPath,
-    matchedLine: (matchedLine || lines.find((line) => /\b0\b/.test(line)) || '').trim()
+    matchedLine: (matchedLine || '').trim()
   };
 }
+
+const NO_TESTS_RAN_HEADLINE = 'npm test exited 0, but no tests ran; this verification proves nothing about the test suite.';
 
 function noTestsRanFinding(detection) {
   const frameworkText = detection.frameworks.length > 0
@@ -542,11 +569,11 @@ function noTestsRanFinding(detection) {
     : '';
   return {
     code: 'VERIFY_NO_TESTS_RAN',
-    status: 'warning',
-    severity: 'warning',
-    title: 'The Docker test command reported no tests',
-    message: `npm test exited successfully, but bounded test output${frameworkText} indicated that no tests ran.`,
-    evidence: makeEvidence(detection.outputPath, detection.matchedLine || 'The bounded Docker test output contained a zero-test result.'),
+    status: 'failed',
+    severity: 'error',
+    title: NO_TESTS_RAN_HEADLINE,
+    message: `${NO_TESTS_RAN_HEADLINE}${frameworkText}`,
+    evidence: makeEvidence(detection.outputPath, `Matched zero-test line: ${boundedRedactedEvidenceLine(detection.matchedLine)}`),
     recommendation: 'Add or select at least one test, and confirm the declared npm test command discovers the intended test files.'
   };
 }
@@ -1126,9 +1153,10 @@ async function verifyRepository(rootPath, options = {}) {
       const detection = {
         frameworks: [...new Set(noTestsDetections.flatMap((item) => item.frameworks))].sort(compareStrings),
         outputPath: noTestsDetections[0].outputPath,
-        matchedLine: noTestsDetections.find((item) => item.matchedLine)?.matchedLine || ''
+        matchedLine: noTestsDetections[0].matchedLine
       };
       report.verification.noTestsRan = true;
+      report.verification.outcome = 'failed';
       addFinding(report, noTestsRanFinding(detection));
     }
     if (
