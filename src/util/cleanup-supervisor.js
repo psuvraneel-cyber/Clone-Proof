@@ -116,6 +116,15 @@ async function stopChildProcessTree(payload) {
 function processIsAlive(pid) {
   try {
     process.kill(pid, 0);
+    if (process.platform !== 'win32' && fs.existsSync('/proc')) {
+      try {
+        const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+        const state = stat.slice(stat.lastIndexOf(')') + 2, stat.lastIndexOf(')') + 3);
+        if (state === 'Z') return false;
+      } catch {
+        // The process may have exited between kill(0) and reading /proc.
+      }
+    }
     return true;
   } catch (error) {
     return Boolean(error && error.code !== 'ESRCH');
