@@ -747,6 +747,8 @@ test('sanitizes Git and Docker paths from every report format', async () => {
   }
   assert.equal(sanitizeText(home.toUpperCase(), { platform: 'win32', homeDirectory: home }), '~');
   assert.equal(sanitizeText(`${temp.toUpperCase()}\\artifact.log`, { platform: 'win32', tempDirectory: temp }), '<temp>\\artifact.log');
+  const githubSuggestion = 'Did you mean https://github.com/tmp-cli-github-suggestion/project?';
+  assert.equal(sanitizeText(githubSuggestion, { platform: 'linux', tempDirectory: '/tmp' }), githubSuggestion);
   assert.equal(fs.existsSync(destination), false);
   assert.equal(fs.existsSync(path.dirname(destination)), false);
 });

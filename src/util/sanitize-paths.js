@@ -23,7 +23,7 @@ function replacePathPrefix(text, value, replacement, caseInsensitive) {
       const index = haystack.indexOf(needle, offset);
       if (index < 0) break;
       const end = index + variant.length;
-      if (end === result.length || !/[A-Za-z0-9_]/.test(result[end])) {
+      if (end === result.length || !/[A-Za-z0-9_.-]/.test(result[end])) {
         result = `${result.slice(0, index)}${replacement}${result.slice(end)}`;
         offset = index + replacement.length;
       } else {
