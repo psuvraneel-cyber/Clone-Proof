@@ -509,12 +509,23 @@ function failedPhaseForResult(result) {
 function isZeroTestLine(line) {
   return /(?:^|\s)(?:#\s*)?tests?\s*:?\s*0\b/i.test(line)
     || /(?:^|\s)(?:#\s*)?test files?\s*:?\s*0\b/i.test(line)
-    || /(?:^|\s)(?:#\s*)?test suites?\s*:?\s*0\b/i.test(line)
     || /tests?:\s*0\s+total/i.test(line)
     || /no tests? found|no test files found|couldn't find any files to test/i.test(line)
     || /\b0\s+passing\b/i.test(line)
     || /\b0\s+tests?\s+passed\b/i.test(line)
     || /#\s*\{\s*total:\s*0\b/i.test(line);
+}
+
+function hasPositiveTestEvidence(text) {
+  return [
+    /(?:^|\n)\s*[#ℹ]\s+tests?\s+[1-9]\d*\b/im,
+    /(?:^|\n)\s*[#ℹ]\s+pass\s+[1-9]\d*\b/im,
+    /\btests?\s*:?\s*[1-9]\d*\s+(?:passed|total)\b/i,
+    /\btest files?\s+[1-9]\d*\s+passed\b/i,
+    /(?:^|\n)\s*[1-9]\d*\s+passing\b/im,
+    /\b[1-9]\d*\s+tests?\s+passed\b/i,
+    /(?:^|\n)\s*1\.\.[1-9]\d*(?:\s|$)/m
+  ].some((pattern) => pattern.test(text));
 }
 
 function detectNoTestsRan(output, outputPath = 'verification.stdout') {
@@ -525,13 +536,9 @@ function detectNoTestsRan(output, outputPath = 'verification.stdout') {
 
   const lines = text.split('\n');
   const frameworks = new Set();
-  const hasZeroTestCount = /(?:^|\n)\s*(?:[#ℹ]\s*)?(?:tests?|test files?|test suites?)\s*:?\s*0\b/im.test(text)
-    || /\b(?:tests?|test files?)\s+0\s+(?:passed|total)\b/i.test(text)
-    || /#\s*\{\s*total:\s*0\b/i.test(text);
 
   if (
     /(?:^|\n)\s*[#ℹ]\s+tests?\s+0\b/im.test(text)
-    || /(?:^|\n)\s*[#ℹ]\s+suites?\s+0\b/im.test(text)
     || (/\btests?\s+0\b/i.test(text) && /\b(?:duration_ms|cancelled|skipped|todo)\b/i.test(text))
   ) {
     frameworks.add('node:test');
@@ -552,8 +559,10 @@ function detectNoTestsRan(output, outputPath = 'verification.stdout') {
     frameworks.add('tap');
   }
 
-  if (!hasZeroTestCount && frameworks.size === 0) return null;
-  const matchedLine = lines.find(isZeroTestLine) || lines.find((line) => /^\s*1\.\.0\s*$/i.test(line));
+  if (hasPositiveTestEvidence(text)) return null;
+  const matchedLine = lines.find((line) => line.trim() && isZeroTestLine(line))
+    || lines.find((line) => /^\s*1\.\.0\s*$/i.test(line));
+  if (!matchedLine || !matchedLine.trim()) return null;
   return {
     frameworks: [...frameworks].sort(compareStrings),
     outputPath,
@@ -1284,6 +1293,7 @@ if (require.main === module && process.argv[2] === '--cleanup-supervisor') {
 module.exports = {
   DEFAULT_VERIFY_IMAGE,
   DEFAULT_SETUP_TIMEOUT_MS,
+  detectNoTestsRan,
   dockerClientEnvironment,
   dockerRunArguments,
   runProcess,

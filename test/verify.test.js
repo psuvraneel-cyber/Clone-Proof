@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { spawn } = require('node:child_process');
+const { execFileSync, spawn } = require('node:child_process');
 const { EventEmitter } = require('node:events');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -10,6 +10,7 @@ const test = require('node:test');
 
 const {
   DEFAULT_VERIFY_IMAGE,
+  detectNoTestsRan,
   dockerRunArguments,
   runProcess,
   setupDockerImage,
@@ -155,7 +156,10 @@ test('successful Docker verification records evidence and cleans staging', async
 test('zero-test output fails verification for supported test runners', async () => {
   const outputs = [
     { output: 'TAP version 13\n1..0\n# tests 0\n# suites 0\n# pass 0\n# fail 0\n# duration_ms 1.2\n', match: '# tests 0' },
+    { output: 'ℹ tests 0\nℹ suites 0\nℹ pass 0\n', match: 'ℹ tests 0' },
+    { output: 'Tests: 0 total\n', match: 'Tests: 0 total' },
     { output: 'No tests found, exiting with code 0\n', match: 'No tests found' },
+    { output: 'No test files found\n', match: 'No test files found' },
     { output: 'Test Files 0 passed (0)\nTests 0 passed (0)\n', match: 'Test Files 0' },
     { output: '0 passing (2ms)\n', match: '0 passing' },
     { output: '0 tests passed\n', match: '0 tests passed' },
@@ -186,10 +190,47 @@ test('zero-test output fails verification for supported test runners', async () 
     assert.equal(finding.severity, 'error');
     assert.equal(finding.evidence.length, 1);
     assert.equal(finding.evidence[0].path, 'verification.stdout');
+    const matchedEvidence = finding.evidence[0].detail.replace(/^Matched zero-test line: /, '');
+    assert.ok(matchedEvidence.trim().length > 0);
     assert.match(finding.evidence[0].detail, new RegExp(`Matched zero-test line: .*${item.match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
     assert.equal(report.findings.some((item) => item.code === 'DOCKER_VERIFICATION_PASSED'), false);
     assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
   }
+});
+
+test('real node:test output with top-level tests is not a zero-test run', () => {
+  const childEnvironment = { ...process.env };
+  delete childEnvironment.NODE_TEST_CONTEXT;
+  const stdout = execFileSync(process.execPath, ['--test'], {
+    cwd: healthyFixture,
+    encoding: 'utf8',
+    env: childEnvironment
+  });
+
+  assert.match(stdout, /(?:#|ℹ) tests\s+1\b/);
+  assert.equal(detectNoTestsRan(stdout), null);
+});
+
+test('positive test evidence vetoes zero-suite and framework output', () => {
+  const outputs = [
+    'TAP version 13\n1..3\n# tests 3\n# suites 0\n# pass 3\n',
+    'ℹ tests 3\nℹ suites 0\nℹ pass 3\n',
+    'TAP version 13\n1..3\n# tests 3\n# suites 1\n# pass 3\n',
+    'Tests: 5 passed, 5 total\n',
+    'Test Files  2 passed (2)\nTests  9 passed (9)\n',
+    '4 passing\n'
+  ];
+
+  for (const output of outputs) {
+    assert.equal(detectNoTestsRan(output), null, output);
+  }
+});
+
+test('zero suite output alone is not reported and zero-test evidence is never empty', () => {
+  assert.equal(detectNoTestsRan('# suites 0\n'), null);
+  const detection = detectNoTestsRan('# tests 0\n');
+  assert.ok(detection);
+  assert.ok(detection.matchedLine.trim().length > 0);
 });
 
 test('zero-test evidence is bounded and identifies a stderr-only match', async () => {
