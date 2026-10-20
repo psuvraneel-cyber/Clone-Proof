@@ -563,16 +563,19 @@ function detectNoTestsRan(output, outputPath = 'verification.stdout') {
 
 const NO_TESTS_RAN_HEADLINE = 'npm test exited 0, but no tests ran; this verification proves nothing about the test suite.';
 
-function noTestsRanFinding(detection) {
+function noTestsRanFinding(detection, gitMetadataRequired = false) {
   const frameworkText = detection.frameworks.length > 0
     ? ` (${detection.frameworks.join(', ')})`
+    : '';
+  const metadataNote = gitMetadataRequired
+    ? ' Missing .git metadata is a likely cause of the zero-test result.'
     : '';
   return {
     code: 'VERIFY_NO_TESTS_RAN',
     status: 'failed',
     severity: 'error',
     title: NO_TESTS_RAN_HEADLINE,
-    message: `${NO_TESTS_RAN_HEADLINE}${frameworkText}`,
+    message: `${NO_TESTS_RAN_HEADLINE}${metadataNote}${frameworkText}`,
     evidence: makeEvidence(detection.outputPath, `Matched zero-test line: ${boundedRedactedEvidenceLine(detection.matchedLine)}`),
     recommendation: 'Add or select at least one test, and confirm the declared npm test command discovers the intended test files.'
   };
@@ -1157,7 +1160,10 @@ async function verifyRepository(rootPath, options = {}) {
       };
       report.verification.noTestsRan = true;
       report.verification.outcome = 'failed';
-      addFinding(report, noTestsRanFinding(detection));
+      addFinding(report, noTestsRanFinding(
+        detection,
+        report.findings.some((finding) => finding.code === 'GIT_METADATA_REQUIRED')
+      ));
     }
     if (
       report.verification.failedPhase === 'install'

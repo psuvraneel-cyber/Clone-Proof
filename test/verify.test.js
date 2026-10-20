@@ -286,6 +286,40 @@ test('Git metadata requirements are advisory during verification', async () => {
   }
 });
 
+test('missing Git metadata is called out as a likely zero-test cause', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-git-metadata-zero-tests-'));
+  fs.cpSync(healthyFixture, root, { recursive: true });
+  const packagePath = path.join(root, 'package.json');
+  const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  packageData.scripts.pretest = 'test -d .git';
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageData, null, 2)}\n`);
+
+  try {
+    const report = await verifyRepository(root, {
+      execute: true,
+      runner: async (command, args) => {
+        if (args[0] === 'version' || args[0] === 'image') {
+          return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+        }
+        return { exitCode: 0, signal: null, stdout: '# tests 0\n', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+    });
+    const metadata = report.findings.find((item) => item.code === 'GIT_METADATA_REQUIRED');
+    const zeroTests = report.findings.find((item) => item.code === 'VERIFY_NO_TESTS_RAN');
+
+    assert.equal(metadata.status, 'warning');
+    assert.equal(metadata.severity, 'warning');
+    assert.equal(report.status, 'failed');
+    assert.equal(exitCodeForReport(report), 1);
+    assert.equal(report.verification.exitCode, 0);
+    assert.notEqual(report.verification.failedPhase, 'test');
+    assert.match(zeroTests.message, /missing \.git metadata is a likely cause/i);
+    assertSummaryMatchesFindings(report);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('transient staging remover failures are retried without a cleanup notice', async () => {
   const { runner } = makeRunner();
   let stagingAttempts = 0;
