@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -50,17 +51,31 @@ function publicFetcher(size = 1) {
   });
 }
 
-test('validates only exact public HTTPS GitHub repository URLs', () => {
+async function waitForFile(filePath, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(filePath)) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Timed out waiting for ${path.basename(filePath)}`);
+}
+
+async function waitForCondition(predicate, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('Timed out waiting for condition');
+}
+
+test('validates public GitHub repository roots and canonicalizes safe URL variants', () => {
   for (const value of [
     'http://github.com/example/project',
-    'https://www.github.com/example/project',
     'https://gitlab.com/example/project',
     'https://github.com/example/project/issues',
-    'https://github.com/example/project/tree/main',
     'https://github.com/example',
     'https://github.com/example/project/extra',
-    'https://github.com/example/project?tab=readme',
-    'https://github.com/example/project#readme',
     'https://user:password@github.com/example/project',
     'https://github.com.evil.example/example/project',
     'https://github.com/example/project/../other',
@@ -77,12 +92,15 @@ test('validates only exact public HTTPS GitHub repository URLs', () => {
 
   for (const [value, repo] of [
     [VALID_URL, 'example/project'],
+    ['https://www.github.com/example/project', 'example/project'],
     ['https://github.com/example/project/', 'example/project'],
     ['https://github.com/example/project.git', 'example/project'],
-    ['https://github.com/example/project.git/', 'example/project']
+    ['https://github.com/example/project.git/', 'example/project'],
+    ['https://github.com/example/project?tab=readme', 'example/project'],
+    ['https://www.github.com/example/project#readme', 'example/project']
   ]) {
     assert.deepEqual(validateGithubUrl(value), {
-      url: value,
+      url: VALID_URL,
       owner: 'example',
       repo: 'project',
       repository: repo
@@ -177,11 +195,13 @@ test('temporary directory removal retries an injected transient remover', async 
 
 test('reports a cleanup failure without losing the clone result', async () => {
   let cleanupDirectory;
+  const retainedDirectories = new Set();
   try {
     const result = await cloneGithubRepository(VALID_URL, {
       gitExecutable: process.execPath,
       fetcher: publicFetcher(),
       removeTemporaryDirectory: async (directory) => {
+        retainedDirectories.add(directory);
         if (path.basename(directory).startsWith('cloneproof-github-')) {
           cleanupDirectory = directory;
           throw new Error('locked by antivirus');
@@ -205,9 +225,86 @@ test('reports a cleanup failure without losing the clone result', async () => {
       return true;
     });
   } finally {
-    if (cleanupDirectory) {
-      await fs.promises.rm(cleanupDirectory, { recursive: true, force: true });
+    for (const directory of retainedDirectories) {
+      await fs.promises.rm(directory, { recursive: true, force: true });
     }
+  }
+});
+
+test('rejects GitHub tree and blob URLs with the canonical repository root', () => {
+  for (const [kind, suffix] of [['tree', 'main'], ['blob', 'main/src/index.js']]) {
+    const value = `https://www.github.com/example/project/${kind}/${suffix}?plain=1`;
+    assert.throws(
+      () => validateGithubUrl(value),
+      (error) => error
+        && error.code === 'GITHUB_URL_INVALID'
+        && error.message === `Invalid GitHub repository URL: GitHub ${kind} URLs are not supported; use the canonical repository URL ${VALID_URL}`
+    );
+  }
+});
+
+test('abrupt GitHub clone termination removes its temporary parent', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-github-abrupt-cleanup-'));
+  const readyPath = path.join(root, 'ready');
+  const pathsPath = path.join(root, 'paths.json');
+  const childScript = path.join(root, 'clone.js');
+  const githubModule = path.join(__dirname, '..', 'src', 'input', 'github.js');
+  let paths;
+
+  fs.writeFileSync(childScript, [
+    "'use strict';",
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    `const { cloneGithubRepository } = require(${JSON.stringify(githubModule)});`,
+    `const readyPath = ${JSON.stringify(readyPath)};`,
+    `const pathsPath = ${JSON.stringify(pathsPath)};`,
+    'const success = { exitCode: 0, signal: null, stdout: "", stderr: "", timedOut: false, outputTruncated: false, error: null };',
+    'const fetcher = async () => ({ status: 200, async json() { return { private: false, size: 1 }; } });',
+    'const runner = async (command, args) => {',
+    '  if (args[0] === "--version") return success;',
+    '  if (args.includes("clone")) {',
+    '    const checkout = args.at(-1);',
+    '    fs.writeFileSync(pathsPath, JSON.stringify({ temporaryParent: path.dirname(checkout) }));',
+    '    fs.writeFileSync(readyPath, "cloning");',
+    '    await new Promise(() => setInterval(() => {}, 1000));',
+    '  }',
+    '  return success;',
+    '};',
+    'cloneGithubRepository("https://github.com/example/project", { gitExecutable: process.execPath, fetcher, runner, cleanupSupervisor: true }).catch(() => { process.exitCode = 1; });'
+  ].join('\n'));
+
+  const child = spawn(process.execPath, [childScript], {
+    cwd: path.join(__dirname, '..'),
+    stdio: ['ignore', 'ignore', 'pipe'],
+    windowsHide: true
+  });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+  try {
+    await waitForFile(readyPath);
+    await waitForFile(pathsPath);
+    paths = JSON.parse(fs.readFileSync(pathsPath, 'utf8'));
+    assert.equal(fs.existsSync(paths.temporaryParent), true);
+
+    child.kill('SIGKILL');
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Clone process did not exit: ${stderr}`)), 10000);
+      child.once('close', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+
+    await waitForCondition(() => !fs.existsSync(paths.temporaryParent));
+    assert.equal(fs.existsSync(paths.temporaryParent), false);
+  } finally {
+    if (child.exitCode === null) child.kill('SIGKILL');
+    for (const directory of [paths && paths.temporaryParent].filter(Boolean)) {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -275,7 +372,13 @@ test('rejects a checkout that exceeds a bound and removes it', async () => {
         return successfulResult();
       }
     }),
-    (error) => error && error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
+    (error) => error
+      && error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
+      && error.limitName === 'maxFiles'
+      && error.limit === 1
+      && error.count === 2
+      && error.path === 'two.txt'
+      && error.message === 'GitHub checkout limit exceeded: file count exceeded configured maxFiles=1; count reached 2 at two.txt'
   );
   assert.ok(destination);
   assert.equal(calls.some((args) => args.includes('ls-files')), false);
@@ -315,6 +418,10 @@ test('checkout inspection visits root files before a .venv subtree reaches maxEn
       () => inspectCheckout(root, { maxEntries: 5 }),
       (error) => error && error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
         && error.path === '.venv/file-1.txt'
+        && error.limitName === 'maxEntries'
+        && error.limit === 5
+        && error.count === 6
+        && error.message === 'GitHub checkout limit exceeded: entry count exceeded configured maxEntries=5; count reached 6 at .venv/file-1.txt'
         && !path.isAbsolute(error.path)
     );
   } finally {
@@ -504,6 +611,153 @@ test('uses the configured GitHub token only on the API preflight and records aut
     }
     await result.cleanup();
   }
+});
+
+test('checkout limit diagnostics name each configured bound and reached count', () => {
+  const cases = [
+    {
+      name: 'depth',
+      options: { maxDepth: 0 },
+      setup(root) {
+        fs.mkdirSync(path.join(root, 'nested'));
+        fs.writeFileSync(path.join(root, 'nested', 'file.txt'), 'x');
+      },
+      limitName: 'maxDepth',
+      limit: 0,
+      count: 1,
+      stopPath: 'nested',
+      label: 'directory depth'
+    },
+    {
+      name: 'file size',
+      options: { maxFileBytes: 1 },
+      setup(root) {
+        fs.writeFileSync(path.join(root, 'large.txt'), 'xx');
+      },
+      limitName: 'maxFileBytes',
+      limit: 1,
+      count: 2,
+      stopPath: 'large.txt',
+      label: 'file size'
+    },
+    {
+      name: 'total bytes',
+      options: { maxTotalBytes: 2 },
+      setup(root) {
+        fs.writeFileSync(path.join(root, 'first.txt'), 'x');
+        fs.writeFileSync(path.join(root, 'second.txt'), 'xx');
+      },
+      limitName: 'maxTotalBytes',
+      limit: 2,
+      count: 3,
+      stopPath: 'second.txt',
+      label: 'total file bytes'
+    }
+  ];
+
+  for (const item of cases) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), `cloneproof-checkout-${item.name.replace(/\s+/g, '-')}-`));
+    try {
+      item.setup(root);
+      assert.throws(
+        () => inspectCheckout(root, item.options),
+        (error) => error
+          && error.code === 'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
+          && error.limitName === item.limitName
+          && error.limit === item.limit
+          && error.count === item.count
+          && error.path === item.stopPath
+          && error.message === `GitHub checkout limit exceeded: ${item.label} exceeded configured ${item.limitName}=${item.limit}; count reached ${item.count} at ${item.stopPath}`
+          && !path.isAbsolute(error.path)
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('retries one token-rejected preflight without authorization and uses checked public metadata', async () => {
+  const token = 'retry-token-value';
+  const calls = [];
+  const result = await preflightGithubRepository(
+    { owner: 'example', repo: 'project' },
+    async (url, options) => {
+      calls.push({ url, options });
+      if (calls.length === 1) return { status: 401 };
+      return {
+        status: 200,
+        async json() {
+          return { private: false, size: 42 };
+        }
+      };
+    },
+    { hostEnvironment: { CLONEPROOF_GITHUB_TOKEN: token } }
+  );
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].options.headers.Authorization, `Bearer ${token}`);
+  assert.equal(calls[1].options.headers.Authorization, undefined);
+  assert.equal(result.state, 'checked');
+  assert.equal(result.preflightReason, 'checked');
+  assert.equal(result.preflightAuthenticated, false);
+  assert.equal(result.preflightTokenRejected, true);
+  assert.equal(result.repositorySizeKb, 42);
+  assert.equal(JSON.stringify(result).includes(token), false);
+});
+
+test('redacts token-bearing errors from the unauthenticated retry', async () => {
+  const token = 'retry-redaction-token';
+  const result = await preflightGithubRepository(
+    { owner: 'example', repo: 'project' },
+    async (url, options) => {
+      if (options.headers.Authorization) return { status: 401 };
+      throw new Error(`public retry failed after ${token}`);
+    },
+    { hostEnvironment: { CLONEPROOF_GITHUB_TOKEN: token } }
+  );
+
+  assert.equal(result.state, 'unavailable');
+  assert.equal(result.preflightReason, 'network-error');
+  assert.equal(result.preflightAuthenticated, false);
+  assert.equal(result.preflightTokenRejected, true);
+  assert.match(result.error, /\[REDACTED\]/);
+  assert.equal(result.error.includes(token), false);
+});
+
+test('clone metadata records a checked unauthenticated retry without the token', async () => {
+  const token = 'clone-retry-token';
+  let fetchCount = 0;
+  const result = await cloneGithubRepository(VALID_URL, {
+    gitExecutable: process.execPath,
+    platform: 'linux',
+    hostEnvironment: { PATH: '/usr/bin', CLONEPROOF_GITHUB_TOKEN: token },
+    fetcher: async () => {
+      fetchCount += 1;
+      if (fetchCount === 1) return { status: 401 };
+      return {
+        status: 200,
+        async json() {
+          return { private: false, size: 7 };
+        }
+      };
+    },
+    runner: async (command, args) => {
+      if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+      if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+      if (args.includes('rev-parse')) return commitResult();
+      fs.writeFileSync(path.join(args.at(-1), 'README.md'), '# fixture\n');
+      return successfulResult();
+    }
+  });
+
+  assert.equal(fetchCount, 2);
+  assert.equal(result.preflight, 'checked');
+  assert.equal(result.preflightReason, 'checked');
+  assert.equal(result.preflightAuthenticated, false);
+  assert.equal(result.preflightTokenRejected, true);
+  assert.equal(result.repositorySizeKb, 7);
+  assert.equal(JSON.stringify(result).includes(token), false);
+  await result.cleanup();
 });
 
 test('redacts a configured token from a GitHub fetch error', async () => {

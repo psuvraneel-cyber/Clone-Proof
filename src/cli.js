@@ -178,23 +178,29 @@ function isRemoteTarget(target) {
   return /^https?:\/\//i.test(target);
 }
 
-function looksLikeGithubTargetWithoutScheme(target) {
-  return /^(?:www\.)?github\.com\/[^/\s]+\/[^/\s]+\/?$/i.test(target)
-    || /^git@github\.com:[^/\s]+\/[^/\s]+(?:\.git)?$/i.test(target);
-}
+function githubRepositorySuggestion(target) {
+  if (typeof target !== 'string' || target.length === 0) return null;
 
-function isExistingDirectory(target) {
-  try {
-    return fs.statSync(target).isDirectory();
-  } catch {
-    return false;
+  let normalized = target.replace(/\\/g, '/');
+  while (normalized.startsWith('./')) normalized = normalized.slice(2);
+
+  let match = /^(?:www\.)?github\.com\/([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*?)(?:\.git)?\/?$/i.exec(normalized);
+  if (!match) {
+    match = /^git@github\.com:([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*?)(?:\.git)?$/i.exec(normalized);
   }
+  if (!match) {
+    match = /^([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*?)(?:\.git)?\/?$/.exec(normalized);
+  }
+  if (!match) return null;
+
+  return `Did you mean https://github.com/${match[1]}/${match[2]}?`;
 }
 
-function invalidGithubTargetError() {
-  const error = new Error('Invalid GitHub repository URL: use https://github.com/OWNER/REPO');
-  error.code = 'GITHUB_URL_INVALID';
-  return error;
+function addGithubRepositorySuggestion(report, suggestion) {
+  if (!report || !suggestion || !Array.isArray(report.findings)) return;
+  const finding = report.findings.find((item) => item && item.code === 'SCAN_ROOT_UNAVAILABLE');
+  if (!finding || typeof finding.message !== 'string' || finding.message.includes(suggestion)) return;
+  finding.message = `${finding.message} ${suggestion}`;
 }
 
 function cloneFailureStatus(error) {
@@ -230,6 +236,7 @@ function cloneFailureReport(target, error, mode) {
     name: targetName,
     preflightAuthenticated: Boolean(error && error.preflightAuthenticated === true),
     ...(error && error.preflightReason ? { preflightReason: error.preflightReason } : {}),
+    ...(error && error.preflightTokenRejected === true ? { preflightTokenRejected: true } : {}),
     ...(error && error.cleanupError ? { cleanupFailed: true } : {})
   };
   if (error && error.preflight) reportTarget.preflight = error.preflight;
@@ -288,10 +295,12 @@ function reportCleanupFailure(report, error) {
 
 async function resolveTarget(target) {
   if (!isRemoteTarget(target)) {
-    if (looksLikeGithubTargetWithoutScheme(target) && !isExistingDirectory(target)) {
-      throw invalidGithubTargetError();
-    }
-    return { path: target, source: null };
+    const suggestion = !fs.existsSync(target) ? githubRepositorySuggestion(target) : null;
+    return {
+      path: target,
+      source: null,
+      ...(suggestion ? { localGithubSuggestion: suggestion } : {})
+    };
   }
 
   // Validate before creating a temporary directory or starting git.
@@ -309,6 +318,7 @@ function applySourceTarget(report, source) {
     preflight: source.preflight,
     preflightReason: source.preflightReason,
     preflightAuthenticated: source.preflightAuthenticated === true,
+    ...(source.preflightTokenRejected === true ? { preflightTokenRejected: true } : {}),
     ...(source.repositorySizeKb === undefined ? {} : { repositorySizeKb: source.repositorySizeKb }),
     ...(source.executableModes === undefined ? {} : { executableModes: source.executableModes }),
     ...(typeof source.commit === 'string' && /^[0-9a-f]{40}$/i.test(source.commit)
@@ -319,6 +329,10 @@ function applySourceTarget(report, source) {
 }
 
 function reportPreflightNotice(source) {
+  if (source && source.preflightTokenRejected === true) {
+    process.stderr.write('CloneProof: GitHub rejected the configured token (401); retried the public preflight without it.\n');
+    return;
+  }
   if (source && source.preflightReason === 'http-401' && source.preflightAuthenticated === true) {
     process.stderr.write('CloneProof: GitHub rejected the configured token (401); continuing without the size check.\n');
   }
@@ -346,6 +360,7 @@ async function runCheck(options) {
       }),
       resolved.source
     );
+    addGithubRepositorySuggestion(report, resolved.localGithubSuggestion);
     reportPreflightNotice(resolved.source);
   } finally {
     if (resolved.source) {
@@ -388,6 +403,7 @@ async function runVerify(options) {
       executablePaths: resolved.source ? resolved.source.executablePaths : [],
       symlinkPaths: resolved.source ? resolved.source.symlinkPaths : []
     }), resolved.source);
+    addGithubRepositorySuggestion(report, resolved.localGithubSuggestion);
     reportPreflightNotice(resolved.source);
     if (report.verification && report.verification.cleanup && report.verification.cleanup.cleanupFailed) {
       reportCleanupFailure(report, report.verification.cleanup);

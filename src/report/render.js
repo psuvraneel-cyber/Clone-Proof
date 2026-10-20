@@ -179,10 +179,16 @@ function coverageLabel(id, labels) {
   return labels[id] || id;
 }
 
-function successExplanation(report, checkedCount) {
+function verificationHasNoTests(report) {
+  if (!report || !report.verification || typeof report.verification !== 'object') return false;
+  return report.verification.noTestsRan === true
+    || findingsFor(report).some((finding) => finding && finding.code === 'VERIFY_NO_TESTS_RAN');
+}
+
+function successExplanation(report, checkedCount, findingCount) {
   const status = normalizeStatus(reportStatus(report));
   if (report && report.mode === 'check' && status === 'passed') {
-    return `No known setup problems were found (${checkedCount} checks). This is not a guarantee that a fresh clone works; see Not checked.`;
+    return `No known setup problems were found across ${checkedCount} check groups (${findingCount} findings). This is not a guarantee that a fresh clone works; see Not checked.`;
   }
   if (
     report
@@ -190,6 +196,7 @@ function successExplanation(report, checkedCount) {
     && report.verification
     && typeof report.verification === 'object'
     && normalizeStatus(report.verification.outcome) === 'passed'
+    && !verificationHasNoTests(report)
   ) {
     return 'npm ci and npm test succeeded inside the controlled container.';
   }
@@ -423,6 +430,7 @@ function verificationLines(report) {
     `  Cleanup complete: ${verification.cleanup && verification.cleanup.completed ? 'yes' : 'no'}`
   ];
 
+  if (verification.noTestsRan) lines.push('  Tests detected: no');
   if (verification.failedPhase) lines.push(`  Failed phase: ${escapeControlCharacters(verification.failedPhase)}`);
   if (verification.timedOut) lines.push('  Timed out: yes');
   if (verification.outputTruncated) lines.push('  Output truncated: yes');
@@ -454,7 +462,7 @@ function renderText(report, options = {}) {
   const status = escapeControlCharacters(reportStatus(safeReport));
   const commit = targetCommit(safeReport);
   const coverage = reportCoverage(safeReport);
-  const explanation = successExplanation(safeReport, coverage.checked.length);
+  const explanation = successExplanation(safeReport, coverage.checked.length, counts.total);
   const lines = [
     paint('CloneProof — repository setup verification', ANSI.bold, enabled),
     `Target: ${escapeControlCharacters(targetName(safeReport))}`,
@@ -464,7 +472,7 @@ function renderText(report, options = {}) {
     '',
     ...textCoverageLines(safeReport),
     '',
-    'Counts:',
+    'Finding counts:',
     `  Total: ${escapeControlCharacters(counts.total)}`,
     `  Passed: ${escapeControlCharacters(counts.passed)}`,
     `  Failed: ${escapeControlCharacters(counts.failed)}`,
@@ -710,6 +718,9 @@ function htmlVerification(report) {
   if (verification.outputTruncated) {
     optionalRows.push('<dt>Output truncated</dt><dd>yes</dd>');
   }
+  if (verification.noTestsRan) {
+    optionalRows.push('<dt>Tests detected</dt><dd>no</dd>');
+  }
 
   return [
     '<section class="panel" aria-labelledby="verification-heading">',
@@ -752,7 +763,7 @@ function renderHtml(report) {
   const statusClass = htmlStatusClass(status);
   const commit = targetCommit(safeReport);
   const coverage = reportCoverage(safeReport);
-  const explanation = successExplanation(safeReport, coverage.checked.length);
+  const explanation = successExplanation(safeReport, coverage.checked.length, counts.total);
   const findingMarkup = findings.length > 0
     ? findings.map(htmlFinding).join('\n')
     : '<p class="muted">No findings recorded.</p>';
@@ -776,7 +787,7 @@ function renderHtml(report) {
     '      <h2 id="summary-heading">Summary</h2>',
     `      <p>Status: <span class="status status-${statusClass}">${htmlValue(status)}</span></p>`,
     ...(explanation ? [`      <p class="report-explanation">${htmlValue(explanation)}</p>`] : []),
-    '      <h3 id="counts-heading">Counts</h3>',
+    '      <h3 id="counts-heading">Finding counts</h3>',
     '      <dl class="counts" aria-labelledby="counts-heading">',
     `        <dt>Total</dt><dd>${htmlValue(counts.total)}</dd>`,
     `        <dt>Passed</dt><dd>${htmlValue(counts.passed)}</dd>`,

@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { spawn } = require('node:child_process');
+const { execFileSync, spawn } = require('node:child_process');
 const { EventEmitter } = require('node:events');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -10,6 +10,7 @@ const test = require('node:test');
 
 const {
   DEFAULT_VERIFY_IMAGE,
+  detectNoTestsRan,
   dockerRunArguments,
   runProcess,
   setupDockerImage,
@@ -95,6 +96,15 @@ async function waitForFile(filePath, timeoutMs = 5000) {
   throw new Error(`Timed out waiting for ${path.basename(filePath)}`);
 }
 
+async function waitForCondition(predicate, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('Timed out waiting for condition');
+}
+
 test('Docker arguments use a controlled, non-privileged profile', () => {
   const args = dockerRunArguments('C:/temporary/source', false);
 
@@ -143,6 +153,214 @@ test('successful Docker verification records evidence and cleans staging', async
   assert.equal(fs.existsSync(stagedPath), false);
 });
 
+test('zero-test output fails verification for supported test runners', async () => {
+  const outputs = [
+    { output: 'TAP version 13\n1..0\n# tests 0\n# suites 0\n# pass 0\n# fail 0\n# duration_ms 1.2\n', match: '# tests 0' },
+    { output: 'ℹ tests 0\nℹ suites 0\nℹ pass 0\n', match: 'ℹ tests 0' },
+    { output: 'Tests: 0 total\n', match: 'Tests: 0 total' },
+    { output: 'No tests found, exiting with code 0\n', match: 'No tests found' },
+    { output: 'No test files found\n', match: 'No test files found' },
+    { output: 'Test Files 0 passed (0)\nTests 0 passed (0)\n', match: 'Test Files 0' },
+    { output: '0 passing (2ms)\n', match: '0 passing' },
+    { output: '0 tests passed\n', match: '0 tests passed' },
+    { output: "Couldn't find any files to test\n", match: "Couldn't find any files to test" },
+    { output: 'TAP version 13\n1..0\n# { total: 0, passed: 0 }\n', match: '# { total: 0' }
+  ];
+
+  for (const item of outputs) {
+    const report = await verifyRepository(healthyFixture, {
+      execute: true,
+      runner: async (command, args) => {
+        if (args[0] === 'version' || args[0] === 'image') {
+          return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+        }
+        return { exitCode: 0, signal: null, stdout: item.output, stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+    });
+
+    assertSummaryMatchesFindings(report);
+    assert.equal(report.status, 'failed');
+    assert.equal(exitCodeForReport(report), 1);
+    assert.equal(report.verification.outcome, 'failed');
+    assert.equal(report.verification.exitCode, 0);
+    assert.notEqual(report.verification.failedPhase, 'test');
+    assert.equal(report.verification.noTestsRan, true);
+    const finding = report.findings.find((item) => item.code === 'VERIFY_NO_TESTS_RAN');
+    assert.equal(finding.status, 'failed');
+    assert.equal(finding.severity, 'error');
+    assert.equal(finding.evidence.length, 1);
+    assert.equal(finding.evidence[0].path, 'verification.stdout');
+    const matchedEvidence = finding.evidence[0].detail.replace(/^Matched zero-test line: /, '');
+    assert.ok(matchedEvidence.trim().length > 0);
+    assert.match(finding.evidence[0].detail, new RegExp(`Matched zero-test line: .*${item.match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    assert.equal(report.findings.some((item) => item.code === 'DOCKER_VERIFICATION_PASSED'), false);
+    assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
+  }
+});
+
+test('real node:test output with top-level tests is not a zero-test run', () => {
+  const childEnvironment = { ...process.env };
+  delete childEnvironment.NODE_TEST_CONTEXT;
+  const stdout = execFileSync(process.execPath, ['--test'], {
+    cwd: healthyFixture,
+    encoding: 'utf8',
+    env: childEnvironment
+  });
+
+  assert.match(stdout, /(?:#|ℹ) tests\s+1\b/);
+  assert.equal(detectNoTestsRan(stdout), null);
+});
+
+test('positive test evidence vetoes zero-suite and framework output', () => {
+  const outputs = [
+    'TAP version 13\n1..3\n# tests 3\n# suites 0\n# pass 3\n',
+    'ℹ tests 3\nℹ suites 0\nℹ pass 3\n',
+    'TAP version 13\n1..3\n# tests 3\n# suites 1\n# pass 3\n',
+    'Tests: 5 passed, 5 total\n',
+    'Test Files  2 passed (2)\nTests  9 passed (9)\n',
+    '4 passing\n'
+  ];
+
+  for (const output of outputs) {
+    assert.equal(detectNoTestsRan(output), null, output);
+  }
+});
+
+test('zero suite output alone is not reported and zero-test evidence is never empty', () => {
+  assert.equal(detectNoTestsRan('# suites 0\n'), null);
+  const detection = detectNoTestsRan('# tests 0\n');
+  assert.ok(detection);
+  assert.ok(detection.matchedLine.trim().length > 0);
+});
+
+test('zero-test evidence is bounded and identifies a stderr-only match', async () => {
+  const longLine = `# tests 0 ${'x'.repeat(260)}`;
+  const longReport = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner: async (command, args) => {
+      if (args[0] === 'version' || args[0] === 'image') {
+        return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+      return { exitCode: 0, signal: null, stdout: longLine, stderr: '', timedOut: false, outputTruncated: false, error: null };
+    }
+  });
+  const longFinding = longReport.findings.find((item) => item.code === 'VERIFY_NO_TESTS_RAN');
+  const detailPrefix = 'Matched zero-test line: ';
+
+  assert.equal(longReport.status, 'failed');
+  assert.ok(longFinding);
+  assert.ok(longFinding.evidence[0].detail.startsWith(detailPrefix));
+  assert.ok(longFinding.evidence[0].detail.slice(detailPrefix.length).length <= 200);
+
+  const stderrReport = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner: async (command, args) => {
+      if (args[0] === 'version' || args[0] === 'image') {
+        return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+      return { exitCode: 0, signal: null, stdout: 'ordinary output\n', stderr: '# tests 0\n', timedOut: false, outputTruncated: false, error: null };
+    }
+  });
+  const stderrFinding = stderrReport.findings.find((item) => item.code === 'VERIFY_NO_TESTS_RAN');
+
+  assert.equal(stderrReport.status, 'failed');
+  assert.equal(stderrFinding.evidence.length, 1);
+  assert.equal(stderrFinding.evidence[0].path, 'verification.stderr');
+  assert.match(stderrFinding.evidence[0].detail, /# tests 0/);
+});
+
+test('a non-zero test count remains a passed verification', async () => {
+  const { runner } = makeRunner();
+  const report = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner: async (command, args, options) => {
+      const result = await runner(command, args, options);
+      if (args[0] === 'run') result.stdout = 'TAP version 13\n1..2\n# tests 2\n# pass 2\n# fail 0\n';
+      return result;
+    }
+  });
+
+  assert.equal(report.status, 'passed');
+  assert.equal(report.verification.noTestsRan, false);
+  assert.equal(report.findings.some((item) => item.code === 'VERIFY_NO_TESTS_RAN'), false);
+  assert.equal(report.findings.some((item) => item.code === 'DOCKER_VERIFICATION_PASSED'), true);
+});
+
+test('ordinary passing text and non-zero counts do not trigger zero-test detection', async () => {
+  for (const output of ['1 passing\n', '# tests 10\n']) {
+    const report = await verifyRepository(healthyFixture, {
+      execute: true,
+      runner: async (command, args) => {
+        if (args[0] === 'version' || args[0] === 'image') {
+          return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+        }
+        return { exitCode: 0, signal: null, stdout: output, stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+    });
+
+    assert.equal(report.status, 'passed');
+    assert.equal(report.verification.noTestsRan, false);
+    assert.equal(report.findings.some((item) => item.code === 'VERIFY_NO_TESTS_RAN'), false);
+  }
+});
+
+test('Git metadata requirements are advisory during verification', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-git-metadata-'));
+  fs.cpSync(healthyFixture, root, { recursive: true });
+  const packagePath = path.join(root, 'package.json');
+  const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  packageData.scripts.pretest = 'test -d .git';
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageData, null, 2)}\n`);
+
+  try {
+    const { runner } = makeRunner();
+    const report = await verifyRepository(root, { execute: true, runner });
+    const finding = report.findings.find((item) => item.code === 'GIT_METADATA_REQUIRED');
+
+    assert.equal(finding.status, 'warning');
+    assert.equal(finding.severity, 'warning');
+    assert.equal(report.status, 'passed_with_warnings');
+    assert.match(finding.message, /removes \.git metadata/i);
+    assertSummaryMatchesFindings(report);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('missing Git metadata is called out as a likely zero-test cause', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-git-metadata-zero-tests-'));
+  fs.cpSync(healthyFixture, root, { recursive: true });
+  const packagePath = path.join(root, 'package.json');
+  const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  packageData.scripts.pretest = 'test -d .git';
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageData, null, 2)}\n`);
+
+  try {
+    const report = await verifyRepository(root, {
+      execute: true,
+      runner: async (command, args) => {
+        if (args[0] === 'version' || args[0] === 'image') {
+          return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+        }
+        return { exitCode: 0, signal: null, stdout: '# tests 0\n', stderr: '', timedOut: false, outputTruncated: false, error: null };
+      }
+    });
+    const metadata = report.findings.find((item) => item.code === 'GIT_METADATA_REQUIRED');
+    const zeroTests = report.findings.find((item) => item.code === 'VERIFY_NO_TESTS_RAN');
+
+    assert.equal(metadata.status, 'warning');
+    assert.equal(metadata.severity, 'warning');
+    assert.equal(report.status, 'failed');
+    assert.equal(exitCodeForReport(report), 1);
+    assert.equal(report.verification.exitCode, 0);
+    assert.notEqual(report.verification.failedPhase, 'test');
+    assert.match(zeroTests.message, /missing \.git metadata is a likely cause/i);
+    assertSummaryMatchesFindings(report);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('transient staging remover failures are retried without a cleanup notice', async () => {
   const { runner } = makeRunner();
   let stagingAttempts = 0;
@@ -166,23 +384,31 @@ test('transient staging remover failures are retried without a cleanup notice', 
 
 test('cleanup failure fails verification without exposing an absolute directory', async () => {
   const { runner } = makeRunner();
-  const report = await verifyRepository(healthyFixture, {
-    execute: true,
-    runner,
-    removeTemporaryDirectory: async () => {
-      throw new Error('injected cleanup failure');
-    }
-  });
+  const retainedDirectories = new Set();
+  try {
+    const report = await verifyRepository(healthyFixture, {
+      execute: true,
+      runner,
+      removeTemporaryDirectory: async (directory) => {
+        retainedDirectories.add(directory);
+        throw new Error('injected cleanup failure');
+      }
+    });
 
-  assertSummaryMatchesFindings(report);
-  assert.equal(report.status, 'failed');
-  assert.equal(exitCodeForReport(report), 1);
-  assert.equal(report.verification.cleanup.cleanupFailed, true);
-  assert.equal(report.verification.cleanup.completed, false);
-  assert.equal(report.verification.cleanup.cleanupDirectory.includes('\\'), false);
-  assert.equal(report.verification.cleanup.cleanupDirectory.includes('/'), false);
-  assert.equal(report.findings.some((finding) => finding.code === 'DOCKER_CLEANUP_INCOMPLETE'), true);
-  assert.doesNotMatch(JSON.stringify(report), /AppData|C:\\Users|\/home\//);
+    assertSummaryMatchesFindings(report);
+    assert.equal(report.status, 'failed');
+    assert.equal(exitCodeForReport(report), 1);
+    assert.equal(report.verification.cleanup.cleanupFailed, true);
+    assert.equal(report.verification.cleanup.completed, false);
+    assert.equal(report.verification.cleanup.cleanupDirectory.includes('\\'), false);
+    assert.equal(report.verification.cleanup.cleanupDirectory.includes('/'), false);
+    assert.equal(report.findings.some((finding) => finding.code === 'DOCKER_CLEANUP_INCOMPLETE'), true);
+    assert.doesNotMatch(JSON.stringify(report), /AppData|C:\\Users|\/home\//);
+  } finally {
+    for (const directory of retainedDirectories) {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  }
 });
 
 test('gitignored Docker paths are informational and have bounded sorted evidence', async () => {
@@ -252,7 +478,7 @@ test('Docker absence blocks execution without staging or running target code', a
 
 test('missing verifier image blocks execution without pulling implicitly', async () => {
   const { calls, runner } = makeRunner({ image: false });
-  const report = await verifyRepository(healthyFixture, { execute: true, runner });
+  const report = await verifyRepository(healthyFixture, { execute: true, runner, sleep: async () => {} });
   assertSummaryMatchesFindings(report);
 
   assert.equal(report.status, 'blocked');
@@ -260,7 +486,61 @@ test('missing verifier image blocks execution without pulling implicitly', async
   assert.equal(report.verification.imageAvailable, false);
   assert.equal(calls.filter((call) => call.args[0] === 'run').length, 0);
   const finding = report.findings.find((item) => item.code === 'DOCKER_IMAGE_UNAVAILABLE');
-  assert.match(finding.recommendation, /Run cloneproof setup \(or docker pull /);
+  assert.equal(finding.recommendation, 'Run cloneproof setup; if the image is already present, Docker Desktop may still be waking up — retry.');
+});
+
+test('retries a transient verifier image probe failure once', async () => {
+  let imageProbes = 0;
+  const sleepCalls = [];
+  const runner = async (command, args) => {
+    if (args[0] === 'version') {
+      return { exitCode: 0, signal: null, stdout: '27.0.0\n', stderr: '', timedOut: false, outputTruncated: false, error: null };
+    }
+    if (args[0] === 'image') {
+      imageProbes += 1;
+      return imageProbes === 1
+        ? { exitCode: 1, signal: null, stdout: '', stderr: 'No such image', timedOut: false, outputTruncated: false, error: null }
+        : { exitCode: 0, signal: null, stdout: '[]', stderr: '', timedOut: false, outputTruncated: false, error: null };
+    }
+    return { exitCode: 0, signal: null, stdout: 'CLONEPROOF_PHASE=install\nCLONEPROOF_PHASE=test\n', stderr: '', timedOut: false, outputTruncated: false, error: null };
+  };
+
+  const report = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner,
+    sleep: async (milliseconds) => sleepCalls.push(milliseconds)
+  });
+
+  assert.equal(report.status, 'passed');
+  assert.equal(report.verification.imageAvailable, true);
+  assert.equal(imageProbes, 2);
+  assert.deepEqual(sleepCalls, [2000]);
+});
+
+test('blocks after two verifier image probe failures', async () => {
+  let imageProbes = 0;
+  const runner = async (command, args) => {
+    if (args[0] === 'version') {
+      return { exitCode: 0, signal: null, stdout: '27.0.0\n', stderr: '', timedOut: false, outputTruncated: false, error: null };
+    }
+    if (args[0] === 'image') {
+      imageProbes += 1;
+      return { exitCode: 1, signal: null, stdout: '', stderr: 'No such image', timedOut: false, outputTruncated: false, error: null };
+    }
+    return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+  };
+
+  const report = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner,
+    sleep: async () => {}
+  });
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.findings.find((item) => item.code === 'DOCKER_IMAGE_UNAVAILABLE').status, 'skipped');
+  assert.equal(report.verification.imageAvailable, false);
+  assert.equal(imageProbes, 2);
+  assert.equal(report.verification.cleanup.completed, true);
 });
 
 function setupSuccessResult(stdout = '', stderr = '') {
@@ -517,6 +797,76 @@ test('Windows process-level SIGINT cleanup removes the verification container', 
     assert.equal(fs.readFileSync(cleanedPath, 'utf8'), 'removed');
   } finally {
     if (child.exitCode === null) child.kill('SIGKILL');
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('abrupt verifier termination removes the staging parent and Docker config directory', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-abrupt-cleanup-'));
+  const readyPath = path.join(root, 'ready');
+  const pathsPath = path.join(root, 'paths.json');
+  const cleanupScript = path.join(root, 'cleanup.js');
+  const childScript = path.join(root, 'verify.js');
+  const dockerModule = path.join(__dirname, '..', 'src', 'verify', 'docker.js');
+  let paths;
+
+  fs.writeFileSync(cleanupScript, "'use strict';\nprocess.exitCode = 0;\n");
+  fs.writeFileSync(childScript, [
+    "'use strict';",
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    `const { verifyRepository } = require(${JSON.stringify(dockerModule)});`,
+    `const fixture = ${JSON.stringify(healthyFixture)};`,
+    `const readyPath = ${JSON.stringify(readyPath)};`,
+    `const pathsPath = ${JSON.stringify(pathsPath)};`,
+    'const success = { exitCode: 0, signal: null, stdout: "", stderr: "", timedOut: false, outputTruncated: false, error: null };',
+    'const runner = async (command, args, options) => {',
+    '  if (args[0] === "version" || args[0] === "image") return success;',
+    '  if (args[0] === "run") {',
+    '    const mount = args.find((value) => value.startsWith("type=bind,src="));',
+    '    const stagedSource = mount.slice("type=bind,src=".length).split(",dst=")[0];',
+    '    fs.writeFileSync(pathsPath, JSON.stringify({ stagingParent: path.dirname(stagedSource), dockerConfig: options.env.DOCKER_CONFIG }));',
+    '    fs.writeFileSync(readyPath, "running");',
+    '    await new Promise(() => setInterval(() => {}, 1000));',
+    '  }',
+    '  return success;',
+    '};',
+    `verifyRepository(fixture, { execute: true, runner, cleanupSupervisor: true, cleanupSupervisorCommand: process.execPath, cleanupSupervisorArgs: [${JSON.stringify(cleanupScript)}] }).catch(() => { process.exitCode = 1; });`
+  ].join('\n'));
+
+  const child = spawn(process.execPath, [childScript], {
+    cwd: path.join(__dirname, '..'),
+    stdio: ['ignore', 'ignore', 'pipe'],
+    windowsHide: true
+  });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+  try {
+    await waitForFile(readyPath);
+    await waitForFile(pathsPath);
+    paths = JSON.parse(fs.readFileSync(pathsPath, 'utf8'));
+    assert.equal(fs.existsSync(paths.stagingParent), true);
+    assert.equal(fs.existsSync(paths.dockerConfig), true);
+
+    child.kill('SIGKILL');
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Verifier process did not exit: ${stderr}`)), 10000);
+      child.once('close', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+
+    await waitForCondition(() => !fs.existsSync(paths.stagingParent) && !fs.existsSync(paths.dockerConfig));
+    assert.equal(fs.existsSync(paths.stagingParent), false);
+    assert.equal(fs.existsSync(paths.dockerConfig), false);
+  } finally {
+    if (child.exitCode === null) child.kill('SIGKILL');
+    for (const directory of [paths && paths.stagingParent, paths && paths.dockerConfig].filter(Boolean)) {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

@@ -8,6 +8,7 @@ const { spawn } = require('node:child_process');
 const { isCoreFile, loadGitignoreMatcher, scanRepository } = require('../scan/repository');
 const { removeTemporaryDirectory } = require('../input/github');
 const { resolveDockerExecutable } = require('../util/executable');
+const { runCleanupSupervisor, startCleanupSupervisor, stopCleanupSupervisor } = require('../util/cleanup-supervisor');
 
 const DEFAULT_VERIFY_IMAGE = 'node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90';
 const DEFAULT_TIMEOUT_MS = 300000;
@@ -19,6 +20,7 @@ const DEFAULT_CONTAINER_PIDS = '512';
 const DEFAULT_TMPFS_SIZE = '512m';
 const DEFAULT_WORKSPACE_TMPFS_SIZE = '1g';
 const DOCKER_PROBE_TIMEOUT_MS = 5000;
+const DOCKER_IMAGE_RETRY_DELAY_MS = 2000;
 const MAX_IGNORED_PATHS = 500;
 const MAX_IGNORED_PATH_EVIDENCE = 50;
 const STAGING_LIMITS = Object.freeze({
@@ -343,6 +345,29 @@ function redactOutput(value) {
     .replace(/((?:npm[_-]?token|auth[_-]?token|api[_-]?key|secret|password)\s*[=:]\s*)[^\s&]+/gi, '$1[REDACTED]');
 }
 
+function escapeEvidenceControls(value) {
+  return String(value).replace(/[\u0000-\u001f\u007f\u0080-\u009f]/g, (character) => {
+    switch (character) {
+      case '\b':
+        return '\\b';
+      case '\t':
+        return '\\t';
+      case '\n':
+        return '\\n';
+      case '\f':
+        return '\\f';
+      case '\r':
+        return '\\r';
+      default:
+        return `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`;
+    }
+  });
+}
+
+function boundedRedactedEvidenceLine(value) {
+  return redactOutput(escapeEvidenceControls(String(value || '').trim()).slice(0, 200)).slice(0, 200);
+}
+
 function addFinding(report, finding) {
   report.findings.push(finding);
 }
@@ -410,6 +435,7 @@ function staticPrerequisiteFailure(report) {
 }
 
 function verificationFinding(outcome, verification, staticReport) {
+  if (verification.noTestsRan) return null;
   if (outcome === 'passed') {
     return {
       code: 'DOCKER_VERIFICATION_PASSED',
@@ -481,6 +507,90 @@ function failedPhaseForResult(result) {
   return 'setup';
 }
 
+function isZeroTestLine(line) {
+  return /(?:^|\s)(?:#\s*)?tests?\s*:?\s*0\b/i.test(line)
+    || /(?:^|\s)(?:#\s*)?test files?\s*:?\s*0\b/i.test(line)
+    || /tests?:\s*0\s+total/i.test(line)
+    || /no tests? found|no test files found|couldn't find any files to test/i.test(line)
+    || /\b0\s+passing\b/i.test(line)
+    || /\b0\s+tests?\s+passed\b/i.test(line)
+    || /#\s*\{\s*total:\s*0\b/i.test(line);
+}
+
+function hasPositiveTestEvidence(text) {
+  return [
+    /(?:^|\n)\s*[#ℹ]\s+tests?\s+[1-9]\d*\b/im,
+    /(?:^|\n)\s*[#ℹ]\s+pass\s+[1-9]\d*\b/im,
+    /\btests?\s*:?\s*[1-9]\d*\s+(?:passed|total)\b/i,
+    /\btest files?\s+[1-9]\d*\s+passed\b/i,
+    /(?:^|\n)\s*[1-9]\d*\s+passing\b/im,
+    /\b[1-9]\d*\s+tests?\s+passed\b/i,
+    /(?:^|\n)\s*1\.\.[1-9]\d*(?:\s|$)/m
+  ].some((pattern) => pattern.test(text));
+}
+
+function detectNoTestsRan(output, outputPath = 'verification.stdout') {
+  const text = String(output || '')
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\r/g, '');
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const frameworks = new Set();
+
+  if (
+    /(?:^|\n)\s*[#ℹ]\s+tests?\s+0\b/im.test(text)
+    || (/\btests?\s+0\b/i.test(text) && /\b(?:duration_ms|cancelled|skipped|todo)\b/i.test(text))
+  ) {
+    frameworks.add('node:test');
+  }
+  if (/\bno tests found\b/i.test(text) || /\btests?:\s*0\s+total\b/i.test(text) || /\btest suites?:\s*0\b[^\n]*\btotal\b/i.test(text)) {
+    frameworks.add('Jest');
+  }
+  if (/\bno test files found\b/i.test(text) || /\btest files\s+0\b/i.test(text)) {
+    frameworks.add('Vitest');
+  }
+  if (/(?:^|\n)\s*0\s+passing(?:\s|\(|$)/im.test(text) && !/(?:^|\n)\s*\d+\s+failing\b/im.test(text)) {
+    frameworks.add('Mocha');
+  }
+  if (/\b0\s+tests?\s+passed\b/i.test(text) || /couldn't find any files to test/i.test(text)) {
+    frameworks.add('AVA');
+  }
+  if (/(?:^|\n)\s*1\.\.0(?:\s|$)/m.test(text) || /(?:^|\n)\s*#\s*tests\s+0\b/im.test(text) || /#\s*\{\s*total:\s*0\b/i.test(text)) {
+    frameworks.add('tap');
+  }
+
+  if (hasPositiveTestEvidence(text)) return null;
+  const matchedLine = lines.find((line) => line.trim() && isZeroTestLine(line))
+    || lines.find((line) => /^\s*1\.\.0\s*$/i.test(line));
+  if (!matchedLine || !matchedLine.trim()) return null;
+  return {
+    frameworks: [...frameworks].sort(compareStrings),
+    outputPath,
+    matchedLine: (matchedLine || '').trim()
+  };
+}
+
+const NO_TESTS_RAN_HEADLINE = 'npm test exited 0, but no tests ran; this verification proves nothing about the test suite.';
+
+function noTestsRanFinding(detection, gitMetadataRequired = false) {
+  const frameworkText = detection.frameworks.length > 0
+    ? ` (${detection.frameworks.join(', ')})`
+    : '';
+  const metadataNote = gitMetadataRequired
+    ? ' Missing .git metadata is a likely cause of the zero-test result.'
+    : '';
+  return {
+    code: 'VERIFY_NO_TESTS_RAN',
+    status: 'failed',
+    severity: 'error',
+    title: NO_TESTS_RAN_HEADLINE,
+    message: `${NO_TESTS_RAN_HEADLINE}${metadataNote}${frameworkText}`,
+    evidence: makeEvidence(detection.outputPath, `Matched zero-test line: ${boundedRedactedEvidenceLine(detection.matchedLine)}`),
+    recommendation: 'Add or select at least one test, and confirm the declared npm test command discovers the intended test files.'
+  };
+}
+
 async function probeDocker(runner, dockerCommand, context = {}) {
   const result = await runner(
     dockerCommand,
@@ -496,117 +606,6 @@ async function probeDocker(runner, dockerCommand, context = {}) {
 
 function makeContainerName() {
   return `cloneproof-verify-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function processIsAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error && error.code !== 'ESRCH';
-  }
-}
-
-function removeSupervisorPaths(paths) {
-  for (const directory of paths) {
-    try {
-      fs.rmSync(directory, { recursive: true, force: true });
-    } catch {
-      // The normal verifier cleanup remains responsible for reporting failures.
-    }
-  }
-}
-
-function runCleanupSupervisor(payloadValue) {
-  let payload;
-  try {
-    payload = JSON.parse(payloadValue);
-  } catch {
-    process.exitCode = 2;
-    return;
-  }
-
-  const parentPid = Number(payload.parentPid);
-  if (!Number.isInteger(parentPid) || parentPid <= 0 || !payload.command || !Array.isArray(payload.args)) {
-    process.exitCode = 2;
-    return;
-  }
-
-  const poll = setInterval(() => {
-    if (processIsAlive(parentPid)) return;
-    clearInterval(poll);
-
-    let cleanup;
-    try {
-      cleanup = spawn(payload.command, payload.args, {
-        cwd: payload.cwd || os.tmpdir(),
-        env: payload.env || process.env,
-        shell: false,
-        windowsHide: true,
-        stdio: 'ignore'
-      });
-    } catch {
-      removeSupervisorPaths(payload.paths || []);
-      process.exitCode = 1;
-      return;
-    }
-
-    let settled = false;
-    const finish = (exitCode) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      removeSupervisorPaths(payload.paths || []);
-      process.exitCode = exitCode;
-    };
-    const timeout = setTimeout(() => {
-      if (!settled) cleanup.kill('SIGKILL');
-      finish(1);
-    }, DOCKER_PROBE_TIMEOUT_MS);
-    cleanup.once('error', () => finish(1));
-    cleanup.once('close', (exitCode) => finish(exitCode === 0 ? 0 : 1));
-  }, 100);
-}
-
-function startCleanupSupervisor(options = {}) {
-  const payload = {
-    parentPid: process.pid,
-    command: options.command,
-    args: options.args || [],
-    cwd: options.cwd || os.tmpdir(),
-    env: options.env || process.env,
-    paths: Array.isArray(options.paths) ? options.paths : []
-  };
-
-  let supervisor;
-  try {
-    supervisor = spawn(
-      process.execPath,
-      [__filename, '--cleanup-supervisor', JSON.stringify(payload)],
-      {
-        cwd: payload.cwd,
-        env: payload.env,
-        detached: true,
-        windowsHide: true,
-        stdio: 'ignore'
-      }
-    );
-  } catch {
-    return null;
-  }
-
-  supervisor.once('error', () => {});
-  supervisor.unref();
-  return supervisor;
-}
-
-function stopCleanupSupervisor(supervisor) {
-  if (!supervisor || supervisor.exitCode !== null) return;
-  try {
-    supervisor.kill('SIGTERM');
-  } catch {
-    // The supervisor may already have observed verifier process exit.
-  }
 }
 
 function resultSucceeded(result) {
@@ -814,6 +813,9 @@ async function verifyRepository(rootPath, options = {}) {
   const dockerCommand = options.runner
     ? (options.dockerCommand || 'docker')
     : resolveDockerExecutable();
+  const wait = typeof options.sleep === 'function'
+    ? options.sleep
+    : (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
   const execute = options.execute === true;
   const allowNetwork = options.allowNetwork === true;
   const timeoutMs = normalizePositiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS, 10 * 60 * 1000);
@@ -828,6 +830,12 @@ async function verifyRepository(rootPath, options = {}) {
   });
   const report = cloneReport(staticReport);
   report.mode = 'verify';
+  const gitMetadataFinding = report.findings.find((finding) => finding.code === 'GIT_METADATA_REQUIRED');
+  if (gitMetadataFinding) {
+    gitMetadataFinding.status = 'warning';
+    gitMetadataFinding.severity = 'warning';
+    gitMetadataFinding.message = `${gitMetadataFinding.message} Verification removes .git metadata before running the controlled workflow.`;
+  }
   report.verification = {
     requested: true,
     authorized: execute,
@@ -850,6 +858,7 @@ async function verifyRepository(rootPath, options = {}) {
     failedPhase: null,
     timedOut: false,
     outputTruncated: false,
+    noTestsRan: false,
     stdout: '',
     stderr: '',
     omittedPaths: [],
@@ -949,12 +958,26 @@ async function verifyRepository(rootPath, options = {}) {
     return finalizeVerificationReport(report);
   }
 
-  const imageProbe = await runner(
+  let imageProbe = await runner(
     dockerCommand,
     ['image', 'inspect', DEFAULT_VERIFY_IMAGE],
     { ...dockerContext, timeoutMs: DOCKER_PROBE_TIMEOUT_MS, maxOutputBytes: 16 * 1024 }
   );
-  report.verification.imageAvailable = imageProbe.exitCode === 0 && !imageProbe.error && !imageProbe.timedOut;
+  const imageProbeSucceeded = (result) => Boolean(
+    result
+    && result.exitCode === 0
+    && !result.error
+    && !result.timedOut
+  );
+  if (!imageProbeSucceeded(imageProbe)) {
+    await wait(DOCKER_IMAGE_RETRY_DELAY_MS);
+    imageProbe = await runner(
+      dockerCommand,
+      ['image', 'inspect', DEFAULT_VERIFY_IMAGE],
+      { ...dockerContext, timeoutMs: DOCKER_PROBE_TIMEOUT_MS, maxOutputBytes: 16 * 1024 }
+    );
+  }
+  report.verification.imageAvailable = imageProbeSucceeded(imageProbe);
   if (!report.verification.imageAvailable) {
     const detail = imageProbe.error || imageProbe.stderr || `Image ${DEFAULT_VERIFY_IMAGE} is not available locally.`;
     report.verification.stderr = detail;
@@ -965,7 +988,7 @@ async function verifyRepository(rootPath, options = {}) {
       title: 'The controlled Docker image is unavailable locally',
       message: `CloneProof will not pull ${DEFAULT_VERIFY_IMAGE} implicitly.`,
       evidence: makeEvidence('verification', detail),
-      recommendation: `Run cloneproof setup (or docker pull ${DEFAULT_VERIFY_IMAGE})`
+       recommendation: 'Run cloneproof setup; if the image is already present, Docker Desktop may still be waking up — retry.'
     });
     report.status = 'blocked';
     await cleanupVerificationDirectory(dockerConfigRoot, report, 'clientConfigRemoved', removeDirectory);
@@ -1052,6 +1075,7 @@ async function verifyRepository(rootPath, options = {}) {
       || (process.platform === 'win32' && !options.runner && options.cleanupSupervisor !== false);
     if (cleanupSupervisorEnabled) {
       cleanupSupervisor = startCleanupSupervisor({
+        scriptPath: __filename,
         command: options.cleanupSupervisorCommand || dockerCommand,
         args: Array.isArray(options.cleanupSupervisorArgs)
           ? options.cleanupSupervisorArgs
@@ -1149,6 +1173,25 @@ async function verifyRepository(rootPath, options = {}) {
     report.verification.outputTruncated = Boolean(result.outputTruncated);
     report.verification.stdout = redactOutput(result.stdout || '');
     report.verification.stderr = redactOutput(result.stderr || result.error || '');
+    const noTestsDetections = result.exitCode === 0 && !result.error && !result.timedOut
+      ? [
+        detectNoTestsRan(report.verification.stdout, 'verification.stdout'),
+        detectNoTestsRan(report.verification.stderr, 'verification.stderr')
+      ].filter(Boolean)
+      : [];
+    if (noTestsDetections.length > 0) {
+      const detection = {
+        frameworks: [...new Set(noTestsDetections.flatMap((item) => item.frameworks))].sort(compareStrings),
+        outputPath: noTestsDetections[0].outputPath,
+        matchedLine: noTestsDetections[0].matchedLine
+      };
+      report.verification.noTestsRan = true;
+      report.verification.outcome = 'failed';
+      addFinding(report, noTestsRanFinding(
+        detection,
+        report.findings.some((finding) => finding.code === 'GIT_METADATA_REQUIRED')
+      ));
+    }
     if (
       report.verification.failedPhase === 'install'
       && !allowNetwork
@@ -1188,7 +1231,8 @@ async function verifyRepository(rootPath, options = {}) {
       report.verification.outcome = 'failed';
     }
     if (report.verification.outcome !== 'blocked') {
-      addFinding(report, verificationFinding(report.verification.outcome, report.verification, report));
+      const finding = verificationFinding(report.verification.outcome, report.verification, report);
+      if (finding) addFinding(report, finding);
     }
     recomputeSummary(report);
     report.status = report.verification.outcome === 'passed'
@@ -1267,6 +1311,7 @@ if (require.main === module && process.argv[2] === '--cleanup-supervisor') {
 module.exports = {
   DEFAULT_VERIFY_IMAGE,
   DEFAULT_SETUP_TIMEOUT_MS,
+  detectNoTestsRan,
   dockerClientEnvironment,
   dockerRunArguments,
   runProcess,

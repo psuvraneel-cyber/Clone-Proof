@@ -56,7 +56,7 @@ node src/cli.js check ./path/to/repository
 
 CloneProof blocks home folders and filesystem roots immediately as `WRONG_TARGET`; pointing it at one project folder keeps the scan bounded and focused. A scan that reaches its directory-entry limit reports `SCAN_ENTRY_LIMIT_EXCEEDED` with the path where traversal stopped. Terminal and HTML findings show at most ten evidence items; use JSON for the complete bounded evidence list.
 
-The first remote-input profile accepts only a public HTTPS GitHub repository URL and performs a GitHub API size/visibility preflight before the shallow, bounded clone. If `CLONEPROOF_GITHUB_TOKEN` is present, or otherwise `GITHUB_TOKEN` is present, CloneProof sends it as a Bearer token only on that API request. The report records `target.preflightAuthenticated: true` or `false`, but never records the token. Private repositories remain blocked even when a token is supplied. Repositories over the 4 GiB sanity limit, private repositories, and missing repositories are blocked without cloning. GitHub's `size` value describes the repository's full history, not the latest shallow checkout that CloneProof downloads. If the API is unavailable or rate-limited, CloneProof records an unavailable preflight and continues with the existing clone limits. Git runs from a CloneProof-owned temporary parent with an empty Git config, an allow-listed environment, credential helpers disabled, and Git LFS smudging disabled. CloneProof resolves Git from known absolute installation paths or absolute `PATH` entries; if none is available, the report is incomplete and no clone directory is created:
+The first remote-input profile accepts a public HTTPS GitHub repository root and performs a GitHub API size/visibility preflight before the shallow, bounded clone. `https://github.com/OWNER/REPOSITORY`, the same URL with `www.`, a trailing `/`, a query string such as `?tab=readme`, or a fragment such as `#readme` are accepted and normalized to the canonical repository root. `/tree/<ref>` and `/blob/<path>` URLs are rejected with the canonical root in the error. A non-existing local path shaped like `owner/repo` remains a local target and receives a deterministic “Did you mean https://github.com/owner/repo?” hint. If `CLONEPROOF_GITHUB_TOKEN` is present, or otherwise `GITHUB_TOKEN` is present, CloneProof sends it as a Bearer token only on that API request. If GitHub returns `401`, CloneProof retries the preflight once without the token; the report records only the boolean fallback state and the safe notice never exposes the token. The report records `target.preflightAuthenticated: true` or `false`, but never records the token. Private repositories remain blocked even when a token is supplied. Repositories over the 4 GiB sanity limit, private repositories, and missing repositories are blocked without cloning. GitHub's `size` value describes the repository's full history, not the latest shallow checkout that CloneProof downloads. If the API is unavailable or rate-limited, CloneProof records an unavailable preflight and continues with the existing clone limits. Git runs from a CloneProof-owned temporary parent with an empty Git config, an allow-listed environment, credential helpers disabled, and Git LFS smudging disabled. CloneProof resolves Git from known absolute installation paths or absolute `PATH` entries; if none is available, the report is incomplete and no clone directory is created:
 
 ```bash
 node src/cli.js check https://github.com/owner/repository
@@ -130,6 +130,14 @@ Build syntax-checks the source files:
 npm run build
 ```
 
+The isolated temporary-folder leak guard runs the same offline test suite with `TEMP`, `TMP`, and `TMPDIR` redirected to a fresh folder, waits for detached cleanup supervisors, and fails if any entry remains:
+
+```bash
+npm run test:leaks
+```
+
+`npm test` remains the canonical test command; `test:leaks` is an additional hygiene check and is run in the Ubuntu, macOS, and Windows CI jobs.
+
 This CLI has no hosted deployment target. For submission, publish the repository publicly on the connected GitHub account; for local use, run it from the checkout or build the included Docker image.
 
 ## Docker build
@@ -169,6 +177,15 @@ Docker commands use the local default Docker endpoint. CloneProof creates an iso
 
 Additional advisory findings are `GIT_DEPENDENCIES` for public Git hosts, `PRIVATE_REGISTRY` for non-public package/dependency hosts, `BUILD_OUTPUT_MISSING` for missing package entrypoint/build files, and `SERVICES_LIKELY_REQUIRED` for compose files or common database/cache/broker dependencies. `BUILD_OUTPUT_MISSING` and `SERVICES_LIKELY_REQUIRED` are skipped/info signals: CloneProof does not run builds or start services.
 
+Notable finding codes are:
+
+- `VERIFY_NO_TESTS_RAN` — verification exited `0`, but the bounded test output matched a zero-test result. This is a failed verification because no test-suite evidence was produced; the finding includes the first matched stdout/stderr line.
+- `GIT_METADATA_REQUIRED` — a `pretest`, `test`, or `posttest` lifecycle path references `.git` metadata or Git metadata commands. It is skipped/info during `check` and warning/warning during `verify`, because the Docker snapshot intentionally removes `.git`.
+- `PACKAGE_MANAGER_UNRECOGNIZED` — `package.json` declares a package manager outside the recognized npm, pnpm, Yarn, and Bun set. It is advisory and does not create a lockfile-mismatch failure by itself.
+- `MONOREPO_ROOT_TEST_SCRIPT_MISSING` — a detected workspace root has no root `scripts.test`; nested packages may define the actual test workflows, so this is advisory rather than the single-package blocking `TEST_SCRIPT_MISSING` finding.
+
+Environment-documentation warnings exclude example, fixture, mock, documentation, benchmark, performance, tooling, and CI scopes at any directory depth. Conventional CI and test-tool variables with the prefixes `CI_*`, `GITHUB_*`, `RUNNER_*`, `TRAVIS_*`, `CIRCLE`, `GITLAB_*`, `BITBUCKET_*`, `BUILDKITE_*`, `JENKINS_*`, `TEAMCITY_*`, `APPVEYOR_*`, `DRONE_*`, `CODEBUILD_*`, `JEST_*`, `VITEST_*`, `PLAYWRIGHT_*`, `CYPRESS_*`, `PUPPETEER_*`, `KARMA_*`, `MOCHA_*`, `AVA_*`, `TAP_*`, `WEB_TEST_RUNNER_*`, `BROWSERSTACK_*`, `SAUCE_*`, `CODECOV_*`, `NETLIFY_*`, and `VERCEL_*` are excluded as process or test-service configuration. `AZURE_*` is deliberately not excluded because names such as `AZURE_STORAGE_CONNECTION_STRING` can be real application settings that a fresh clone must document. A direct `process.env` or `import.meta.env` reference with a literal `??`/`||` fallback, or a destructured environment key with a default value, is optional; it is exempt only when every reference to that key is defaulted. A mixed defaulted/non-defaulted key still warns, with evidence for only the non-defaulted references.
+
 The fixed `coverage.notChecked` scope is precise: running build steps (declared outputs are only checked for presence), starting or reaching services (only indicators are detected), OS-specific scripts, registry credentials and access (only hosts are detected), commands in documentation other than the README, and browser/native-build tests during `verify`.
 
 ## What a result means
@@ -189,11 +206,11 @@ The fixed `coverage.notChecked` scope is precise: running build steps (declared 
 |---|---|
 | `passed` | `npm ci --ignore-scripts` and `npm test` succeeded inside the controlled pinned container without advisory warnings. |
 | `passed_with_warnings` | The controlled install/test workflow succeeded, but static warnings or intentionally omitted local files remain. |
-| `failed` | The controlled Docker setup or the target's install/test workflow failed, or cleanup could not be confirmed. Review the bounded output and failed phase. |
+| `failed` | The controlled Docker setup or the target's install/test workflow failed, no tests ran despite an exit code of `0`, or cleanup could not be confirmed. A zero-test result is reported as `VERIFY_NO_TESTS_RAN` with the headline “npm test exited 0, but no tests ran; this verification proves nothing about the test suite.” Review the bounded output and failed phase; zero-test failures intentionally leave `failedPhase` unset. |
 | `blocked` | No target code was run because consent, static prerequisites, network consent, Docker, the pinned image, staging limits, or symlink policy prevented execution. |
 | `incomplete` | The source could not be scanned or staged completely, so verification could not provide a complete result. |
 
-For a passed static check, text and HTML reports say: “No known setup problems were found (N checks). This is not a guarantee that a fresh clone works; see Not checked.” For a passed verification, they say: “npm ci and npm test succeeded inside the controlled container.”
+For a passed static check, text and HTML reports say: “No known setup problems were found across N check groups (M findings). This is not a guarantee that a fresh clone works; see Not checked.” For a passed verification, they say: “npm ci and npm test succeeded inside the controlled container.”
 
 ## Architecture
 

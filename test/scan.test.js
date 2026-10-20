@@ -105,7 +105,7 @@ test('reports npm placeholder test scripts as a blocking finding', () => withRep
   const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   packageData.scripts.test = 'echo "Error: no test specified" && exit 1';
   writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
-  writeFile(root, 'README.md', 'Run `npm test` after installing dependencies.\n');
+  writeFile(root, 'README.md', '```bash\nnpm test\n```\n');
 
   const report = scanRepository(root);
   const placeholder = finding(report, 'TEST_SCRIPT_PLACEHOLDER');
@@ -166,9 +166,33 @@ test('does not warn for browser tooling that is not part of the package test com
   assert.equal(finding(report, 'BROWSER_TESTS_DETECTED'), undefined);
 }));
 
+test('reports when test lifecycle scripts require Git metadata', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.scripts = {
+    pretest: 'git rev-parse --is-inside-work-tree',
+    test: 'git describe --always',
+    posttest: 'git ls-files -z && test -d .git && husky run'
+  };
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+
+  const report = scanRepository(root);
+  const metadata = finding(report, 'GIT_METADATA_REQUIRED');
+
+  assert.equal(metadata.status, 'skipped');
+  assert.equal(metadata.severity, 'info');
+  assert.match(metadata.message, /(?:pretest.*posttest|posttest.*pretest)/);
+  for (const reference of ['.git', 'git describe', 'git ls-files', 'git rev-parse', 'husky']) {
+    assert.match(metadata.message, new RegExp(reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.equal(metadata.evidence.every((item) => item.path === 'package.json'), true);
+  assert.ok(report.coverage.checked.includes(CHECK_GROUPS.TEST_SCRIPT));
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
+}));
+
 test('reports an unknown npm script referenced by README', () => withRepository((root) => {
   writeHealthyRepository(root);
-  writeFile(root, 'README.md', 'Run `npm run release` after installing dependencies.\n');
+  writeFile(root, 'README.md', '```bash\nnpm run release\n```\n');
 
   const report = scanRepository(root);
 
@@ -181,7 +205,7 @@ test('reports an unknown npm script referenced by README', () => withRepository(
 
 test('recognizes bare npm i as a README install command', () => withRepository((root) => {
   writeHealthyRepository(root);
-  writeFile(root, 'README.md', 'Install dependencies with `npm i`.\n');
+  writeFile(root, 'README.md', 'npm i\n');
 
   const report = scanRepository(root);
   const install = finding(report, 'README_INSTALL_COMMAND');
@@ -196,7 +220,7 @@ test('validates npm start against scripts.start or a root server.js', () => with
   const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   packageData.scripts.start = 'node src/server.js';
   writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
-  writeFile(root, 'README.md', 'Start the app with `npm start`.\n');
+  writeFile(root, 'README.md', '```bash\nnpm start\n```\n');
 
   const scripted = scanRepository(root);
   assert.equal(finding(scripted, 'README_SCRIPT_UNKNOWN'), undefined);
@@ -292,12 +316,13 @@ test('checks npm run-script, yarn run, and pnpm run against package scripts', ()
 
   for (const manager of ['npm', 'yarn', 'pnpm']) {
     const runCommand = manager === 'npm' ? 'npm run-script release' : `${manager} run release`;
-    writeFile(root, 'README.md', `Run \`${runCommand}\`.\n`);
+    writeFile(root, 'README.md', `\`\`\`bash\n${runCommand}\n\`\`\`\n`);
     const valid = scanRepository(root);
     assert.equal(finding(valid, 'README_SCRIPT_REFERENCE').status, 'passed', manager);
     assert.equal(finding(valid, 'README_SCRIPT_UNKNOWN'), undefined, manager);
 
-    writeFile(root, 'README.md', `Run \`${manager === 'npm' ? 'npm run-script missing' : `${manager} run missing`}\`.\n`);
+    const missingCommand = manager === 'npm' ? 'npm run-script missing' : `${manager} run missing`;
+    writeFile(root, 'README.md', `\`\`\`bash\n${missingCommand}\n\`\`\`\n`);
     const invalid = scanRepository(root);
     const unknown = finding(invalid, 'README_SCRIPT_UNKNOWN');
     assert.equal(unknown.status, 'failed', manager);
@@ -316,6 +341,24 @@ test('does not treat bare yarn or pnpm commands as script checks', () => withRep
 
   assert.equal(finding(report, 'README_SCRIPT_UNKNOWN'), undefined);
   assert.equal(finding(report, 'README_SCRIPT_REFERENCE'), undefined);
+}));
+
+test('ignores package-manager commands embedded in inline README prose', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    'Run `npm run missing` after setup.',
+    'Then run `npm test` and `npm install`.',
+    'The command `npm start` launches the app.'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'README_SCRIPT_UNKNOWN'), undefined);
+  assert.equal(finding(report, 'README_SCRIPT_REFERENCE'), undefined);
+  assert.equal(finding(report, 'README_TEST_COMMAND'), undefined);
+  assert.equal(finding(report, 'README_INSTALL_COMMAND'), undefined);
+  assert.equal(finding(report, 'README_START_COMMAND_UNKNOWN'), undefined);
+  assert.equal(finding(report, 'README_PACKAGE_MANAGER_MISMATCH'), undefined);
 }));
 
 test('warns on a README setup manager mismatch and suppresses it with a correct setup command', () => withRepository((root) => {
@@ -357,7 +400,7 @@ test('limits README package-manager mismatch checks to setup forms and ignores c
   ];
 
   for (const [command, shouldWarn] of cases) {
-    writeFile(root, 'README.md', `\`${command}\`\n`);
+    writeFile(root, 'README.md', `${command}\n`);
     const report = scanRepository(root);
     assert.equal(Boolean(finding(report, 'README_PACKAGE_MANAGER_MISMATCH')), shouldWarn, command);
   }
@@ -539,11 +582,23 @@ test('does not warn about a missing build output when README documents npm run b
   const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   packageData.main = 'dist/index.js';
   writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
-  writeFile(root, 'README.md', 'Run `npm ci`, `npm test`, and `npm run build`.\n');
+  writeFile(root, 'README.md', '```bash\nnpm ci\nnpm test\nnpm run build\n```\n');
 
   const report = scanRepository(root);
 
   assert.equal(finding(report, 'BUILD_OUTPUT_MISSING'), undefined);
+}));
+
+test('does not treat inline npm run build prose as build documentation', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  const packageData = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  packageData.main = 'dist/index.js';
+  writeFile(root, 'package.json', JSON.stringify(packageData, null, 2));
+  writeFile(root, 'README.md', 'Run `npm run build` before publishing this library.\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'BUILD_OUTPUT_MISSING').status, 'skipped');
 }));
 
 test('does not warn when a declared build output file exists', () => withRepository((root) => {
@@ -667,10 +722,25 @@ test('filters environment warnings by tooling, example, fixture, and root config
   const cases = [
     ['scripts/build.js', false],
     ['examples/a.js', false],
+    ['src/examples/a.js', false],
+    ['src/example/a.js', false],
+    ['src/documentation/a.js', false],
+    ['src/docs/a.js', false],
+    ['src/bench/a.js', false],
+    ['src/benchmark/a.js', false],
+    ['src/benchmarks/a.js', false],
+    ['src/perf/a.js', false],
+    ['src/perf-measures/a.js', false],
+    ['src/ci/a.js', false],
+    ['src/tooling/a.js', false],
+    ['src/tools/a.js', false],
+    ['src/.github/a.js', false],
     ['test/fixtures/x.js', false],
+    ['src/__fixtures__/x.js', false],
+    ['src/e2e/x.js', false],
     ['rollup.config.js', false],
     ['src/index.js', true],
-    ['src/scripts/x.js', true]
+    ['src/scripts/x.js', false]
   ];
 
   for (const [relativePath, shouldWarn] of cases) {
@@ -739,6 +809,84 @@ test('treats proxy variables as conventional but still warns for custom keys', (
   }
 }));
 
+test('treats CI and test-service prefixes as conventional but preserves custom src warnings', () => withRepository((root) => {
+  writeEnvironmentFixture(root, 'console.log("fixture");\n');
+  writeFile(root, 'src/service.js', [
+    'process.env.BROWSERSTACK_USERNAME;',
+    'process.env.SAUCE_ACCESS_KEY;',
+    'process.env.CI_JOB_ID;',
+    'process.env.GITHUB_ACTIONS;',
+    'process.env.CODECOV_TOKEN;',
+    'process.env.NETLIFY_SITE_ID;',
+    'process.env.VERCEL_URL;',
+    'process.env.REAL_APPLICATION_SETTING;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /REAL_APPLICATION_SETTING/);
+  assert.equal(missing.evidence[0].path, 'src/service.js');
+  for (const key of [
+    'BROWSERSTACK_USERNAME', 'SAUCE_ACCESS_KEY', 'CI_JOB_ID', 'GITHUB_ACTIONS',
+    'CODECOV_TOKEN', 'NETLIFY_SITE_ID', 'VERCEL_URL'
+  ]) {
+    assert.doesNotMatch(missing.message, new RegExp(`\\b${key}\\b`));
+  }
+}));
+
+test('treats broad CI and test-tool prefixes as conventional', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'process.env.TRAVIS_BUILD_NUMBER;',
+    'process.env.CIRCLE_WORKFLOW_ID;',
+    'process.env.GITLAB_CI;',
+    'process.env.BITBUCKET_BUILD_NUMBER;',
+    'process.env.BUILDKITE_BUILD_ID;',
+    'process.env.JENKINS_URL;',
+    'process.env.TEAMCITY_VERSION;',
+    'process.env.APPVEYOR_BUILD_ID;',
+    'process.env.DRONE_BUILD_NUMBER;',
+    'process.env.CODEBUILD_BUILD_ID;',
+    'process.env.JEST_WORKER_ID;',
+    'process.env.VITEST_POOL_ID;',
+    'process.env.PLAYWRIGHT_BROWSERS_PATH;',
+    'process.env.CYPRESS_BASE_URL;',
+    'process.env.PUPPETEER_EXECUTABLE_PATH;',
+    'process.env.KARMA_BROWSER;',
+    'process.env.MOCHA_FILE;',
+    'process.env.AVA_PATH;',
+    'process.env.TAP_DOT;',
+    'process.env.WEB_TEST_RUNNER_PORT;',
+    'process.env.REAL_APPLICATION_SETTING;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /REAL_APPLICATION_SETTING/);
+  for (const key of [
+    'TRAVIS_BUILD_NUMBER', 'CIRCLE_WORKFLOW_ID', 'GITLAB_CI', 'BITBUCKET_BUILD_NUMBER',
+    'BUILDKITE_BUILD_ID', 'JENKINS_URL', 'TEAMCITY_VERSION', 'APPVEYOR_BUILD_ID',
+    'DRONE_BUILD_NUMBER', 'CODEBUILD_BUILD_ID', 'JEST_WORKER_ID', 'VITEST_POOL_ID',
+    'PLAYWRIGHT_BROWSERS_PATH', 'CYPRESS_BASE_URL', 'PUPPETEER_EXECUTABLE_PATH',
+    'KARMA_BROWSER', 'MOCHA_FILE', 'AVA_PATH', 'TAP_DOT', 'WEB_TEST_RUNNER_PORT'
+  ]) {
+    assert.doesNotMatch(missing.message, new RegExp(`\\b${key}\\b`));
+  }
+}));
+
+test('does not treat AZURE_ application settings as conventional environment keys', () => withRepository((root) => {
+  writeEnvironmentFixture(root, 'process.env.AZURE_STORAGE_CONNECTION_STRING;\n');
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /AZURE_STORAGE_CONNECTION_STRING/);
+}));
+
 test('does not treat an earlier object destructuring as environment access', () => withRepository((root) => {
   writeEnvironmentFixture(root, [
     "const { join, resolve } = require('path');",
@@ -791,10 +939,71 @@ test('finds multiline, assignment-form, nested, quoted, defaulted, and spread de
   const report = scanRepository(root);
   const missing = finding(report, 'ENV_EXAMPLE_MISSING');
 
-  for (const key of ['ALIASED', 'ASSIGNED', 'DEFAULTED', 'MULTILINE', 'NESTED', 'QUOTED_KEY']) {
+  for (const key of ['ALIASED', 'ASSIGNED', 'MULTILINE', 'NESTED', 'QUOTED_KEY']) {
     assert.match(missing.message, new RegExp(key));
   }
+  assert.doesNotMatch(missing.message, /DEFAULTED/);
   assert.doesNotMatch(missing.message, /ignored|alsoIgnored|rest|localAlias/);
+}));
+
+test('does not require environment examples for literal direct-access defaults', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'const port = process.env.PORT ?? "3000";',
+    'const host = process.env.HOST || 3000;',
+    'const doubleQuoted = process.env["DOUBLE_QUOTED"] ?? "fallback";',
+    "const singleQuoted = process.env['SINGLE_QUOTED'] || 42;",
+    "const vite = import.meta.env.VITE_MODE ?? 'a';",
+    'const noSemicolon = process.env.NO_SEMICOLON ?? "fallback"',
+    'const template = process.env.TEMPLATE ?? `fallback`;',
+    'const enabled = process.env.ENABLED || false;',
+    'const empty = process.env.EMPTY ?? null;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENV_EXAMPLE_MISSING'), undefined);
+  assert.equal(finding(report, 'ENV_KEY_MISSING'), undefined);
+}));
+
+test('does not require environment examples for destructuring defaults', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'const { PORT = 3000, HOST: host = "localhost" } = process.env;',
+    'const { VITE_MODE = `fallback` } = import.meta.env;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENV_EXAMPLE_MISSING'), undefined);
+  assert.equal(finding(report, 'ENV_KEY_MISSING'), undefined);
+}));
+
+test('requires an environment example when any reference is non-defaulted', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'const value = process.env.MIXED ?? "fallback";',
+    'const required = process.env.MIXED;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.equal(missing.evidence.length, 1);
+  assert.equal(missing.evidence[0].path, 'index.js');
+  assert.equal(missing.evidence[0].line, 2);
+}));
+
+test('does not treat non-literal or bare environment access as defaulted', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'const variable = process.env.NOT_LITERAL ?? someVariable;',
+    'const bare = process.env.BARE;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /BARE, NOT_LITERAL/);
+  assert.deepEqual(missing.evidence.map((item) => item.line), [1, 2]);
 }));
 
 test('does not infer environment keys from ordinary object literals or aliases', () => withRepository((root) => {
@@ -1175,6 +1384,135 @@ test('fails when packageManager disagrees with the root lockfile', () => withRep
   assert.equal(report.status, 'failed');
   assert.equal(finding(report, 'PACKAGE_MANAGER_LOCKFILE_MISMATCH').status, 'failed');
 }));
+
+test('warns without failing when packageManager names an unrecognized manager', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'unknown-manager',
+    packageManager: 'nub@1.1.0',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"unknown-manager","lockfileVersion":3,"packages":{}}\n');
+
+  const report = scanRepository(root);
+  const unrecognized = finding(report, 'PACKAGE_MANAGER_UNRECOGNIZED');
+
+  assert.equal(report.status, 'passed_with_warnings');
+  assert.equal(unrecognized.status, 'warning');
+  assert.equal(unrecognized.severity, 'warning');
+  assert.equal(finding(report, 'PACKAGE_MANAGER_LOCKFILE_MISMATCH'), undefined);
+  assert.equal(report.project.packageManager, 'nub');
+  assert.ok(report.coverage.checked.includes(CHECK_GROUPS.PACKAGE_MANAGER));
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
+}));
+
+test('uses the lockfile manager for README comparison when packageManager is unrecognized', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'unknown-manager-readme',
+    packageManager: 'nub@0.8.3',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'pnpm-lock.yaml', 'lockfileVersion: 9.0\n');
+  writeFile(root, 'README.md', 'pnpm install\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.project.packageManager, 'nub');
+  assert.equal(finding(report, 'PACKAGE_MANAGER_UNRECOGNIZED').status, 'warning');
+  assert.equal(finding(report, 'README_PACKAGE_MANAGER_MISMATCH'), undefined);
+}));
+
+test('recognized package managers still warn when README setup uses another manager', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'yarn-readme-mismatch',
+    packageManager: 'yarn@4',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+  writeFile(root, 'yarn.lock', '# yarn lockfile v1\n');
+  writeFile(root, 'README.md', 'npm install\n');
+
+  const report = scanRepository(root);
+  const mismatch = finding(report, 'README_PACKAGE_MANAGER_MISMATCH');
+
+  assert.equal(mismatch.status, 'warning');
+  assert.match(mismatch.message, /npm/);
+  assert.match(mismatch.message, /yarn/);
+}));
+
+test('recognizes bun as a supported package manager and lockfile', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'bun-project',
+    packageManager: 'bun@1.1.0',
+    scripts: { test: 'bun test' }
+  }, null, 2));
+  writeFile(root, 'bun.lock', 'lockfileVersion = 1\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.project.packageManager, 'bun');
+  assert.equal(finding(report, 'PACKAGE_MANAGER_UNRECOGNIZED'), undefined);
+  assert.equal(finding(report, 'PACKAGE_MANAGER_LOCKFILE_MISMATCH'), undefined);
+  assert.equal(finding(report, 'LOCKFILE_PRESENT').status, 'passed');
+}));
+
+test('warns instead of failing when a workspace root has no root test script', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'workspace-root',
+    private: true,
+    workspaces: ['packages/*'],
+    scripts: { build: 'node build.js' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"workspace-root","lockfileVersion":3,"packages":{}}\n');
+  writeFile(root, 'packages/one/package.json', JSON.stringify({
+    name: '@workspace/one',
+    scripts: { test: 'node --test' }
+  }, null, 2));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'MONOREPO_ROOT_TEST_SCRIPT_MISSING');
+
+  assert.equal(report.status, 'passed_with_warnings');
+  assert.equal(missing.status, 'warning');
+  assert.equal(missing.severity, 'warning');
+  assert.equal(finding(report, 'TEST_SCRIPT_MISSING'), undefined);
+  assert.match(missing.message, /workspace root/i);
+  assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
+}));
+
+test('single-package roots without a test script still fail', () => withRepository((root) => {
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'single-package',
+    scripts: { build: 'node build.js' }
+  }, null, 2));
+  writeFile(root, 'package-lock.json', '{"name":"single-package","lockfileVersion":3,"packages":{}}\n');
+  writeFile(root, 'src/index.js', 'module.exports = 1;\n');
+
+  const report = scanRepository(root);
+
+  assert.equal(report.status, 'failed');
+  assert.equal(finding(report, 'TEST_SCRIPT_MISSING').status, 'failed');
+  assert.equal(finding(report, 'MONOREPO_ROOT_TEST_SCRIPT_MISSING'), undefined);
+}));
+
+test('recognizes workspace markers and private nested-package roots', () => {
+  const cases = [
+    { name: 'marker', packageData: {}, nestedPath: 'services/one/package.json', marker: 'pnpm-workspace.yaml' },
+    { name: 'private', packageData: { private: true }, nestedPath: 'client/package.json' }
+  ];
+
+  for (const item of cases) {
+    withRepository((root) => {
+      writeFile(root, 'package.json', JSON.stringify({ name: `${item.name}-root`, ...item.packageData }, null, 2));
+      writeFile(root, 'package-lock.json', `{"name":"${item.name}-root","lockfileVersion":3,"packages":{}}\n`);
+      writeFile(root, item.nestedPath, '{"name":"nested-package"}\n');
+      if (item.marker) writeFile(root, item.marker, 'packages:\n  - services/*\n');
+
+      const report = scanRepository(root);
+
+      assert.equal(finding(report, 'MONOREPO_ROOT_TEST_SCRIPT_MISSING').status, 'warning', item.name);
+      assert.equal(finding(report, 'TEST_SCRIPT_MISSING'), undefined, item.name);
+    });
+  }
+});
 
 test('warns when exact Node runtime declarations disagree', () => withRepository((root) => {
   writeFile(root, 'package.json', JSON.stringify({

@@ -6,6 +6,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const { resolveGitExecutable } = require('../util/executable');
+const { runCleanupSupervisor, startCleanupSupervisor, stopCleanupSupervisor } = require('../util/cleanup-supervisor');
 
 const DEFAULT_CLONE_LIMITS = Object.freeze({
   maxDepth: 25,
@@ -137,6 +138,10 @@ function invalidUrl(message) {
   throw new GithubSourceError(`Invalid GitHub repository URL: ${message}`, 'GITHUB_URL_INVALID');
 }
 
+function canonicalGithubRepositoryUrl(owner, repo) {
+  return `https://github.com/${owner}/${repo}`;
+}
+
 /**
  * Validate and describe a public GitHub repository URL.
  *
@@ -169,8 +174,8 @@ function validateGithubUrl(value) {
   if (parsed.protocol !== 'https:') {
     invalidUrl('only HTTPS URLs are supported');
   }
-  if (parsed.hostname !== 'github.com') {
-    invalidUrl('the host must be github.com');
+  if (parsed.hostname !== 'github.com' && parsed.hostname !== 'www.github.com') {
+    invalidUrl('the host must be github.com or www.github.com');
   }
   if (parsed.port !== '') {
     invalidUrl('custom ports are not supported');
@@ -178,22 +183,24 @@ function validateGithubUrl(value) {
   if (parsed.username !== '' || parsed.password !== '') {
     invalidUrl('credentials are not allowed');
   }
-  if (parsed.search !== '' || parsed.hash !== '' || /[?#]/.test(value)) {
-    invalidUrl('query strings and fragments are not allowed');
-  }
-
   // GitHub names do not need URL decoding here. Rejecting escapes also
   // prevents encoded slashes and other alternate path spellings from
   // bypassing the exact two-component check.
   const pathMatch = /^\/([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*?)(?:\.git)?\/?$/.exec(parsed.pathname);
   if (!pathMatch) {
+    const subpathMatch = /^\/([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*?)(?:\.git)?\/(tree|blob)(?:\/|$)/i.exec(parsed.pathname);
+    if (subpathMatch) {
+      invalidUrl(
+        `GitHub ${subpathMatch[3].toLowerCase()} URLs are not supported; use the canonical repository URL ${canonicalGithubRepositoryUrl(subpathMatch[1], subpathMatch[2])}`
+      );
+    }
     invalidUrl('expected exactly /owner/repository with an optional .git suffix or trailing slash');
   }
 
   const owner = pathMatch[1];
   const repo = pathMatch[2];
   return Object.freeze({
-    url: parsed.href,
+    url: canonicalGithubRepositoryUrl(owner, repo),
     owner,
     repo,
     repository: `${owner}/${repo}`
@@ -230,27 +237,40 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch, opt
     ? (options.hostEnvironment || options.environment)
     : process.env;
   const token = githubTokenFromEnvironment(hostEnvironment);
-  const preflightAuthenticated = token !== null;
+  let preflightAuthenticated = token !== null;
+  let preflightTokenRejected = false;
+  const tokenRejectionMetadata = () => preflightTokenRejected
+    ? { preflightTokenRejected: true }
+    : {};
   const unavailable = (preflightReason, error) => ({
     state: 'unavailable',
     preflightAuthenticated,
     preflightReason,
+    ...tokenRejectionMetadata(),
     ...(error ? { error: redactGithubToken(error, token) } : {})
   });
 
   if (typeof fetcher !== 'function') return unavailable('no-fetch');
 
   const apiUrl = `https://api.github.com/repos/${source.owner}/${source.repo}`;
-  try {
+  const fetchMetadata = (requestToken) => {
     const headers = {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'cloneproof'
     };
-    if (token !== null) headers.Authorization = `Bearer ${token}`;
-    const response = await fetcher(apiUrl, {
+    if (requestToken !== null) headers.Authorization = `Bearer ${requestToken}`;
+    return fetcher(apiUrl, {
       headers,
       signal: AbortSignal.timeout(GITHUB_PREFLIGHT_TIMEOUT_MS)
     });
+  };
+  try {
+    let response = await fetchMetadata(token);
+    if (response && response.status === 401 && token !== null) {
+      preflightTokenRejected = true;
+      preflightAuthenticated = false;
+      response = await fetchMetadata(null);
+    }
     if (!response || typeof response.status !== 'number') return unavailable('invalid-response');
     if (response.status === 401) return unavailable('http-401');
     if (response.status === 403 || response.status === 429) {
@@ -269,6 +289,7 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch, opt
       error.preflight = 'checked';
       error.preflightAuthenticated = preflightAuthenticated;
       error.preflightReason = 'http-404';
+      Object.assign(error, tokenRejectionMetadata());
       throw error;
     }
     if (response.status !== 200) return unavailable(`http-${response.status}`);
@@ -287,6 +308,7 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch, opt
       error.preflight = 'checked';
       error.preflightAuthenticated = preflightAuthenticated;
       error.preflightReason = 'checked';
+      Object.assign(error, tokenRejectionMetadata());
       throw error;
     }
     if (metadata.private !== false || !Number.isFinite(metadata.size) || metadata.size < 0) {
@@ -302,11 +324,18 @@ async function preflightGithubRepository(source, fetcher = globalThis.fetch, opt
       error.preflight = 'checked';
       error.preflightAuthenticated = preflightAuthenticated;
       error.preflightReason = 'checked';
+      Object.assign(error, tokenRejectionMetadata());
       error.repositorySizeKb = repositorySizeKb;
       throw error;
     }
 
-    return { state: 'checked', preflightReason: 'checked', repositorySizeKb, preflightAuthenticated };
+    return {
+      state: 'checked',
+      preflightReason: 'checked',
+      repositorySizeKb,
+      preflightAuthenticated,
+      ...tokenRejectionMetadata()
+    };
   } catch (error) {
     if (error && (error.code === 'GITHUB_REPOSITORY_UNAVAILABLE' || error.code === 'GITHUB_REPOSITORY_TOO_LARGE')) {
       throw error;
@@ -322,12 +351,14 @@ function relativePath(rootPath, absolutePath) {
   return (path.relative(rootPath, absolutePath) || '.').split(path.sep).join('/');
 }
 
-function limitError(message, relative, limit) {
+function limitError(label, relative, limitName, limit, count) {
   const error = new GithubSourceError(
-    `GitHub checkout limit exceeded: ${message}${relative ? ` at ${relative}` : ''}`,
+    `GitHub checkout limit exceeded: ${label} exceeded configured ${limitName}=${limit}; count reached ${count}${relative ? ` at ${relative}` : ''}`,
     'GITHUB_CHECKOUT_LIMIT_EXCEEDED'
   );
   error.limit = limit;
+  error.limitName = limitName;
+  error.count = count;
   error.path = relative || '.';
   return error;
 }
@@ -388,7 +419,7 @@ function inspectCheckout(rootPath, options = {}) {
       const relative = relativePath(root, absolute);
       metadata.entryCount += 1;
       if (metadata.entryCount > limits.maxEntries) {
-        throw limitError('entry count', relative, limits.maxEntries);
+        throw limitError('entry count', relative, 'maxEntries', limits.maxEntries, metadata.entryCount);
       }
 
       let stat;
@@ -411,7 +442,7 @@ function inspectCheckout(rootPath, options = {}) {
       if (stat.isDirectory()) {
         const nextDepth = depth + 1;
         if (nextDepth > limits.maxDepth) {
-          throw limitError('directory depth', relative, limits.maxDepth);
+          throw limitError('directory depth', relative, 'maxDepth', limits.maxDepth, nextDepth);
         }
         metadata.maxDepth = Math.max(metadata.maxDepth, nextDepth);
         walk(absolute, nextDepth);
@@ -420,13 +451,19 @@ function inspectCheckout(rootPath, options = {}) {
 
       if (!stat.isFile()) continue;
       if (stat.size > limits.maxFileBytes) {
-        throw limitError('file size', relative, limits.maxFileBytes);
+        throw limitError('file size', relative, 'maxFileBytes', limits.maxFileBytes, stat.size);
       }
       if (metadata.fileCount >= limits.maxFiles) {
-        throw limitError('file count', relative, limits.maxFiles);
+        throw limitError('file count', relative, 'maxFiles', limits.maxFiles, metadata.fileCount + 1);
       }
       if (metadata.totalBytes + stat.size > limits.maxTotalBytes) {
-        throw limitError('total file bytes', relative, limits.maxTotalBytes);
+        throw limitError(
+          'total file bytes',
+          relative,
+          'maxTotalBytes',
+          limits.maxTotalBytes,
+          metadata.totalBytes + stat.size
+        );
       }
 
       metadata.fileCount += 1;
@@ -682,15 +719,34 @@ async function cloneGithubRepository(value, options = {}) {
     error.preflight = preflight.state;
     error.preflightReason = preflight.preflightReason;
     error.preflightAuthenticated = preflight.preflightAuthenticated === true;
+    if (preflight.preflightTokenRejected === true) error.preflightTokenRejected = true;
     if (preflight.repositorySizeKb !== undefined) error.repositorySizeKb = preflight.repositorySizeKb;
     throw error;
   }
   let temporaryRoot;
   let temporaryParent;
+  let cleanupSupervisor;
 
   try {
     temporaryParent = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'cloneproof-github-'));
     temporaryRoot = path.join(temporaryParent, 'checkout');
+    const cleanupSupervisorEnabled = config.cleanupSupervisor === true
+      || ((config.platform || process.platform) === 'win32' && config.cleanupSupervisor !== false);
+    if (cleanupSupervisorEnabled) {
+      cleanupSupervisor = startCleanupSupervisor({
+        scriptPath: __filename,
+        cwd: os.tmpdir(),
+        env: buildGitCloneInvocation({
+          url: source.url,
+          checkoutPath: temporaryRoot,
+          parentPath: temporaryParent,
+          platform: config.platform || process.platform,
+          hostEnvironment,
+          useGlobalConfig: false
+        }).env,
+        paths: [temporaryParent]
+      });
+    }
     await fs.promises.mkdir(temporaryRoot);
     const emptyGitConfig = path.join(temporaryParent, 'empty-gitconfig');
     await fs.promises.writeFile(emptyGitConfig, '', 'utf8');
@@ -735,6 +791,7 @@ async function cloneGithubRepository(value, options = {}) {
     if (!cloneSucceeded(result, maxOutputBytes)) {
       const error = cloneFailure(result, maxOutputBytes, githubToken);
       error.preflightReason = preflight.preflightReason;
+      if (preflight.preflightTokenRejected === true) error.preflightTokenRejected = true;
       throw error;
     }
 
@@ -786,6 +843,7 @@ async function cloneGithubRepository(value, options = {}) {
     let cleaned = false;
     const cleanup = async () => {
       if (cleaned) return;
+      stopCleanupSupervisor(cleanupSupervisor);
       try {
         await removeDirectory(temporaryParent);
         cleaned = true;
@@ -803,6 +861,7 @@ async function cloneGithubRepository(value, options = {}) {
       preflight: preflight.state,
       preflightReason: preflight.preflightReason,
       preflightAuthenticated: preflight.preflightAuthenticated === true,
+      ...(preflight.preflightTokenRejected === true ? { preflightTokenRejected: true } : {}),
       ...(preflight.repositorySizeKb === undefined ? {} : { repositorySizeKb: preflight.repositorySizeKb }),
       executablePaths: fileModes.executablePaths,
       symlinkPaths: fileModes.symlinkPaths,
@@ -827,12 +886,14 @@ async function cloneGithubRepository(value, options = {}) {
       if (error.preflightAuthenticated === undefined) {
         error.preflightAuthenticated = preflight.preflightAuthenticated === true;
       }
+      if (preflight.preflightTokenRejected === true) error.preflightTokenRejected = true;
       if (error.repositorySizeKb === undefined && preflight.repositorySizeKb !== undefined) {
         error.repositorySizeKb = preflight.repositorySizeKb;
       }
       if (error.message) error.message = redactGithubToken(error.message, githubToken);
       if (error.stack) error.stack = redactGithubToken(error.stack, githubToken);
     }
+    stopCleanupSupervisor(cleanupSupervisor);
     if (temporaryParent) {
       try {
         await removeDirectory(temporaryParent);
@@ -843,6 +904,10 @@ async function cloneGithubRepository(value, options = {}) {
     }
     throw error;
   }
+}
+
+if (require.main === module && process.argv[2] === '--cleanup-supervisor') {
+  runCleanupSupervisor(process.argv[3]);
 }
 
 module.exports = {

@@ -77,20 +77,31 @@ test('renderText explains a passed static check and renders coverage sections', 
     mode: 'check',
     target: { kind: 'local', name: 'healthy-repository' },
     status: 'passed',
-    coverage: { checked: ALL_CHECK_GROUPS, notChecked: NOT_CHECKED },
-    findings: [],
-    summary: { total: 0, passed: 0, failed: 0, warnings: 0, skipped: 0 }
+    coverage: { checked: ALL_CHECK_GROUPS.slice(0, 12), notChecked: NOT_CHECKED },
+    findings: Array.from({ length: 6 }, (_, index) => ({
+      status: 'passed',
+      code: `CHECK-${index + 1}`,
+      title: `Check group ${index + 1} passed`,
+      message: 'No setup problem was found.'
+    })),
+    summary: { total: 6, passed: 6, failed: 0, warnings: 0, skipped: 0 }
   };
 
   const output = renderText(report, { color: false, isTTY: false });
   const html = renderHtml(report);
 
-  assert.match(output, /Status: passed\nNo known setup problems were found \(15 checks\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(output, /Status: passed\nNo known setup problems were found across 12 check groups \(6 findings\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(output, /Finding counts:\n  Total: 6/);
+  assert.equal((output.match(/^Findings:$/gm) || []).length, 1);
+  assert.equal((output.match(/^Finding counts:$/gm) || []).length, 1);
   assert.match(output, /What was checked:/);
   assert.match(output, /Package manifest \(package-manifest\)/);
   assert.match(output, /Not checked:/);
   assert.match(output, /Running build steps \(declared outputs are only checked for presence\) \(build-steps-generated-output\)/);
-  assert.match(html, /No known setup problems were found \(15 checks\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(html, /No known setup problems were found across 12 check groups \(6 findings\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
+  assert.match(html, /<h3 id="counts-heading">Finding counts<\/h3>/);
+  assert.equal((html.match(/<h3 id="counts-heading">Finding counts<\/h3>/g) || []).length, 1);
+  assert.equal((html.match(/<h2 id="findings-heading">Findings /g) || []).length, 1);
   assert.match(html, /What was checked/);
   assert.match(html, /Not checked/);
 });
@@ -117,12 +128,59 @@ test('renderText and renderHtml explain a passed Docker verification', () => {
   const html = renderHtml(report);
   const explanation = 'npm ci and npm test succeeded inside the controlled container.';
 
+  assert.equal((text.match(/^Findings:$/gm) || []).length, 1);
+  assert.equal((text.match(/^Finding counts:$/gm) || []).length, 1);
+  assert.equal((html.match(/<h3 id="counts-heading">Finding counts<\/h3>/g) || []).length, 1);
+  assert.equal((html.match(/<h2 id="findings-heading">Findings /g) || []).length, 1);
   assert.match(text, new RegExp(`Status: passed\\n${explanation.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}`));
   assert.match(html, new RegExp(explanation.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')));
   assert.match(html, /What was checked/);
   assert.match(html, /Not checked/);
   assert.match(html, /Package manifest/);
   assert.match(html, /Running build steps \(declared outputs are only checked for presence\)/);
+});
+
+test('renderText and renderHtml do not claim success when no tests ran', () => {
+  const report = {
+    schemaVersion: 2,
+    mode: 'verify',
+    target: { kind: 'local', name: 'empty-test-repository' },
+    status: 'failed',
+    coverage: { checked: ALL_CHECK_GROUPS, notChecked: NOT_CHECKED },
+    findings: [{
+      code: 'VERIFY_NO_TESTS_RAN',
+      status: 'failed',
+      severity: 'error',
+      title: 'npm test exited 0, but no tests ran; this verification proves nothing about the test suite.',
+      message: 'npm test exited 0, but no tests ran; this verification proves nothing about the test suite.',
+      evidence: [{ path: 'verification.stdout', detail: 'Matched zero-test line: Test Files 0 passed (0)' }],
+      recommendation: 'Add or select at least one test.'
+    }],
+    summary: { total: 1, passed: 0, failed: 1, warnings: 0, skipped: 0 },
+    verification: {
+      outcome: 'failed',
+      noTestsRan: true,
+      networkMode: 'none',
+      networkConsent: false,
+      exitCode: 0,
+      cleanup: { completed: true },
+      stdout: 'Test Files 0 passed (0)\n',
+      stderr: ''
+    }
+  };
+
+  const text = renderText(report, { color: false, isTTY: false });
+  const html = renderHtml(report);
+  const headline = 'npm test exited 0, but no tests ran; this verification proves nothing about the test suite.';
+
+  assert.match(text, /VERIFY_NO_TESTS_RAN/);
+  assert.match(text, new RegExp(headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(text, /Tests detected: no/);
+  assert.doesNotMatch(text, /npm ci and npm test succeeded/);
+  assert.match(html, /VERIFY_NO_TESTS_RAN/);
+  assert.match(html, new RegExp(headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(html, /Tests detected.*no/);
+  assert.doesNotMatch(html, /npm ci and npm test succeeded/);
 });
 
 test('renderText includes the report summary and every finding status', () => {
@@ -272,7 +330,7 @@ test('renderHtml is self-contained and includes the accessible report sections',
   assert.match(output, /Target:.*sample-repository/);
   assert.match(output, /Summary/);
   assert.match(output, /Status:.*passed_with_warnings/);
-  assert.match(output, /Counts/);
+  assert.match(output, /<h3 id="counts-heading">Finding counts<\/h3>/);
   assert.match(output, /Total.*4/);
   assert.match(output, /Findings/);
   assert.match(output, /PKG-001/);

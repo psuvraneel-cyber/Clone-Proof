@@ -31,6 +31,24 @@ jobs:
         run: npm ci
       - name: Run tests
         run: npm test
+      - name: Check for temporary leaks
+        run: npm run test:leaks
+      - name: Repeat Windows cleanup test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tempRoot = [System.IO.Path]::GetTempPath()
+          $before = @(Get-ChildItem -Path $tempRoot -Filter 'cloneproof-*' -Force -ErrorAction SilentlyContinue | ForEach-Object FullName)
+          1..10 | ForEach-Object {
+            npm test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          $after = @(Get-ChildItem -Path $tempRoot -Filter 'cloneproof-*' -Force -ErrorAction SilentlyContinue | ForEach-Object FullName)
+          $newEntries = @($after | Where-Object { $_ -notin $before })
+          if ($newEntries.Count -gt 0) {
+            Write-Error "New CloneProof temporary entries remain: $($newEntries -join ', ')"
+            exit 1
+          }
       - name: Smoke test GitHub archive global CLI
         shell: bash
         run: |
@@ -44,17 +62,16 @@ jobs:
           const fs = require('node:fs');
           const pack = JSON.parse(fs.readFileSync('pack-dry-run.json', 'utf8'))[0];
           const files = pack.files.map(({ path }) => path).sort();
+          const sourceFiles = require('node:child_process')
+            .execFileSync('git', ['ls-files', 'src'], { encoding: 'utf8' })
+            .split(/\r?\n/)
+            .filter(Boolean)
+            .map((path) => path.replaceAll('\\', '/'));
           const expected = [
             'LICENSE',
             'README.md',
             'package.json',
-            'src/cli.js',
-            'src/input/github.js',
-            'src/report/coverage.js',
-            'src/report/render.js',
-            'src/scan/repository.js',
-            'src/util/executable.js',
-            'src/verify/docker.js'
+            ...sourceFiles
           ].sort();
           if (JSON.stringify(files) !== JSON.stringify(expected)) {
             throw new Error(`Unexpected npm package contents: ${files.join(', ')}`);

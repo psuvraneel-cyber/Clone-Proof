@@ -136,6 +136,28 @@ test('configured token rejection notice contains no token value', () => {
   ]);
 });
 
+test('retried token rejection notice is safe and does not require an authenticated result', () => {
+  const writes = [];
+  const originalWrite = process.stderr.write;
+  process.stderr.write = (value) => {
+    writes.push(String(value));
+    return true;
+  };
+  try {
+    reportPreflightNotice({
+      preflightReason: 'checked',
+      preflightAuthenticated: false,
+      preflightTokenRejected: true
+    });
+  } finally {
+    process.stderr.write = originalWrite;
+  }
+
+  assert.deepEqual(writes, [
+    'CloneProof: GitHub rejected the configured token (401); retried the public preflight without it.\n'
+  ]);
+});
+
 test('invalid GitHub URLs return a blocked machine-readable report without invoking git', () => {
   const result = spawnSync(process.execPath, [
     cliPath,
@@ -158,11 +180,55 @@ test('invalid GitHub URLs return a blocked machine-readable report without invok
   assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
 });
 
-test('GitHub-shaped targets without https are rejected with a canonical URL hint', () => {
-  for (const target of [
-    'github.com/example/project',
-    'www.github.com/example/project',
-    'git@github.com:example/project.git'
+test('non-existing owner/repo paths stay local and include a GitHub suggestion', () => {
+  const directory = fs.mkdtempSync(path.join(projectRoot, 'tmp-cli-github-suggestion-'));
+  const owner = path.basename(directory);
+  const target = path.join(owner, 'project');
+  try {
+    const result = spawnSync(process.execPath, [cliPath, 'check', target, '--format', 'json'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: { ...process.env, NO_COLOR: '1' }
+    });
+
+    assert.equal(result.status, 2);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.target.kind, 'local');
+    assert.equal(report.target.name, 'project');
+    assert.notEqual(report.findings[0].code, 'GITHUB_URL_INVALID');
+    const rootFinding = report.findings.find((finding) => finding.code === 'SCAN_ROOT_UNAVAILABLE');
+    assert.ok(rootFinding);
+    assert.match(rootFinding.message, new RegExp(`Did you mean https://github\\.com/${owner}/project\\?`));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('nested local paths do not guess a GitHub owner and repository from the last segments', () => {
+  const directory = fs.mkdtempSync(path.join(projectRoot, 'tmp-cli-github-nested-'));
+  const target = path.relative(projectRoot, path.join(directory, 'nested', 'project'));
+  try {
+    const result = spawnSync(process.execPath, [cliPath, 'check', target, '--format', 'json'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: { ...process.env, NO_COLOR: '1' }
+    });
+
+    assert.equal(result.status, 2);
+    const report = JSON.parse(result.stdout);
+    const rootFinding = report.findings.find((finding) => finding.code === 'SCAN_ROOT_UNAVAILABLE');
+    assert.ok(rootFinding);
+    assert.doesNotMatch(rootFinding.message, /Did you mean https:\/\/github\.com\//);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('GitHub-shaped relative paths remain local while suggesting the canonical root', () => {
+  for (const [target, expected] of [
+    ['github.com/example/project', 'example/project'],
+    ['www.github.com/example/project', 'example/project'],
+    ['git@github.com:example/project.git', 'example/project']
   ]) {
     const result = spawnSync(process.execPath, [cliPath, 'check', target, '--format', 'json'], {
       cwd: projectRoot,
@@ -172,9 +238,11 @@ test('GitHub-shaped targets without https are rejected with a canonical URL hint
 
     assert.equal(result.status, 2, target);
     const report = JSON.parse(result.stdout);
-    assert.equal(report.status, 'blocked', target);
-    assert.equal(report.findings[0].code, 'GITHUB_URL_INVALID', target);
-    assert.match(report.findings[0].message, /use https:\/\/github\.com\/OWNER\/REPO/);
+    assert.equal(report.target.kind, 'local', target);
+    assert.equal(report.target.name, path.basename(target), target);
+    const rootFinding = report.findings.find((finding) => finding.code === 'SCAN_ROOT_UNAVAILABLE');
+    assert.ok(rootFinding, target);
+    assert.match(rootFinding.message, new RegExp(`Did you mean https://github\\.com/${expected.replace('/', '\\/')}\\?`));
   }
 });
 
