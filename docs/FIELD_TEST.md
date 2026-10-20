@@ -271,6 +271,48 @@ The repeatable procedure is committed as `scripts/planted-bugs-real.js`; it does
 
 On the Windows host, all existing `cloneproof-*` directories were removed before the measurement. The directory count was **0 before** and **0 after** ten exact `npm test` repetitions; **0 new directories** were created. Every run exited `0`. The cleanup-failure regression test now removes its intentionally retained fixture in a `finally` block, so repeated test runs do not leave clone directories behind.
 
+## Run 4: final review rechecks (expected before execution)
+
+The following expectations were written before any Run 4 command was started. The target repository commands use the local CloneProof implementation at the review baseline that will be recorded in the actual-results table below.
+
+| Command | Expected result |
+|---|---|
+| `node src/cli.js verify https://github.com/uuidjs/uuid --docker --execute --allow-network` | `failed`, exit `1`; `VERIFY_NO_TESTS_RAN` evidence contains `# tests 0`; `GIT_METADATA_REQUIRED` is `warning` and mentions `.git`. |
+| `node src/cli.js verify https://github.com/typestack/class-validator --docker --execute --allow-network` | `passed`, exit `0`; bounded output reports 806 tests. |
+| `node src/cli.js check https://github.com/typicode/json-server` | `passed`, exit `0`; no `ENV_EXAMPLE_MISSING`. |
+| `node src/cli.js check https://github.com/tj/commander.js --no-color` | `passed`, exit `0`; exactly one `Findings:` line and one `Finding counts:` line. |
+| `node src/cli.js check examples/broken-node` | `failed`, exit `1`. |
+| `node src/cli.js check https://github.com/colinhacks/zod` | exit `0`; includes `PACKAGE_MANAGER_UNRECOGNIZED`. |
+| `node src/cli.js check https://github.com/date-fns/date-fns` | exit `0`; includes `MONOREPO_ROOT_TEST_SCRIPT_MISSING`. |
+| `node src/cli.js check https://github.com/sindresorhus/got` and `node src/cli.js check https://github.com/honojs/hono` | exit `0`; neither reports `ENV_EXAMPLE_MISSING`. |
+| Two `node src/cli.js check <repository> --format json --output <file>` runs for each of express, nest, commander.js, axios, json-server, ms, clsx, ky, trpc, and zod | both runs exit `0` and the resulting JSON bytes are identical for each repository. |
+
+### Run 4 actual results
+
+The commands were run against local CloneProof commit `ef8056d` (`test: cover Git metadata verification warnings`). This table records the actual status, exit code, reported target commit where available, and wall-clock duration for every direct recheck. The JSON-repeat rows also record the byte-identity result.
+
+| Command / target | Actual result | Target commit | Exit | Duration | Notes |
+|---|---|---|---:|---:|---|
+| `uuidjs/uuid` verify | `failed`; `VERIFY_NO_TESTS_RAN` evidence `Matched zero-test line: # tests 0`; `GIT_METADATA_REQUIRED` warning mentions `.git` | `3b70ec29ef9067be33384a16dcd48dc77a0efdf4` | 1 | 21507 | Container exit code remained 0; `verification.noTestsRan: true`; `failedPhase` was not `test`. |
+| `typestack/class-validator` verify | `passed`; output reported `Tests: 806 passed, 806 total` | `2e1a5c27dbd65b80e27fe96b49bd6e6641fa3603` | 0 | 63018 | — |
+| `typicode/json-server` check | `passed`; no `ENV_EXAMPLE_MISSING` | `89a34a44b7a6a5311dc84f3b8a1b8b45c0905aea` | 0 | 2073 | — |
+| `tj/commander.js` check | `passed`; one `Findings:` line and one `Finding counts:` line; no ANSI output | `ba6d13ddb4243e5913367734f8c159089ffe7834` | 0 | 4508 | — |
+| `examples/broken-node` check | `failed` | local | 1 | 119 | — |
+| `colinhacks/zod` check | `passed_with_warnings`; `PACKAGE_MANAGER_UNRECOGNIZED` | `afdac65e0f80c0ccf9e8909da97c411567908b57` | 0 | 3955 | — |
+| `date-fns/date-fns` check | `passed_with_warnings`; `MONOREPO_ROOT_TEST_SCRIPT_MISSING` | `717ce0a807ea4c6b540d015b5c408723175b2838` | 0 | 4107 | — |
+| `sindresorhus/got` check | `passed_with_warnings`; no `ENV_EXAMPLE_MISSING` | `05b4476913da39a47dd8e20d29e250f28b0a6dca` | 0 | 2368 | `LOCKFILE_MISSING` was the warning. |
+| `honojs/hono` check | `passed`; no `ENV_EXAMPLE_MISSING` | `5ca49b0720755c585c9a9835f0a479ceea36fb52` | 0 | 2821 | — |
+| JSON repeat: express | both `passed_with_warnings`; byte-identical | `0dee2c52c7c873498f8ed7d8ee4ddd0a04d3ada8` | 0 / 0 | 8236 | — |
+| JSON repeat: nest | both `passed`; byte-identical | `284ca7d54f97ac87308cd3c5c1a669f4f8b3ecec` | 0 / 0 | 8279 | — |
+| JSON repeat: commander.js | both `passed`; byte-identical | `ba6d13ddb4243e5913367734f8c159089ffe7834` | 0 / 0 | 5618 | — |
+| JSON repeat: axios | both `passed_with_warnings`; byte-identical | `7d15df3f4cff1be2f1ed397f98170aadef399071` | 0 / 0 | 9717 | — |
+| JSON repeat: json-server | both `passed`; byte-identical | `89a34a44b7a6a5311dc84f3b8a1b8b45c0905aea` | 0 / 0 | 3793 | — |
+| JSON repeat: ms | both `passed`; byte-identical | `4ff48cec099f0514c3e9bbca18706c9c21122bfb` | 0 / 0 | 3879 | — |
+| JSON repeat: clsx | both `passed_with_warnings`; byte-identical | `925494cf31bcd97d3337aacd34e659e80cae7fe2` | 0 / 0 | 7181 | — |
+| JSON repeat: ky | both `passed_with_warnings`; byte-identical | `3541888878c4d303a8bc2ad61815f4e048f55a5d` | 0 / 0 | 4619 | — |
+| JSON repeat: trpc | both `passed`; byte-identical | `1c9bf51ea572fd46fa52fb725999b8d0c6950386` | 0 / 0 | 6844 | — |
+| JSON repeat: zod | both `passed_with_warnings`; byte-identical | `afdac65e0f80c0ccf9e8909da97c411567908b57` | 0 / 0 | 6377 | — |
+
 ## Known limitations
 
 1. **Sensitive-file omission applies to local folders only.** Local staging still omits `.env*`, npm configuration, credentials, and certificate/key files and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Fresh public GitHub clones copy committed versions because they are already public; command-line flags still force `npm ci --ignore-scripts`.

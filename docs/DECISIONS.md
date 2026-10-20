@@ -128,3 +128,26 @@
 - **Decision:** Use one retrying cleanup policy for GitHub clones and Docker staging, with injectable removers in tests. Cleanup failures never replace a report or change its exit status; only a temporary folder basename is printed.
 - **Decision:** Replace free-form GitHub preflight errors with fixed `target.preflightReason` values and remove the old redaction-marker fields. This makes rate limits, timeouts, invalid responses, and rejected tokens actionable without leaking secret material.
 - **Current precision-fixes branch:** `precision-fixes`, merged with the current `main` baseline for final integration.
+
+## 2026-10-20 — Finish the CloneProof review fixes
+
+- **Decision:** Treat `VERIFY_NO_TESTS_RAN` as a failed verification even when the container exits `0`. Preserve the container's real exit code, leave `failedPhase` unset, record `verification.noTestsRan: true`, and include exactly one bounded matched-line evidence item.
+- **Why:** A successful process that discovers no tests does not prove the repository test suite works and must not produce a CI success.
+
+- **Decision:** Treat `GIT_METADATA_REQUIRED` as skipped/info during `check` and warning/warning during `verify`. When a zero-test result occurs with this warning, explain that missing `.git` metadata is a likely cause.
+- **Why:** Static inspection can identify the risk without blocking, while Docker verification removes `.git` before running lifecycle scripts.
+
+- **Decision:** Treat an unknown `packageManager` declaration as `PACKAGE_MANAGER_UNRECOGNIZED` warning evidence, not a package-manager lockfile mismatch failure. Treat a missing root test script in a detected workspace as `MONOREPO_ROOT_TEST_SCRIPT_MISSING` warning evidence; keep the single-package `TEST_SCRIPT_MISSING` failure unchanged.
+- **Why:** These repository shapes need review but do not prove that the target is internally inconsistent or untestable.
+
+- **Decision:** Exclude example, fixture/mock, documentation, benchmark/performance, tooling, and CI scopes at any depth from environment-documentation warnings. Exclude conventional CI/test-service variable prefixes. Treat a literal `??`/`||` fallback or destructuring default as optional, but warn when any reference to the same key lacks a default and show only those non-defaulted references.
+- **Why:** Setup-required environment keys should be surfaced without turning test fixtures and process configuration into false requirements; a mixed reference remains a real documentation gap.
+
+- **Decision:** Normalize safe GitHub repository URL variants by accepting `www.`, trailing slashes, queries, and fragments; reject `/tree/` and `/blob/` links with the canonical root; keep non-existing `owner/repo` paths local while offering a bounded GitHub hint.
+- **Why:** These forms are common user input variants, while subdirectory URLs cannot be represented by the supported repository-root trust boundary.
+
+- **Decision:** If a configured GitHub token receives HTTP 401 during the metadata preflight, retry exactly once without authorization and record only the fallback boolean/diagnostic state.
+- **Why:** A stale or invalid optional token must not prevent a safe public preflight, and the token must never cross into Git, Docker, reports, or logs.
+
+- **Decision:** Run `npm run test:leaks` in an isolated temporary directory with `TEMP`, `TMP`, and `TMPDIR` redirected, wait for detached cleanup supervisors, and leave non-empty leak directories for inspection. Keep `npm test` unchanged.
+- **Why:** Shared operating-system temp folders cannot distinguish CloneProof leaks from concurrent processes; an isolated guard provides reproducible offline hygiene evidence on every CI operating system.
