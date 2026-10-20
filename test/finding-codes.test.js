@@ -14,6 +14,8 @@ const {
 } = require('../src/verify/docker');
 
 const SOURCE_ROOT = path.join(__dirname, '..', 'src');
+const FINDINGS_DOC = path.join(__dirname, '..', 'docs', 'FINDINGS.md');
+const README_PATH = path.join(__dirname, '..', 'README.md');
 const healthyFixture = path.join(__dirname, '..', 'examples', 'healthy-node');
 
 function writeFile(root, relativePath, contents) {
@@ -272,7 +274,14 @@ test('every source-emitted finding code has a test reference', () => {
   const testSource = javascriptFiles(path.join(__dirname))
     .map((file) => fs.readFileSync(file, 'utf8'))
     .join('\n');
+  const documentation = fs.readFileSync(FINDINGS_DOC, 'utf8');
+  const readme = fs.readFileSync(README_PATH, 'utf8');
+  assert.match(documentation, /^## Status definitions/m);
+  assert.match(documentation, /^## Severity definitions/m);
+  assert.match(documentation, /^## Check-group mappings/m);
+  assert.match(readme, /\[docs\/FINDINGS\.md\]\(docs\/FINDINGS\.md\)/);
   for (const code of emittedFindingCodes()) {
     assert.ok(testSource.includes(code), `finding code ${code} has no test reference`);
+    assert.ok(documentation.includes(`\`${code}\``), `finding code ${code} is missing from docs/FINDINGS.md`);
   }
 });

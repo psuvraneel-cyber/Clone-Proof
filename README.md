@@ -175,6 +175,8 @@ Docker commands use the local default Docker endpoint. CloneProof creates an iso
 | `build-output` | Declared build output files |
 | `service-indicators` | Compose files and service dependency indicators |
 
+See [docs/FINDINGS.md](docs/FINDINGS.md) for the complete finding-code reference, status and severity definitions, and finding-to-check-group mappings.
+
 Additional advisory findings are `GIT_DEPENDENCIES` for public Git hosts, `PRIVATE_REGISTRY` for non-public package/dependency hosts, `BUILD_OUTPUT_MISSING` for missing package entrypoint/build files, and `SERVICES_LIKELY_REQUIRED` for compose files or common database/cache/broker dependencies. `BUILD_OUTPUT_MISSING` and `SERVICES_LIKELY_REQUIRED` are skipped/info signals: CloneProof does not run builds or start services.
 
 Notable finding codes are:
