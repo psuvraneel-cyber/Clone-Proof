@@ -13,6 +13,7 @@ const { scanRepository } = require('./scan/repository');
 const { exitCodeForReport, renderHtml, renderJson, renderText } = require('./report/render');
 const { createCoverage } = require('./report/coverage');
 const { setupDockerImage, verifyRepository } = require('./verify/docker');
+const { sanitizeValue } = require('./util/sanitize-paths');
 
 const COMMANDS = new Set(['check', 'verify', 'setup']);
 const FORMATS = new Set(['text', 'json', 'html']);
@@ -241,7 +242,7 @@ function cloneFailureReport(target, error, mode) {
   };
   if (error && error.preflight) reportTarget.preflight = error.preflight;
   if (error && Number.isFinite(error.repositorySizeKb)) reportTarget.repositorySizeKb = error.repositorySizeKb;
-  return {
+  return sanitizeValue({
     schemaVersion: 2,
     tool: 'cloneproof',
     mode,
@@ -266,7 +267,7 @@ function cloneFailureReport(target, error, mode) {
       skipped: findingStatus === 'skipped' ? 1 : 0
     },
     coverage: createCoverage()
-  };
+  }, { temporaryPaths: error && Array.isArray(error.temporaryPaths) ? error.temporaryPaths : [] });
 }
 
 function cleanupDirectoryName(value) {
@@ -472,4 +473,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseArguments, renderReport, reportCleanupFailure, reportPreflightNotice };
+module.exports = { cloneFailureReport, parseArguments, renderReport, reportCleanupFailure, reportPreflightNotice };

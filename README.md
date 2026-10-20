@@ -142,6 +142,8 @@ Every report also lists **what was not checked** (build steps, starting services
 | `build-output` | Declared build output files |
 | `service-indicators` | Compose files and service dependency indicators |
 
+See [docs/FINDINGS.md](docs/FINDINGS.md) for the complete finding-code reference, status and severity definitions, and finding-to-check-group mappings.
+
 The JSON report's `coverage.checked` lists the groups actually attempted for that target, and `coverage.notChecked` the fixed out-of-scope list.
 
 </details>

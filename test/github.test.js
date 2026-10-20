@@ -22,6 +22,10 @@ const {
 const { scanRepository } = require('../src/scan/repository');
 const { stageRepository, verifyRepository } = require('../src/verify/docker');
 const { resolveGitExecutable } = require('../src/util/executable');
+const { processIsAlive } = require('../src/util/cleanup-supervisor');
+const { sanitizeText } = require('../src/util/sanitize-paths');
+const { cloneFailureReport } = require('../src/cli');
+const { renderHtml, renderJson, renderText } = require('../src/report/render');
 
 const VALID_URL = 'https://github.com/example/project';
 const COMMIT_SHA = '0123456789abcdef0123456789abcdef01234567';
@@ -301,6 +305,94 @@ test('abrupt GitHub clone termination removes its temporary parent', async () =>
     assert.equal(fs.existsSync(paths.temporaryParent), false);
   } finally {
     if (child.exitCode === null) child.kill('SIGKILL');
+    for (const directory of [paths && paths.temporaryParent].filter(Boolean)) {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('cleanup supervisor kills a long-running Git child before removing the clone parent', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-github-child-cleanup-'));
+  const readyPath = path.join(root, 'ready');
+  const pathsPath = path.join(root, 'paths.json');
+  const workerScript = path.join(root, 'git-worker.js');
+  const childScript = path.join(root, 'clone.js');
+  const githubModule = path.join(__dirname, '..', 'src', 'input', 'github.js');
+  let paths;
+  let childPid;
+
+  fs.writeFileSync(workerScript, [
+    "'use strict';",
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    'const destination = process.argv[2];',
+    'let index = 0;',
+    'fs.mkdirSync(destination, { recursive: true });',
+    'setInterval(() => { fs.writeFileSync(path.join(destination, `heartbeat-${index++}.txt`), String(Date.now())); }, 25);'
+  ].join('\n'));
+  fs.writeFileSync(childScript, [
+    "'use strict';",
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    "const { spawn } = require('node:child_process');",
+    `const { cloneGithubRepository } = require(${JSON.stringify(githubModule)});`,
+    `const readyPath = ${JSON.stringify(readyPath)};`,
+    `const pathsPath = ${JSON.stringify(pathsPath)};`,
+    `const workerScript = ${JSON.stringify(workerScript)};`,
+    'const success = { exitCode: 0, signal: null, stdout: "", stderr: "", timedOut: false, outputTruncated: false, error: null };',
+    'const fetcher = async () => ({ status: 200, async json() { return { private: false, size: 1 }; } });',
+    'const runner = async (command, args) => {',
+    '  if (args[0] === "--version") return success;',
+    '  if (args.includes("clone")) {',
+    '    const checkout = args.at(-1);',
+    '    const temporaryParent = path.dirname(checkout);',
+    '    const worker = spawn(process.execPath, [workerScript, checkout], { detached: process.platform !== "win32", windowsHide: true, stdio: "ignore" });',
+    '    fs.writeFileSync(path.join(temporaryParent, "git.pid"), String(worker.pid));',
+    '    fs.writeFileSync(pathsPath, JSON.stringify({ temporaryParent, childPid: worker.pid }));',
+    '    fs.writeFileSync(readyPath, "cloning");',
+    '    return new Promise(() => {});',
+    '  }',
+    '  return success;',
+    '};',
+    'cloneGithubRepository("https://github.com/example/project", { gitExecutable: process.execPath, fetcher, runner, cleanupSupervisor: true }).catch(() => { process.exitCode = 1; });'
+  ].join('\n'));
+
+  const child = spawn(process.execPath, [childScript], {
+    cwd: path.join(__dirname, '..'),
+    stdio: ['ignore', 'ignore', 'pipe'],
+    windowsHide: true
+  });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+  try {
+    await waitForFile(readyPath);
+    await waitForFile(pathsPath);
+    paths = JSON.parse(fs.readFileSync(pathsPath, 'utf8'));
+    childPid = Number(paths.childPid);
+    assert.equal(processIsAlive(childPid), true);
+    assert.equal(fs.existsSync(paths.temporaryParent), true);
+
+    assert.equal(child.kill('SIGKILL'), true);
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Clone process did not exit: ${stderr}`)), 10000);
+      child.once('close', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+
+    await waitForCondition(() => !fs.existsSync(paths.temporaryParent), 30000);
+    await waitForCondition(() => !processIsAlive(childPid), 30000);
+    assert.equal(fs.existsSync(paths.temporaryParent), false);
+    assert.equal(processIsAlive(childPid), false);
+  } finally {
+    if (child.exitCode === null) child.kill('SIGKILL');
+    if (childPid && processIsAlive(childPid)) {
+      try { process.kill(childPid, 'SIGKILL'); } catch {}
+    }
     for (const directory of [paths && paths.temporaryParent].filter(Boolean)) {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -611,6 +703,54 @@ test('uses the configured GitHub token only on the API preflight and records aut
     }
     await result.cleanup();
   }
+});
+
+test('sanitizes Git and Docker paths from every report format', async () => {
+  let destination;
+  const home = os.homedir();
+  const temp = os.tmpdir();
+  const homeSlash = home.replace(/\\/g, '/');
+  const tempSlash = temp.replace(/\\/g, '/');
+  let cloneError;
+
+  await assert.rejects(
+    cloneGithubRepository(VALID_URL, {
+      gitExecutable: process.execPath,
+      fetcher: publicFetcher(),
+      runner: async (command, args) => {
+        if (args[0] === '--version') return { ...successfulResult(), stdout: 'git version 2.47.0\n' };
+        if (args.includes('ls-files')) return { ...successfulResult(), stdout: '' };
+        destination = args.at(-1);
+        const raw = `fatal: Cloning into '${destination}'... ${home} ${homeSlash} ${temp} ${tempSlash}`;
+        return { ...successfulResult(), exitCode: 128, stderr: raw };
+      }
+    }),
+    (error) => {
+      cloneError = error;
+      return error && error.code === 'GITHUB_CLONE_FAILED';
+    }
+  );
+
+  const report = cloneFailureReport(VALID_URL, cloneError, 'check');
+  const outputs = [
+    renderJson(report),
+    renderText(report, { color: false }),
+    renderHtml(report)
+  ];
+  const escaped = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const output of outputs) {
+    assert.doesNotMatch(output, new RegExp(escaped(home), 'i'));
+    assert.doesNotMatch(output, new RegExp(escaped(homeSlash), 'i'));
+    assert.doesNotMatch(output, new RegExp(escaped(temp), 'i'));
+    assert.doesNotMatch(output, new RegExp(escaped(tempSlash), 'i'));
+    assert.match(output, /(?:<temporary-checkout>|&lt;temporary-checkout&gt;)/);
+  }
+  assert.equal(sanitizeText(home.toUpperCase(), { platform: 'win32', homeDirectory: home }), '~');
+  assert.equal(sanitizeText(`${temp.toUpperCase()}\\artifact.log`, { platform: 'win32', tempDirectory: temp }), '<temp>\\artifact.log');
+  const githubSuggestion = 'Did you mean https://github.com/tmp-cli-github-suggestion/project?';
+  assert.equal(sanitizeText(githubSuggestion, { platform: 'linux', tempDirectory: '/tmp' }), githubSuggestion);
+  assert.equal(fs.existsSync(destination), false);
+  assert.equal(fs.existsSync(path.dirname(destination)), false);
 });
 
 test('checkout limit diagnostics name each configured bound and reached count', () => {
