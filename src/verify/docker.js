@@ -1318,7 +1318,6 @@ async function verifyRepository(rootPath, options = {}) {
     });
     report.status = 'failed';
   } finally {
-    stopCleanupSupervisor(cleanupSupervisor);
     for (const [signal, handler] of signalHandlers) {
       signalSource.removeListener(signal, handler);
     }
@@ -1326,6 +1325,9 @@ async function verifyRepository(rootPath, options = {}) {
       await cleanupVerificationDirectory(temporaryRoot, report, 'stagingRemoved', removeDirectory);
     }
     await cleanupVerificationDirectory(dockerConfigRoot, report, 'clientConfigRemoved', removeDirectory);
+    if (!report.verification.cleanup.cleanupFailed) {
+      stopCleanupSupervisor(cleanupSupervisor);
+    }
     report.verification.cleanup.completed = Boolean(
       report.verification.cleanup.completed
       && !report.verification.cleanup.cleanupFailed
