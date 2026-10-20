@@ -345,6 +345,136 @@ function parseEnvTemplate(text) {
   return keys;
 }
 
+const ENV_DEFAULT_LOOKAHEAD_LIMIT = 512;
+
+function skipEnvironmentWhitespace(text, index, limit) {
+  let cursor = index;
+  while (cursor < limit && /\s/.test(text[cursor])) cursor += 1;
+  return cursor;
+}
+
+function literalEnvironmentDefaultEnd(text, start, limit) {
+  if (start >= limit) return null;
+  const quote = text[start];
+  if (quote === '"' || quote === "'") {
+    let escaped = false;
+    for (let index = start + 1; index < limit; index += 1) {
+      const character = text[index];
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === quote) {
+        return index + 1;
+      }
+    }
+    return null;
+  }
+
+  if (quote === '`') {
+    let escaped = false;
+    for (let index = start + 1; index < limit; index += 1) {
+      const character = text[index];
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === '$' && text[index + 1] === '{') {
+        return null;
+      } else if (character === '`') {
+        return index + 1;
+      }
+    }
+    return null;
+  }
+
+  for (const literal of ['true', 'false', 'null', 'undefined']) {
+    if (!text.startsWith(literal, start)) continue;
+    const next = text[start + literal.length];
+    if (next === undefined || !/[A-Za-z0-9_$]/.test(next)) return start + literal.length;
+    return null;
+  }
+
+  const numberMatch = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/.exec(text.slice(start, limit));
+  if (numberMatch) {
+    const end = start + numberMatch[0].length;
+    const next = text[end];
+    if (next === undefined || !/[A-Za-z0-9_$]/.test(next)) return end;
+  }
+  return null;
+}
+
+function hasLiteralEnvironmentDefault(text, accessEnd) {
+  const limit = Math.min(text.length, accessEnd + ENV_DEFAULT_LOOKAHEAD_LIMIT);
+  let cursor = skipEnvironmentWhitespace(text, accessEnd, limit);
+  if (text.slice(cursor, cursor + 2) !== '??' && text.slice(cursor, cursor + 2) !== '||') return false;
+  cursor = skipEnvironmentWhitespace(text, cursor + 2, limit);
+  const literalEnd = literalEnvironmentDefaultEnd(text, cursor, limit);
+  if (literalEnd === null) return false;
+  let terminator = literalEnd;
+  while (terminator < limit && /[ \t\f]/.test(text[terminator])) terminator += 1;
+  return terminator >= text.length
+    || text[terminator] === '\n'
+    || text[terminator] === '\r'
+    || /[,;\)\]\}]/.test(text[terminator]);
+}
+
+function destructuringEntryHasDefault(value, keyEnd) {
+  let quote = null;
+  let escaped = false;
+  let comment = null;
+  let depth = 0;
+
+  for (let index = keyEnd; index < value.length; index += 1) {
+    const character = value[index];
+    const next = value[index + 1];
+
+    if (comment === 'line') {
+      if (character === '\n' || character === '\r') comment = null;
+      continue;
+    }
+    if (comment === 'block') {
+      if (character === '*' && next === '/') {
+        comment = null;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+
+    if (character === '/' && next === '/') {
+      comment = 'line';
+      index += 1;
+      continue;
+    }
+    if (character === '/' && next === '*') {
+      comment = 'block';
+      index += 1;
+      continue;
+    }
+    if (character === '"' || character === "'" || character === '`') {
+      quote = character;
+      escaped = false;
+      continue;
+    }
+    if (character === '{' || character === '[' || character === '(') {
+      depth += 1;
+      continue;
+    }
+    if (character === '}' || character === ']' || character === ')') {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (character === '=' && depth === 0) return true;
+  }
+  return false;
+}
+
 function extractEnvironmentReferences(text, relativePath) {
   const matches = [];
   const directPatterns = [
@@ -358,7 +488,11 @@ function extractEnvironmentReferences(text, relativePath) {
     pattern.expression.lastIndex = 0;
     let match = pattern.expression.exec(text);
     while (match) {
-      matches.push({ key: match[pattern.group], index: match.index });
+      matches.push({
+        key: match[pattern.group],
+        index: match.index,
+        defaulted: hasLiteralEnvironmentDefault(text, match.index + match[0].length)
+      });
       match = pattern.expression.exec(text);
     }
   }
@@ -468,7 +602,8 @@ function extractEnvironmentReferences(text, relativePath) {
           if (!keyMatch) continue;
           matches.push({
             key: keyMatch[2] || keyMatch[3],
-            index: openingBrace + 1 + entry.start + entry.text.indexOf(trimmed)
+            index: openingBrace + 1 + entry.start + entry.text.indexOf(trimmed),
+            defaulted: destructuringEntryHasDefault(trimmed, keyMatch[0].length)
           });
         }
       }
@@ -479,13 +614,15 @@ function extractEnvironmentReferences(text, relativePath) {
   matches.sort((left, right) => left.index - right.index || compareStrings(left.key, right.key));
   const references = new Map();
   for (const match of matches) {
-    if (!references.has(match.key)) {
-      references.set(match.key, makeEvidence(
+    if (!references.has(match.key)) references.set(match.key, []);
+    references.get(match.key).push({
+      defaulted: match.defaulted === true,
+      evidence: makeEvidence(
         relativePath,
         `Source references environment key ${match.key}.`,
         lineNumberAt(text, match.index)
-      ));
-    }
+      )
+    });
   }
   return references;
 }
@@ -3014,10 +3151,18 @@ function scanRepository(rootPath, options) {
       relativePath
     );
     for (const [key, evidence] of references) {
-      if (!isConventionalEnvironmentKey(key) && !environmentReferences.has(key)) {
-        environmentReferences.set(key, evidence);
+      if (!isConventionalEnvironmentKey(key)) {
+        const existing = environmentReferences.get(key) || [];
+        environmentReferences.set(key, existing.concat(evidence));
       }
     }
+  }
+  for (const references of environmentReferences.values()) {
+    references.sort((left, right) => (
+      (left.evidence.line || 0) - (right.evidence.line || 0)
+      || compareStrings(left.evidence.path, right.evidence.path)
+      || Number(left.defaulted) - Number(right.defaulted)
+    ));
   }
 
   const envTemplatePaths = ['.env.example', '.env.sample'];
@@ -3067,11 +3212,24 @@ function scanRepository(rootPath, options) {
       }
     }
 
+    const requiredReferencesFor = (key) => (environmentReferences.get(key) || [])
+      .filter((reference) => reference.defaulted !== true);
+    const sourceEvidenceFor = (key, detail, includeDefaulted = false) => {
+      const references = requiredReferencesFor(key);
+      const selected = references.length > 0 || !includeDefaulted
+        ? references
+        : (environmentReferences.get(key) || []);
+      return selected.map((reference) => makeEvidence(
+        reference.evidence.path,
+        detail,
+        reference.evidence.line
+      ));
+    };
     const missingKeys = [...environmentReferences.keys()]
-      .filter((key) => !documentedKeys.has(key))
+      .filter((key) => requiredReferencesFor(key).length > 0 && !documentedKeys.has(key))
       .sort(compareStrings);
 
-    if (envTemplates.length === 0) {
+    if (envTemplates.length === 0 && missingKeys.length > 0) {
       addFinding(
         findings,
         'ENV_EXAMPLE_MISSING',
@@ -3079,16 +3237,17 @@ function scanRepository(rootPath, options) {
         'warning',
         'No environment example file documents the source environment keys',
         `Source references ${missingKeys.join(', ')}, but neither .env.example nor .env.sample is present.`,
-        [...environmentReferences.entries()].map(([key, evidence]) => makeEvidence(
-          evidence.path,
-          `Source references undocumented environment key ${key}.`,
-          evidence.line
+        missingKeys.flatMap((key) => sourceEvidenceFor(
+          key,
+          `Source references undocumented environment key ${key}.`
+        )).sort((left, right) => (
+          compareStrings(left.path, right.path)
+          || (left.line || 0) - (right.line || 0)
         )),
         'Add .env.example or .env.sample with safe placeholder values for every referenced key.'
       );
     } else {
       for (const key of missingKeys) {
-        const sourceEvidence = environmentReferences.get(key);
         addFinding(
           findings,
           'ENV_KEY_MISSING',
@@ -3096,7 +3255,7 @@ function scanRepository(rootPath, options) {
           'warning',
           `Environment key ${key} is missing from the example configuration`,
           `Source references ${key}, but no scanned .env.example or .env.sample defines it.`,
-          [sourceEvidence],
+          sourceEvidenceFor(key, `Source references undocumented environment key ${key}.`),
           'Document the key in .env.example or .env.sample without committing a real secret.'
         );
       }
@@ -3104,7 +3263,6 @@ function scanRepository(rootPath, options) {
       for (const key of [...environmentReferences.keys()]
         .filter((environmentKey) => documentedKeys.has(environmentKey))
         .sort(compareStrings)) {
-        const sourceEvidence = environmentReferences.get(key);
         const templateEvidence = documentedKeys.get(key);
         addFinding(
           findings,
@@ -3114,7 +3272,7 @@ function scanRepository(rootPath, options) {
           `Environment key ${key} is documented`,
           `Source references ${key} and an environment example defines it.`,
           [
-            sourceEvidence,
+            ...sourceEvidenceFor(key, `Source references environment key ${key}.`, true),
             makeEvidence(templateEvidence.path, `Example configuration defines ${key}.`, templateEvidence.line)
           ],
           'Keep the example configuration synchronized with source references.'

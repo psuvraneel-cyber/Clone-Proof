@@ -888,10 +888,71 @@ test('finds multiline, assignment-form, nested, quoted, defaulted, and spread de
   const report = scanRepository(root);
   const missing = finding(report, 'ENV_EXAMPLE_MISSING');
 
-  for (const key of ['ALIASED', 'ASSIGNED', 'DEFAULTED', 'MULTILINE', 'NESTED', 'QUOTED_KEY']) {
+  for (const key of ['ALIASED', 'ASSIGNED', 'MULTILINE', 'NESTED', 'QUOTED_KEY']) {
     assert.match(missing.message, new RegExp(key));
   }
+  assert.doesNotMatch(missing.message, /DEFAULTED/);
   assert.doesNotMatch(missing.message, /ignored|alsoIgnored|rest|localAlias/);
+}));
+
+test('does not require environment examples for literal direct-access defaults', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'const port = process.env.PORT ?? "3000";',
+    'const host = process.env.HOST || 3000;',
+    'const doubleQuoted = process.env["DOUBLE_QUOTED"] ?? "fallback";',
+    "const singleQuoted = process.env['SINGLE_QUOTED'] || 42;",
+    "const vite = import.meta.env.VITE_MODE ?? 'a';",
+    'const noSemicolon = process.env.NO_SEMICOLON ?? "fallback"',
+    'const template = process.env.TEMPLATE ?? `fallback`;',
+    'const enabled = process.env.ENABLED || false;',
+    'const empty = process.env.EMPTY ?? null;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENV_EXAMPLE_MISSING'), undefined);
+  assert.equal(finding(report, 'ENV_KEY_MISSING'), undefined);
+}));
+
+test('does not require environment examples for destructuring defaults', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'const { PORT = 3000, HOST: host = "localhost" } = process.env;',
+    'const { VITE_MODE = `fallback` } = import.meta.env;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENV_EXAMPLE_MISSING'), undefined);
+  assert.equal(finding(report, 'ENV_KEY_MISSING'), undefined);
+}));
+
+test('requires an environment example when any reference is non-defaulted', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'const value = process.env.MIXED ?? "fallback";',
+    'const required = process.env.MIXED;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.equal(missing.evidence.length, 1);
+  assert.equal(missing.evidence[0].path, 'index.js');
+  assert.equal(missing.evidence[0].line, 2);
+}));
+
+test('does not treat non-literal or bare environment access as defaulted', () => withRepository((root) => {
+  writeEnvironmentFixture(root, [
+    'const variable = process.env.NOT_LITERAL ?? someVariable;',
+    'const bare = process.env.BARE;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /BARE, NOT_LITERAL/);
+  assert.deepEqual(missing.evidence.map((item) => item.line), [1, 2]);
 }));
 
 test('does not infer environment keys from ordinary object literals or aliases', () => withRepository((root) => {
