@@ -91,13 +91,17 @@ test('renderText explains a passed static check and renders coverage sections', 
   const html = renderHtml(report);
 
   assert.match(output, /Status: passed\nNo known setup problems were found across 12 check groups \(6 findings\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
-  assert.match(output, /Findings:\n  Total: 6/);
+  assert.match(output, /Finding counts:\n  Total: 6/);
+  assert.equal((output.match(/^Findings:$/gm) || []).length, 1);
+  assert.equal((output.match(/^Finding counts:$/gm) || []).length, 1);
   assert.match(output, /What was checked:/);
   assert.match(output, /Package manifest \(package-manifest\)/);
   assert.match(output, /Not checked:/);
   assert.match(output, /Running build steps \(declared outputs are only checked for presence\) \(build-steps-generated-output\)/);
   assert.match(html, /No known setup problems were found across 12 check groups \(6 findings\)\. This is not a guarantee that a fresh clone works; see Not checked\./);
-  assert.match(html, /<h3 id="counts-heading">Findings<\/h3>/);
+  assert.match(html, /<h3 id="counts-heading">Finding counts<\/h3>/);
+  assert.equal((html.match(/<h3 id="counts-heading">Finding counts<\/h3>/g) || []).length, 1);
+  assert.equal((html.match(/<h2 id="findings-heading">Findings /g) || []).length, 1);
   assert.match(html, /What was checked/);
   assert.match(html, /Not checked/);
 });
@@ -124,6 +128,10 @@ test('renderText and renderHtml explain a passed Docker verification', () => {
   const html = renderHtml(report);
   const explanation = 'npm ci and npm test succeeded inside the controlled container.';
 
+  assert.equal((text.match(/^Findings:$/gm) || []).length, 1);
+  assert.equal((text.match(/^Finding counts:$/gm) || []).length, 1);
+  assert.equal((html.match(/<h3 id="counts-heading">Finding counts<\/h3>/g) || []).length, 1);
+  assert.equal((html.match(/<h2 id="findings-heading">Findings /g) || []).length, 1);
   assert.match(text, new RegExp(`Status: passed\\n${explanation.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}`));
   assert.match(html, new RegExp(explanation.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')));
   assert.match(html, /What was checked/);
@@ -319,7 +327,7 @@ test('renderHtml is self-contained and includes the accessible report sections',
   assert.match(output, /Target:.*sample-repository/);
   assert.match(output, /Summary/);
   assert.match(output, /Status:.*passed_with_warnings/);
-  assert.match(output, /<h3 id="counts-heading">Findings<\/h3>/);
+  assert.match(output, /<h3 id="counts-heading">Finding counts<\/h3>/);
   assert.match(output, /Total.*4/);
   assert.match(output, /Findings/);
   assert.match(output, /PKG-001/);
