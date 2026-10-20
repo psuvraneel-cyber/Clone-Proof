@@ -20,6 +20,7 @@ const DEFAULT_CONTAINER_PIDS = '512';
 const DEFAULT_TMPFS_SIZE = '512m';
 const DEFAULT_WORKSPACE_TMPFS_SIZE = '1g';
 const DOCKER_PROBE_TIMEOUT_MS = 5000;
+const DOCKER_IMAGE_RETRY_DELAY_MS = 2000;
 const MAX_IGNORED_PATHS = 500;
 const MAX_IGNORED_PATH_EVIDENCE = 50;
 const STAGING_LIMITS = Object.freeze({
@@ -812,6 +813,9 @@ async function verifyRepository(rootPath, options = {}) {
   const dockerCommand = options.runner
     ? (options.dockerCommand || 'docker')
     : resolveDockerExecutable();
+  const wait = typeof options.sleep === 'function'
+    ? options.sleep
+    : (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
   const execute = options.execute === true;
   const allowNetwork = options.allowNetwork === true;
   const timeoutMs = normalizePositiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS, 10 * 60 * 1000);
@@ -954,12 +958,26 @@ async function verifyRepository(rootPath, options = {}) {
     return finalizeVerificationReport(report);
   }
 
-  const imageProbe = await runner(
+  let imageProbe = await runner(
     dockerCommand,
     ['image', 'inspect', DEFAULT_VERIFY_IMAGE],
     { ...dockerContext, timeoutMs: DOCKER_PROBE_TIMEOUT_MS, maxOutputBytes: 16 * 1024 }
   );
-  report.verification.imageAvailable = imageProbe.exitCode === 0 && !imageProbe.error && !imageProbe.timedOut;
+  const imageProbeSucceeded = (result) => Boolean(
+    result
+    && result.exitCode === 0
+    && !result.error
+    && !result.timedOut
+  );
+  if (!imageProbeSucceeded(imageProbe)) {
+    await wait(DOCKER_IMAGE_RETRY_DELAY_MS);
+    imageProbe = await runner(
+      dockerCommand,
+      ['image', 'inspect', DEFAULT_VERIFY_IMAGE],
+      { ...dockerContext, timeoutMs: DOCKER_PROBE_TIMEOUT_MS, maxOutputBytes: 16 * 1024 }
+    );
+  }
+  report.verification.imageAvailable = imageProbeSucceeded(imageProbe);
   if (!report.verification.imageAvailable) {
     const detail = imageProbe.error || imageProbe.stderr || `Image ${DEFAULT_VERIFY_IMAGE} is not available locally.`;
     report.verification.stderr = detail;
@@ -970,7 +988,7 @@ async function verifyRepository(rootPath, options = {}) {
       title: 'The controlled Docker image is unavailable locally',
       message: `CloneProof will not pull ${DEFAULT_VERIFY_IMAGE} implicitly.`,
       evidence: makeEvidence('verification', detail),
-      recommendation: `Run cloneproof setup (or docker pull ${DEFAULT_VERIFY_IMAGE})`
+       recommendation: 'Run cloneproof setup; if the image is already present, Docker Desktop may still be waking up — retry.'
     });
     report.status = 'blocked';
     await cleanupVerificationDirectory(dockerConfigRoot, report, 'clientConfigRemoved', removeDirectory);

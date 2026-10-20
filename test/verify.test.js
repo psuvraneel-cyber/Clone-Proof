@@ -478,7 +478,7 @@ test('Docker absence blocks execution without staging or running target code', a
 
 test('missing verifier image blocks execution without pulling implicitly', async () => {
   const { calls, runner } = makeRunner({ image: false });
-  const report = await verifyRepository(healthyFixture, { execute: true, runner });
+  const report = await verifyRepository(healthyFixture, { execute: true, runner, sleep: async () => {} });
   assertSummaryMatchesFindings(report);
 
   assert.equal(report.status, 'blocked');
@@ -486,7 +486,61 @@ test('missing verifier image blocks execution without pulling implicitly', async
   assert.equal(report.verification.imageAvailable, false);
   assert.equal(calls.filter((call) => call.args[0] === 'run').length, 0);
   const finding = report.findings.find((item) => item.code === 'DOCKER_IMAGE_UNAVAILABLE');
-  assert.match(finding.recommendation, /Run cloneproof setup \(or docker pull /);
+  assert.equal(finding.recommendation, 'Run cloneproof setup; if the image is already present, Docker Desktop may still be waking up — retry.');
+});
+
+test('retries a transient verifier image probe failure once', async () => {
+  let imageProbes = 0;
+  const sleepCalls = [];
+  const runner = async (command, args) => {
+    if (args[0] === 'version') {
+      return { exitCode: 0, signal: null, stdout: '27.0.0\n', stderr: '', timedOut: false, outputTruncated: false, error: null };
+    }
+    if (args[0] === 'image') {
+      imageProbes += 1;
+      return imageProbes === 1
+        ? { exitCode: 1, signal: null, stdout: '', stderr: 'No such image', timedOut: false, outputTruncated: false, error: null }
+        : { exitCode: 0, signal: null, stdout: '[]', stderr: '', timedOut: false, outputTruncated: false, error: null };
+    }
+    return { exitCode: 0, signal: null, stdout: 'CLONEPROOF_PHASE=install\nCLONEPROOF_PHASE=test\n', stderr: '', timedOut: false, outputTruncated: false, error: null };
+  };
+
+  const report = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner,
+    sleep: async (milliseconds) => sleepCalls.push(milliseconds)
+  });
+
+  assert.equal(report.status, 'passed');
+  assert.equal(report.verification.imageAvailable, true);
+  assert.equal(imageProbes, 2);
+  assert.deepEqual(sleepCalls, [2000]);
+});
+
+test('blocks after two verifier image probe failures', async () => {
+  let imageProbes = 0;
+  const runner = async (command, args) => {
+    if (args[0] === 'version') {
+      return { exitCode: 0, signal: null, stdout: '27.0.0\n', stderr: '', timedOut: false, outputTruncated: false, error: null };
+    }
+    if (args[0] === 'image') {
+      imageProbes += 1;
+      return { exitCode: 1, signal: null, stdout: '', stderr: 'No such image', timedOut: false, outputTruncated: false, error: null };
+    }
+    return { exitCode: 0, signal: null, stdout: '', stderr: '', timedOut: false, outputTruncated: false, error: null };
+  };
+
+  const report = await verifyRepository(healthyFixture, {
+    execute: true,
+    runner,
+    sleep: async () => {}
+  });
+
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.findings.find((item) => item.code === 'DOCKER_IMAGE_UNAVAILABLE').status, 'skipped');
+  assert.equal(report.verification.imageAvailable, false);
+  assert.equal(imageProbes, 2);
+  assert.equal(report.verification.cleanup.completed, true);
 });
 
 function setupSuccessResult(stdout = '', stderr = '') {
