@@ -620,6 +620,7 @@ test('abrupt verifier termination removes the staging parent and Docker config d
   const cleanupScript = path.join(root, 'cleanup.js');
   const childScript = path.join(root, 'verify.js');
   const dockerModule = path.join(__dirname, '..', 'src', 'verify', 'docker.js');
+  let paths;
 
   fs.writeFileSync(cleanupScript, "'use strict';\nprocess.exitCode = 0;\n");
   fs.writeFileSync(childScript, [
@@ -657,7 +658,7 @@ test('abrupt verifier termination removes the staging parent and Docker config d
   try {
     await waitForFile(readyPath);
     await waitForFile(pathsPath);
-    const paths = JSON.parse(fs.readFileSync(pathsPath, 'utf8'));
+    paths = JSON.parse(fs.readFileSync(pathsPath, 'utf8'));
     assert.equal(fs.existsSync(paths.stagingParent), true);
     assert.equal(fs.existsSync(paths.dockerConfig), true);
 
@@ -675,6 +676,9 @@ test('abrupt verifier termination removes the staging parent and Docker config d
     assert.equal(fs.existsSync(paths.dockerConfig), false);
   } finally {
     if (child.exitCode === null) child.kill('SIGKILL');
+    for (const directory of [paths && paths.stagingParent, paths && paths.dockerConfig].filter(Boolean)) {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

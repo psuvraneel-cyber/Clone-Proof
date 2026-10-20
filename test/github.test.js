@@ -195,11 +195,13 @@ test('temporary directory removal retries an injected transient remover', async 
 
 test('reports a cleanup failure without losing the clone result', async () => {
   let cleanupDirectory;
+  const retainedDirectories = new Set();
   try {
     const result = await cloneGithubRepository(VALID_URL, {
       gitExecutable: process.execPath,
       fetcher: publicFetcher(),
       removeTemporaryDirectory: async (directory) => {
+        retainedDirectories.add(directory);
         if (path.basename(directory).startsWith('cloneproof-github-')) {
           cleanupDirectory = directory;
           throw new Error('locked by antivirus');
@@ -223,8 +225,8 @@ test('reports a cleanup failure without losing the clone result', async () => {
       return true;
     });
   } finally {
-    if (cleanupDirectory) {
-      await fs.promises.rm(cleanupDirectory, { recursive: true, force: true });
+    for (const directory of retainedDirectories) {
+      await fs.promises.rm(directory, { recursive: true, force: true });
     }
   }
 });
@@ -247,6 +249,7 @@ test('abrupt GitHub clone termination removes its temporary parent', async () =>
   const pathsPath = path.join(root, 'paths.json');
   const childScript = path.join(root, 'clone.js');
   const githubModule = path.join(__dirname, '..', 'src', 'input', 'github.js');
+  let paths;
 
   fs.writeFileSync(childScript, [
     "'use strict';",
@@ -282,7 +285,7 @@ test('abrupt GitHub clone termination removes its temporary parent', async () =>
   try {
     await waitForFile(readyPath);
     await waitForFile(pathsPath);
-    const paths = JSON.parse(fs.readFileSync(pathsPath, 'utf8'));
+    paths = JSON.parse(fs.readFileSync(pathsPath, 'utf8'));
     assert.equal(fs.existsSync(paths.temporaryParent), true);
 
     child.kill('SIGKILL');
@@ -298,6 +301,9 @@ test('abrupt GitHub clone termination removes its temporary parent', async () =>
     assert.equal(fs.existsSync(paths.temporaryParent), false);
   } finally {
     if (child.exitCode === null) child.kill('SIGKILL');
+    for (const directory of [paths && paths.temporaryParent].filter(Boolean)) {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

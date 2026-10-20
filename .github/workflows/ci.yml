@@ -31,6 +31,8 @@ jobs:
         run: npm ci
       - name: Run tests
         run: npm test
+      - name: Check for temporary leaks
+        run: npm run test:leaks
       - name: Repeat Windows cleanup test
         if: runner.os == 'Windows'
         shell: pwsh
