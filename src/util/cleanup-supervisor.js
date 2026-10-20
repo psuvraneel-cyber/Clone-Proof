@@ -2,38 +2,115 @@
 
 const fs = require('node:fs');
 const os = require('node:os');
+const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const CLEANUP_RETRIES = 10;
 const CLEANUP_RETRY_DELAY_MS = 100;
 const SUPERVISOR_POLL_DELAY_MS = 100;
 const SUPERVISOR_COMMAND_TIMEOUT_MS = 5000;
+const SUPERVISOR_CLEANUP_TIMEOUT_MS = 30000;
+const SUPERVISOR_BACKOFF_INITIAL_MS = 100;
+const SUPERVISOR_BACKOFF_MAX_MS = 1000;
 
 function sleepSync(milliseconds) {
   const buffer = new SharedArrayBuffer(4);
   Atomics.wait(new Int32Array(buffer), 0, 0, milliseconds);
 }
 
-function removePathWithRetries(directory) {
+function removePathWithRetries(directory, deadline) {
   let lastError;
-  for (let attempt = 0; attempt <= CLEANUP_RETRIES; attempt += 1) {
+  let attempt = 0;
+  while (attempt === 0 || Date.now() < deadline) {
     try {
       fs.rmSync(directory, { recursive: true, force: true });
       return true;
     } catch (error) {
       lastError = error;
-      if (attempt < CLEANUP_RETRIES) sleepSync(CLEANUP_RETRY_DELAY_MS);
+      const delay = Math.min(SUPERVISOR_BACKOFF_INITIAL_MS * (2 ** attempt), SUPERVISOR_BACKOFF_MAX_MS);
+      if (Date.now() + delay >= deadline) break;
+      sleepSync(delay);
+      attempt += 1;
     }
   }
   return !lastError;
 }
 
 function removeSupervisorPaths(paths) {
+  const deadline = Date.now() + SUPERVISOR_CLEANUP_TIMEOUT_MS;
   let completed = true;
   for (const directory of [...new Set(Array.isArray(paths) ? paths : [])]) {
-    if (!removePathWithRetries(directory)) completed = false;
+    if (!removePathWithRetries(directory, deadline)) completed = false;
   }
   return completed;
+}
+
+function readChildPid(payload) {
+  const direct = Number(payload.childPid);
+  if (Number.isInteger(direct) && direct > 0) return direct;
+  if (typeof payload.childPidFile !== 'string' || payload.childPidFile.length === 0) return null;
+  try {
+    const value = Number(fs.readFileSync(payload.childPidFile, 'utf8').trim());
+    return Number.isInteger(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function waitForChildProcess(command, args, options) {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(command, args, options);
+    } catch {
+      resolve(false);
+      return;
+    }
+    let settled = false;
+    const finish = (success) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(success);
+    };
+    const timeout = setTimeout(() => {
+      try { child.kill('SIGKILL'); } catch {}
+      finish(false);
+    }, SUPERVISOR_COMMAND_TIMEOUT_MS);
+    child.once('error', () => finish(false));
+    child.once('close', (exitCode) => finish(exitCode === 0));
+  });
+}
+
+async function stopChildProcessTree(payload) {
+  const pid = readChildPid(payload);
+  if (!pid) return false;
+  if (payload.platform === 'win32') {
+    const systemRoot = payload.env && (payload.env.SystemRoot || payload.env.WINDIR)
+      || process.env.SystemRoot
+      || process.env.WINDIR
+      || 'C:\\Windows';
+    const taskkill = path.win32.join(systemRoot, 'System32', 'taskkill.exe');
+    return waitForChildProcess(taskkill, ['/PID', String(pid), '/T', '/F'], {
+      cwd: payload.cwd || os.tmpdir(),
+      env: payload.env || process.env,
+      shell: false,
+      windowsHide: true,
+      stdio: 'ignore'
+    });
+  }
+
+  try {
+    process.kill(-pid, 'SIGKILL');
+    return true;
+  } catch {
+    try {
+      process.kill(pid, 'SIGKILL');
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 function processIsAlive(pid) {
@@ -59,6 +136,8 @@ function runCleanupSupervisor(payloadValue) {
     !Number.isInteger(parentPid)
     || parentPid <= 0
     || (payload.command !== undefined && typeof payload.command !== 'string')
+    || (payload.platform !== undefined && typeof payload.platform !== 'string')
+    || (payload.childPidFile !== undefined && typeof payload.childPidFile !== 'string')
     || !Array.isArray(payload.args)
     || !Array.isArray(payload.paths)
   ) {
@@ -71,7 +150,8 @@ function runCleanupSupervisor(payloadValue) {
     process.exitCode = completed ? 0 : 1;
   };
 
-  const runCommandThenCleanup = () => {
+  const runCommandThenCleanup = async () => {
+    await stopChildProcessTree(payload);
     if (!payload.command) {
       cleanupPaths();
       return;
@@ -119,7 +199,7 @@ function runCleanupSupervisor(payloadValue) {
   const poll = setInterval(() => {
     if (processIsAlive(parentPid)) return;
     clearInterval(poll);
-    runCommandThenCleanup();
+    void runCommandThenCleanup();
   }, SUPERVISOR_POLL_DELAY_MS);
 }
 
@@ -128,6 +208,9 @@ function startCleanupSupervisor(options = {}) {
 
   const payload = {
     parentPid: process.pid,
+    ...(options.platform === undefined ? {} : { platform: options.platform }),
+    ...(options.childPid === undefined ? {} : { childPid: options.childPid }),
+    ...(options.childPidFile === undefined ? {} : { childPidFile: options.childPidFile }),
     ...(options.command === undefined ? {} : { command: options.command }),
     args: Array.isArray(options.args) ? options.args : [],
     cwd: options.cwd || os.tmpdir(),
@@ -169,6 +252,7 @@ function stopCleanupSupervisor(supervisor) {
 module.exports = {
   CLEANUP_RETRIES,
   CLEANUP_RETRY_DELAY_MS,
+  SUPERVISOR_CLEANUP_TIMEOUT_MS,
   processIsAlive,
   removeSupervisorPaths,
   runCleanupSupervisor,

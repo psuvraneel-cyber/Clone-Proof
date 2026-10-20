@@ -517,6 +517,7 @@ function runProcess(command, args, options = {}) {
         env: options.env,
         shell: false,
         windowsHide: true,
+        detached: options.processGroup === true && process.platform !== 'win32',
         stdio: ['ignore', 'pipe', 'pipe']
       });
     } catch (error) {
@@ -532,6 +533,15 @@ function runProcess(command, args, options = {}) {
         error: error.message
       });
       return;
+    }
+
+    const childPid = child.pid || null;
+    if (options.pidFile && childPid) {
+      try {
+        fs.writeFileSync(options.pidFile, String(childPid), 'utf8');
+      } catch {
+        // Cleanup remains best-effort if the PID file cannot be written.
+      }
     }
 
     const output = {
@@ -556,6 +566,15 @@ function runProcess(command, args, options = {}) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (options.pidFile && childPid) {
+        try {
+          if (fs.readFileSync(options.pidFile, 'utf8').trim() === String(childPid)) {
+            fs.rmSync(options.pidFile, { force: true });
+          }
+        } catch {
+          // The cleanup supervisor owns the file if the parent exits abruptly.
+        }
+      }
       resolve({
         command,
         args,
@@ -565,6 +584,7 @@ function runProcess(command, args, options = {}) {
         stderr: Buffer.concat(output.parts.stderr).toString('utf8'),
         timedOut,
         outputTruncated: output.truncated,
+        pid: childPid,
         error: result.error || null
       });
     };
@@ -726,15 +746,19 @@ async function cloneGithubRepository(value, options = {}) {
   let temporaryRoot;
   let temporaryParent;
   let cleanupSupervisor;
+  let processPidFile;
 
   try {
     temporaryParent = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'cloneproof-github-'));
     temporaryRoot = path.join(temporaryParent, 'checkout');
+    processPidFile = path.join(temporaryParent, 'git.pid');
     const cleanupSupervisorEnabled = config.cleanupSupervisor === true
       || ((config.platform || process.platform) === 'win32' && config.cleanupSupervisor !== false);
     if (cleanupSupervisorEnabled) {
       cleanupSupervisor = startCleanupSupervisor({
         scriptPath: __filename,
+        platform: config.platform || process.platform,
+        childPidFile: processPidFile,
         cwd: os.tmpdir(),
         env: buildGitCloneInvocation({
           url: source.url,
@@ -765,7 +789,9 @@ async function cloneGithubRepository(value, options = {}) {
       shell: false,
       windowsHide: true,
       timeoutMs,
-      maxOutputBytes
+      maxOutputBytes,
+      pidFile: processPidFile,
+      processGroup: true
     });
     if (!cloneSucceeded(versionResult, maxOutputBytes)) {
       throw new GithubSourceError('Git could not be queried for its version.', 'GITHUB_GIT_UNAVAILABLE');
@@ -785,7 +811,9 @@ async function cloneGithubRepository(value, options = {}) {
       shell: false,
       windowsHide: true,
       timeoutMs,
-      maxOutputBytes
+      maxOutputBytes,
+      pidFile: processPidFile,
+      processGroup: true
     });
 
     if (!cloneSucceeded(result, maxOutputBytes)) {
@@ -806,7 +834,9 @@ async function cloneGithubRepository(value, options = {}) {
         shell: false,
         windowsHide: true,
         timeoutMs,
-        maxOutputBytes: MAX_OUTPUT_BYTES
+        maxOutputBytes: MAX_OUTPUT_BYTES,
+        pidFile: processPidFile,
+        processGroup: true
       });
     } catch {
       modeResult = null;
@@ -825,7 +855,9 @@ async function cloneGithubRepository(value, options = {}) {
         shell: false,
         windowsHide: true,
         timeoutMs,
-        maxOutputBytes: MAX_OUTPUT_BYTES
+        maxOutputBytes: MAX_OUTPUT_BYTES,
+        pidFile: processPidFile,
+        processGroup: true
       });
     } catch {
       commitResult = null;

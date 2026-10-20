@@ -102,6 +102,7 @@ function runProcess(command, args, options = {}) {
         env: options.env,
         shell: false,
         windowsHide: true,
+        detached: options.processGroup === true && process.platform !== 'win32',
         stdio: ['ignore', 'pipe', 'pipe']
       });
     } catch (error) {
@@ -117,6 +118,15 @@ function runProcess(command, args, options = {}) {
         error: error.message
       });
       return;
+    }
+
+    const childPid = child.pid || null;
+    if (options.pidFile && childPid) {
+      try {
+        fs.writeFileSync(options.pidFile, String(childPid), 'utf8');
+      } catch {
+        // Cleanup remains best-effort if the PID file cannot be written.
+      }
     }
 
     const stdout = { parts: [], bytes: 0, maxBytes: maxOutputBytes, truncated: false, killedForOutput: false };
@@ -141,6 +151,15 @@ function runProcess(command, args, options = {}) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (options.pidFile && childPid) {
+        try {
+          if (fs.readFileSync(options.pidFile, 'utf8').trim() === String(childPid)) {
+            fs.rmSync(options.pidFile, { force: true });
+          }
+        } catch {
+          // The cleanup supervisor owns the file if the parent exits abruptly.
+        }
+      }
       resolve({
         command,
         args,
@@ -150,6 +169,7 @@ function runProcess(command, args, options = {}) {
         stderr: stderr.parts.join(''),
         timedOut,
         outputTruncated: stdout.truncated || stderr.truncated,
+        pid: childPid,
         error: result.error || null
       });
     }
@@ -933,6 +953,7 @@ async function verifyRepository(rootPath, options = {}) {
   }
 
   const dockerConfigRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-docker-config-'));
+  const processPidFile = path.join(dockerConfigRoot, 'docker.pid');
   const dockerContext = {
     cwd: os.tmpdir(),
     env: dockerClientEnvironment(dockerConfigRoot)
@@ -1076,6 +1097,8 @@ async function verifyRepository(rootPath, options = {}) {
     if (cleanupSupervisorEnabled) {
       cleanupSupervisor = startCleanupSupervisor({
         scriptPath: __filename,
+        platform: process.platform,
+        childPidFile: processPidFile,
         command: options.cleanupSupervisorCommand || dockerCommand,
         args: Array.isArray(options.cleanupSupervisorArgs)
           ? options.cleanupSupervisorArgs
@@ -1143,101 +1166,106 @@ async function verifyRepository(rootPath, options = {}) {
       if (interruptedSignal) {
         await signalCleanupPromise;
       } else {
-
         const args = dockerRunArguments(staged.destinationRoot, allowNetwork, containerName);
         containerStarted = true;
-        const result = await runner(dockerCommand, args, { ...dockerContext, timeoutMs, maxOutputBytes });
-    if (interruptedSignal) {
-      await signalCleanupPromise;
-      report.verification.outcome = 'failed';
-      report.verification.exitCode = result.exitCode;
-      report.verification.signal = interruptedSignal;
-      report.verification.failedPhase = failedPhaseForResult(result);
-      report.verification.timedOut = Boolean(result.timedOut);
-      report.verification.outputTruncated = Boolean(result.outputTruncated);
-      report.verification.stdout = redactOutput(result.stdout || '');
-      report.verification.stderr = `Docker verification was interrupted by ${interruptedSignal}.`;
-      report.verification.cleanup = signalContainerCleanup || {
-        attempted: true,
-        completed: false,
-        detail: 'Interrupted container cleanup could not be confirmed.'
-      };
-      recomputeSummary(report);
-      report.status = 'failed';
-    } else {
-    report.verification.outcome = result.exitCode === 0 && !result.error && !result.timedOut ? 'passed' : 'failed';
-    report.verification.exitCode = result.exitCode;
-    report.verification.signal = result.signal || null;
-    report.verification.failedPhase = failedPhaseForResult(result);
-    report.verification.timedOut = Boolean(result.timedOut);
-    report.verification.outputTruncated = Boolean(result.outputTruncated);
-    report.verification.stdout = redactOutput(result.stdout || '');
-    report.verification.stderr = redactOutput(result.stderr || result.error || '');
-    const noTestsDetections = result.exitCode === 0 && !result.error && !result.timedOut
-      ? [
-        detectNoTestsRan(report.verification.stdout, 'verification.stdout'),
-        detectNoTestsRan(report.verification.stderr, 'verification.stderr')
-      ].filter(Boolean)
-      : [];
-    if (noTestsDetections.length > 0) {
-      const detection = {
-        frameworks: [...new Set(noTestsDetections.flatMap((item) => item.frameworks))].sort(compareStrings),
-        outputPath: noTestsDetections[0].outputPath,
-        matchedLine: noTestsDetections[0].matchedLine
-      };
-      report.verification.noTestsRan = true;
-      report.verification.outcome = 'failed';
-      addFinding(report, noTestsRanFinding(
-        detection,
-        report.findings.some((finding) => finding.code === 'GIT_METADATA_REQUIRED')
-      ));
-    }
-    if (
-      report.verification.failedPhase === 'install'
-      && !allowNetwork
-      && /(?:ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|ENETUNREACH)/i.test(report.verification.stderr)
-    ) {
-      report.verification.outcome = 'blocked';
-      const privateRegistryNote = report.findings.some((finding) => finding.code === 'PRIVATE_REGISTRY')
-        ? ' Private registry credentials are probably needed for dependency installation.'
-        : '';
-      addFinding(report, {
-        code: 'DOCKER_NETWORK_REQUIRED',
-        status: 'skipped',
-        severity: 'warning',
-        title: 'Docker verification requires network access',
-        message: `npm ci failed while network access was disabled and reported a network error.${privateRegistryNote}`,
-        evidence: makeEvidence('verification.stderr', 'The install output contained a network error.'),
-        recommendation: 'Review the repository, then rerun with --allow-network if you trust it.'
-      });
-    }
-    report.verification.cleanup = await cleanupContainer(
-      runner,
-      dockerCommand,
-      containerName,
-      result,
-      { ...dockerContext, timeoutMs: DOCKER_PROBE_TIMEOUT_MS, maxOutputBytes: 16 * 1024 }
-    );
-    if (!report.verification.cleanup.completed) {
-      addFinding(report, {
-        code: 'DOCKER_CLEANUP_INCOMPLETE',
-        status: 'failed',
-        severity: 'error',
-        title: 'Docker container cleanup could not be confirmed',
-        message: 'CloneProof could not confirm that the timed-out or interrupted container was removed.',
-        evidence: makeEvidence('verification', report.verification.cleanup.detail),
-        recommendation: 'Stop and remove the reported container before running another verification.'
-      });
-      report.verification.outcome = 'failed';
-    }
-    if (report.verification.outcome !== 'blocked') {
-      const finding = verificationFinding(report.verification.outcome, report.verification, report);
-      if (finding) addFinding(report, finding);
-    }
-    recomputeSummary(report);
-    report.status = report.verification.outcome === 'passed'
-      ? (report.summary.warnings > 0 || report.verification.omittedPaths.length > 0 ? 'passed_with_warnings' : 'passed')
-      : report.verification.outcome === 'blocked' ? 'blocked' : 'failed';
+        const result = await runner(dockerCommand, args, {
+          ...dockerContext,
+          timeoutMs,
+          maxOutputBytes,
+          pidFile: processPidFile,
+          processGroup: true
+        });
+        if (interruptedSignal) {
+          await signalCleanupPromise;
+          report.verification.outcome = 'failed';
+          report.verification.exitCode = result.exitCode;
+          report.verification.signal = interruptedSignal;
+          report.verification.failedPhase = failedPhaseForResult(result);
+          report.verification.timedOut = Boolean(result.timedOut);
+          report.verification.outputTruncated = Boolean(result.outputTruncated);
+          report.verification.stdout = redactOutput(result.stdout || '');
+          report.verification.stderr = `Docker verification was interrupted by ${interruptedSignal}.`;
+          report.verification.cleanup = signalContainerCleanup || {
+            attempted: true,
+            completed: false,
+            detail: 'Interrupted container cleanup could not be confirmed.'
+          };
+          recomputeSummary(report);
+          report.status = 'failed';
+        } else {
+          report.verification.outcome = result.exitCode === 0 && !result.error && !result.timedOut ? 'passed' : 'failed';
+          report.verification.exitCode = result.exitCode;
+          report.verification.signal = result.signal || null;
+          report.verification.failedPhase = failedPhaseForResult(result);
+          report.verification.timedOut = Boolean(result.timedOut);
+          report.verification.outputTruncated = Boolean(result.outputTruncated);
+          report.verification.stdout = redactOutput(result.stdout || '');
+          report.verification.stderr = redactOutput(result.stderr || result.error || '');
+          const noTestsDetections = result.exitCode === 0 && !result.error && !result.timedOut
+            ? [
+              detectNoTestsRan(report.verification.stdout, 'verification.stdout'),
+              detectNoTestsRan(report.verification.stderr, 'verification.stderr')
+            ].filter(Boolean)
+            : [];
+          if (noTestsDetections.length > 0) {
+            const detection = {
+              frameworks: [...new Set(noTestsDetections.flatMap((item) => item.frameworks))].sort(compareStrings),
+              outputPath: noTestsDetections[0].outputPath,
+              matchedLine: noTestsDetections[0].matchedLine
+            };
+            report.verification.noTestsRan = true;
+            report.verification.outcome = 'failed';
+            addFinding(report, noTestsRanFinding(
+              detection,
+              report.findings.some((finding) => finding.code === 'GIT_METADATA_REQUIRED')
+            ));
+          }
+          if (
+            report.verification.failedPhase === 'install'
+            && !allowNetwork
+            && /(?:ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|ENETUNREACH)/i.test(report.verification.stderr)
+          ) {
+            report.verification.outcome = 'blocked';
+            const privateRegistryNote = report.findings.some((finding) => finding.code === 'PRIVATE_REGISTRY')
+              ? ' Private registry credentials are probably needed for dependency installation.'
+              : '';
+            addFinding(report, {
+              code: 'DOCKER_NETWORK_REQUIRED',
+              status: 'skipped',
+              severity: 'warning',
+              title: 'Docker verification requires network access',
+              message: `npm ci failed while network access was disabled and reported a network error.${privateRegistryNote}`,
+              evidence: makeEvidence('verification.stderr', 'The install output contained a network error.'),
+              recommendation: 'Review the repository, then rerun with --allow-network if you trust it.'
+            });
+          }
+          report.verification.cleanup = await cleanupContainer(
+            runner,
+            dockerCommand,
+            containerName,
+            result,
+            { ...dockerContext, timeoutMs: DOCKER_PROBE_TIMEOUT_MS, maxOutputBytes: 16 * 1024 }
+          );
+          if (!report.verification.cleanup.completed) {
+            addFinding(report, {
+              code: 'DOCKER_CLEANUP_INCOMPLETE',
+              status: 'failed',
+              severity: 'error',
+              title: 'Docker container cleanup could not be confirmed',
+              message: 'CloneProof could not confirm that the timed-out or interrupted container was removed.',
+              evidence: makeEvidence('verification', report.verification.cleanup.detail),
+              recommendation: 'Stop and remove the reported container before running another verification.'
+            });
+            report.verification.outcome = 'failed';
+          }
+          if (report.verification.outcome !== 'blocked') {
+            const finding = verificationFinding(report.verification.outcome, report.verification, report);
+            if (finding) addFinding(report, finding);
+          }
+          recomputeSummary(report);
+          report.status = report.verification.outcome === 'passed'
+            ? (report.summary.warnings > 0 || report.verification.omittedPaths.length > 0 ? 'passed_with_warnings' : 'passed')
+            : report.verification.outcome === 'blocked' ? 'blocked' : 'failed';
         }
       }
     }

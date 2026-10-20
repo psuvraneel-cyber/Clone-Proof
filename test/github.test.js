@@ -22,6 +22,7 @@ const {
 const { scanRepository } = require('../src/scan/repository');
 const { stageRepository, verifyRepository } = require('../src/verify/docker');
 const { resolveGitExecutable } = require('../src/util/executable');
+const { processIsAlive } = require('../src/util/cleanup-supervisor');
 
 const VALID_URL = 'https://github.com/example/project';
 const COMMIT_SHA = '0123456789abcdef0123456789abcdef01234567';
@@ -301,6 +302,94 @@ test('abrupt GitHub clone termination removes its temporary parent', async () =>
     assert.equal(fs.existsSync(paths.temporaryParent), false);
   } finally {
     if (child.exitCode === null) child.kill('SIGKILL');
+    for (const directory of [paths && paths.temporaryParent].filter(Boolean)) {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('cleanup supervisor kills a long-running Git child before removing the clone parent', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cloneproof-github-child-cleanup-'));
+  const readyPath = path.join(root, 'ready');
+  const pathsPath = path.join(root, 'paths.json');
+  const workerScript = path.join(root, 'git-worker.js');
+  const childScript = path.join(root, 'clone.js');
+  const githubModule = path.join(__dirname, '..', 'src', 'input', 'github.js');
+  let paths;
+  let childPid;
+
+  fs.writeFileSync(workerScript, [
+    "'use strict';",
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    'const destination = process.argv[2];',
+    'let index = 0;',
+    'fs.mkdirSync(destination, { recursive: true });',
+    'setInterval(() => { fs.writeFileSync(path.join(destination, `heartbeat-${index++}.txt`), String(Date.now())); }, 25);'
+  ].join('\n'));
+  fs.writeFileSync(childScript, [
+    "'use strict';",
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    "const { spawn } = require('node:child_process');",
+    `const { cloneGithubRepository } = require(${JSON.stringify(githubModule)});`,
+    `const readyPath = ${JSON.stringify(readyPath)};`,
+    `const pathsPath = ${JSON.stringify(pathsPath)};`,
+    `const workerScript = ${JSON.stringify(workerScript)};`,
+    'const success = { exitCode: 0, signal: null, stdout: "", stderr: "", timedOut: false, outputTruncated: false, error: null };',
+    'const fetcher = async () => ({ status: 200, async json() { return { private: false, size: 1 }; } });',
+    'const runner = async (command, args) => {',
+    '  if (args[0] === "--version") return success;',
+    '  if (args.includes("clone")) {',
+    '    const checkout = args.at(-1);',
+    '    const temporaryParent = path.dirname(checkout);',
+    '    const worker = spawn(process.execPath, [workerScript, checkout], { detached: process.platform !== "win32", windowsHide: true, stdio: "ignore" });',
+    '    fs.writeFileSync(path.join(temporaryParent, "git.pid"), String(worker.pid));',
+    '    fs.writeFileSync(pathsPath, JSON.stringify({ temporaryParent, childPid: worker.pid }));',
+    '    fs.writeFileSync(readyPath, "cloning");',
+    '    return new Promise(() => {});',
+    '  }',
+    '  return success;',
+    '};',
+    'cloneGithubRepository("https://github.com/example/project", { gitExecutable: process.execPath, fetcher, runner, cleanupSupervisor: true }).catch(() => { process.exitCode = 1; });'
+  ].join('\n'));
+
+  const child = spawn(process.execPath, [childScript], {
+    cwd: path.join(__dirname, '..'),
+    stdio: ['ignore', 'ignore', 'pipe'],
+    windowsHide: true
+  });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+  try {
+    await waitForFile(readyPath);
+    await waitForFile(pathsPath);
+    paths = JSON.parse(fs.readFileSync(pathsPath, 'utf8'));
+    childPid = Number(paths.childPid);
+    assert.equal(processIsAlive(childPid), true);
+    assert.equal(fs.existsSync(paths.temporaryParent), true);
+
+    assert.equal(child.kill('SIGKILL'), true);
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Clone process did not exit: ${stderr}`)), 10000);
+      child.once('close', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+
+    await waitForCondition(() => !fs.existsSync(paths.temporaryParent), 30000);
+    await waitForCondition(() => !processIsAlive(childPid), 30000);
+    assert.equal(fs.existsSync(paths.temporaryParent), false);
+    assert.equal(processIsAlive(childPid), false);
+  } finally {
+    if (child.exitCode === null) child.kill('SIGKILL');
+    if (childPid && processIsAlive(childPid)) {
+      try { process.kill(childPid, 'SIGKILL'); } catch {}
+    }
     for (const directory of [paths && paths.temporaryParent].filter(Boolean)) {
       fs.rmSync(directory, { recursive: true, force: true });
     }
