@@ -13,6 +13,7 @@ The first slice targets the root of a Node.js or TypeScript repository. It reads
 
 ```text
 src/
+  action/                native GitHub Action entrypoint and runner boundary
   cli.js                 argument parsing, Docker setup, and exit codes
   input/                 public GitHub URL validation and bounded clone staging
   scan/                  bounded filesystem scan and deterministic rules

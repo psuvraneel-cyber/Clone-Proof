@@ -153,3 +153,9 @@
 
 - **Decision:** Run `npm run test:leaks` in an isolated temporary directory with `TEMP`, `TMP`, and `TMPDIR` redirected, wait for detached cleanup supervisors, and leave non-empty leak directories for inspection. Keep `npm test` unchanged.
 - **Why:** Shared operating-system temp folders cannot distinguish CloneProof leaks from concurrent processes; an isolated guard provides reproducible offline hygiene evidence on every CI operating system.
+
+## 2026-10-30 — Native JavaScript GitHub Action
+
+- **Decision:** Provide a native JavaScript GitHub Action (`action.yml` and `src/action/index.js`) using the `node24` runtime without introducing external dependencies.
+- **Why:** Enable repository maintainers to run CloneProof static inspection directly in GitHub Actions workflows using a standard `uses:` reference without manual npm installations or custom shell scripts.
+- **Security & Integrity:** Execute the existing CLI using `process.execPath`, argument arrays, and `shell: false`. Restrict child process environment to a minimal allowlist of necessary operating system variables, explicitly stripping runner tokens and workflow secrets. Validate that `target-path` and `report-path` resolve within authorized boundaries (`GITHUB_WORKSPACE` and `RUNNER_TEMP`) and do not follow symlinks outside allowed directories. Sanitize child-process output to prevent workflow command injection, and write `status` and `report-path` outputs to `GITHUB_OUTPUT` while strictly rejecting newline injection. Preserve CLI exit-code semantics and ensure report files remain intact on failure.

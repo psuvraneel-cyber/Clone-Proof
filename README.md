@@ -49,6 +49,17 @@ Or run it once without installing:
 npx github:psuvraneel-cyber/Clone-Proof check ./my-project
 ```
 
+### GitHub Actions
+
+Run CloneProof automatically in CI using the native GitHub Action:
+
+```yaml
+- name: Run CloneProof
+  uses: psuvraneel-cyber/Clone-Proof@main
+  with:
+    target-path: '.'
+```
+
 > ⚠️ `npm install -g cloneproof` (without the GitHub URL) installs an **unrelated** package with the same name.
 
 Want proof that install and tests really work?

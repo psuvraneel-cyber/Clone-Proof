@@ -1,0 +1,22 @@
+name: 'CloneProof'
+description: 'Evidence-based setup verification for Node.js and TypeScript repositories.'
+author: 'CloneProof Contributors'
+inputs:
+  target-path:
+    description: 'Path to the repository directory to inspect.'
+    required: false
+    default: '.'
+  report-path:
+    description: 'Destination path for the generated JSON report.'
+    required: false
+outputs:
+  status:
+    description: 'The overall verification status (passed, passed_with_warnings, failed, blocked, or incomplete).'
+  report-path:
+    description: 'The path to the generated JSON report file.'
+runs:
+  using: 'node24'
+  main: 'src/action/index.js'
+branding:
+  icon: 'shield'
+  color: 'green'
