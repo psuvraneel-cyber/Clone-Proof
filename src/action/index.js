@@ -3,6 +3,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { emitAnnotations } = require('./annotations');
+const { isSubPath, normalizePathForComparison } = require('./paths');
+const { renderJobSummary, writeJobSummary } = require('./summary');
 
 const MINIMAL_PROCESS_ENV_KEYS = [
   'PATH',
@@ -30,23 +33,6 @@ const VALID_REPORT_STATUSES = new Set([
   'blocked',
   'incomplete'
 ]);
-
-function normalizePathForComparison(targetPath) {
-  let resolved = path.resolve(targetPath);
-  if (process.platform === 'win32') {
-    resolved = resolved.toLowerCase();
-  }
-  return resolved;
-}
-
-function isSubPath(parentPath, childPath) {
-  const normParent = normalizePathForComparison(parentPath);
-  const normChild = normalizePathForComparison(childPath);
-  const rel = path.relative(normParent, normChild);
-  if (rel === '') return true;
-  if (rel.startsWith('..') || path.isAbsolute(rel)) return false;
-  return true;
-}
 
 function sanitizeWorkflowCommandText(text) {
   if (typeof text !== 'string') return '';
@@ -331,6 +317,33 @@ async function runAction(options = {}) {
   exportOutput(env.GITHUB_OUTPUT, 'status', report.status);
   exportOutput(env.GITHUB_OUTPUT, 'report-path', resolvedReport);
 
+  let annotationResult = null;
+  try {
+    annotationResult = emitAnnotations(report, {
+      workspaceRoot: workspace,
+      targetRoot: resolvedTarget,
+      destination: stdout
+    });
+  } catch (annotationError) {
+    if (stderr && typeof stderr.write === 'function') {
+      stderr.write(`CloneProof Action: failed to generate annotations: ${annotationError.message}\n`);
+    }
+  }
+
+  try {
+    const summaryMarkdown = renderJobSummary(report, {
+      workspaceRoot: workspace,
+      targetRoot: resolvedTarget,
+      reportPath: resolvedReport,
+      omittedAnnotationCount: annotationResult ? annotationResult.omittedCount : 0
+    });
+    writeJobSummary(summaryMarkdown, env.GITHUB_STEP_SUMMARY, stderr);
+  } catch (summaryError) {
+    if (stderr && typeof stderr.write === 'function') {
+      stderr.write(`CloneProof Action: failed to generate job summary: ${summaryError.message}\n`);
+    }
+  }
+
   let finalExitCode = childExitCode;
   if (finalExitCode === 0) {
     if (report.status === 'failed') {
@@ -355,17 +368,20 @@ if (require.main === module) {
 module.exports = {
   MINIMAL_PROCESS_ENV_KEYS,
   VALID_REPORT_STATUSES,
+  emitAnnotations,
   exportOutput,
   filterChildEnvironment,
   getActionInput,
   isSubPath,
   normalizePathForComparison,
   pipeSanitizedOutput,
+  renderJobSummary,
   resolveCliEntrypoint,
   runAction,
   sanitizeWorkflowCommandText,
   validateReportPath,
   validateReportStructure,
   validateRequiredEnvironment,
-  validateTargetPath
+  validateTargetPath,
+  writeJobSummary
 };

@@ -51,7 +51,7 @@ npx github:psuvraneel-cyber/Clone-Proof check ./my-project
 
 ### GitHub Actions
 
-Run CloneProof automatically in CI using the native GitHub Action:
+Run CloneProof automatically in CI using the native GitHub Action (`node24`):
 
 ```yaml
 - name: Run CloneProof
@@ -59,6 +59,13 @@ Run CloneProof automatically in CI using the native GitHub Action:
   with:
     target-path: '.'
 ```
+
+The Action integrates natively with GitHub Actions features:
+- **Pull request & workflow annotations:** High-priority findings appear inline in file diffs and workflow logs (`error`, `warning`, `notice`).
+- **GitHub Actions Job Summary:** A formatted Markdown summary in the workflow overview showing status, metrics, findings table, evaluated check groups, and explicitly unverified scopes.
+- **Fail-safe isolation:** Child process secrets are scrubbed, untrusted child output cannot inject workflow commands, and summary formatting failures never crash or alter scan results.
+
+See [docs/GITHUB_ACTION.md](docs/GITHUB_ACTION.md) for complete input, output, annotation, and job summary documentation.
 
 > ⚠️ `npm install -g cloneproof` (without the GitHub URL) installs an **unrelated** package with the same name.
 

@@ -544,3 +544,113 @@ test('Subprocess CLI execution of src/action/index.js on broken fixture returns 
   const outputContent = fs.readFileSync(githubOutput, 'utf8');
   assert.match(outputContent, /^status=failed$/m);
 }));
+
+test('Subprocess execution on broken fixture emits workflow annotations and writes step summary', () => withTempDir('cloneproof-action-summary-e2e-', (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  const stepSummary = path.join(dir, 'step_summary.md');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const brokenFixture = path.join(projectRoot, 'examples', 'broken-node');
+
+  const result = spawnSync(process.execPath, [actionScriptPath], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GITHUB_WORKSPACE: projectRoot,
+      'INPUT_TARGET-PATH': brokenFixture,
+      GITHUB_OUTPUT: githubOutput,
+      GITHUB_STEP_SUMMARY: stepSummary,
+      RUNNER_TEMP: runnerTemp,
+      NO_COLOR: '1'
+    }
+  });
+
+  assert.equal(result.status, 1, `Subprocess expected exit code 1, got ${result.status}. Stderr: ${result.stderr}`);
+
+  // Annotations emitted to stdout
+  assert.match(result.stdout, /::error /);
+  assert.match(result.stdout, /title=TEST_SCRIPT_MISSING/);
+  assert.match(result.stdout, /file=examples\/broken-node\/package\.json/);
+
+  // Job summary written to GITHUB_STEP_SUMMARY
+  assert.equal(fs.existsSync(stepSummary), true, 'Step summary file must exist');
+  const summaryContent = fs.readFileSync(stepSummary, 'utf8');
+  assert.match(summaryContent, /# CloneProof Repository Check/);
+  assert.match(summaryContent, /\*\*Result:\*\* FAILED/);
+  assert.match(summaryContent, /\| Metric \| Count \|/);
+  assert.match(summaryContent, /`TEST_SCRIPT_MISSING`/);
+  assert.match(summaryContent, /`examples\/broken-node\/package\.json`/);
+  assert.match(summaryContent, /`examples\/broken-node\/src\/index\.js:1`/);
+  assert.match(summaryContent, /### Scopes not checked/);
+  assert.match(summaryContent, /## Report Location/);
+}));
+
+test('Subprocess execution on healthy fixture emits no annotations and writes clean step summary', () => withTempDir('cloneproof-action-healthy-summary-', (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  const stepSummary = path.join(dir, 'step_summary.md');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const healthyFixture = path.join(projectRoot, 'examples', 'healthy-node');
+
+  const result = spawnSync(process.execPath, [actionScriptPath], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GITHUB_WORKSPACE: projectRoot,
+      'INPUT_TARGET-PATH': healthyFixture,
+      GITHUB_OUTPUT: githubOutput,
+      GITHUB_STEP_SUMMARY: stepSummary,
+      RUNNER_TEMP: runnerTemp,
+      NO_COLOR: '1'
+    }
+  });
+
+  assert.equal(result.status, 0, `Subprocess failed with: ${result.stderr}`);
+
+  // No annotations emitted for healthy fixture
+  assert.doesNotMatch(result.stdout, /::error /);
+  assert.doesNotMatch(result.stdout, /::warning /);
+  assert.doesNotMatch(result.stdout, /::notice /);
+
+  // Job summary indicates success
+  assert.equal(fs.existsSync(stepSummary), true);
+  const summaryContent = fs.readFileSync(stepSummary, 'utf8');
+  assert.match(summaryContent, /# CloneProof Repository Check/);
+  assert.match(summaryContent, /\*\*Result:\*\* PASSED/);
+  assert.match(summaryContent, /No issues or warnings detected\./);
+}));
+
+test('Step summary write error does not crash Action or change exit code', () => withTempDir('cloneproof-action-summary-err-', (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const brokenFixture = path.join(projectRoot, 'examples', 'broken-node');
+  // Point GITHUB_STEP_SUMMARY to an impossible non-existent subfolder to force write failure
+  const invalidSummaryPath = path.join(dir, 'non_existent_dir', 'sub', 'summary.md');
+
+  const result = spawnSync(process.execPath, [actionScriptPath], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GITHUB_WORKSPACE: projectRoot,
+      'INPUT_TARGET-PATH': brokenFixture,
+      GITHUB_OUTPUT: githubOutput,
+      GITHUB_STEP_SUMMARY: invalidSummaryPath,
+      RUNNER_TEMP: runnerTemp,
+      NO_COLOR: '1'
+    }
+  });
+
+  // Original exit code 1 must be preserved despite summary failure
+  assert.equal(result.status, 1);
+  const outputContent = fs.readFileSync(githubOutput, 'utf8');
+  assert.match(outputContent, /^status=failed$/m);
+  // Stderr should contain a safe diagnostic
+  assert.match(result.stderr, /failed to write job summary/);
+}));

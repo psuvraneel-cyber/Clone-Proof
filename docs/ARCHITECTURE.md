@@ -73,3 +73,15 @@ npm test
 ```
 
 `--execute` is the execution consent flag. Network is `none` unless `--allow-network` is also provided; that flag applies to both `npm ci` and `npm test`. When the npm lockfile reports external packages, the verifier blocks before the Docker probe unless network consent was provided. If Docker is missing, the image is missing, static prerequisites fail, staging encounters symlinks, or a limit is exceeded, CloneProof reports `blocked` and never falls back to the host. Docker commands use an isolated temporary CLI configuration and the local default endpoint rather than inheriting a user-selected Docker context.
+
+## GitHub Actions native integration
+
+The Action subsystem (`src/action/`) integrates CloneProof into GitHub Actions workflows without adding external dependencies:
+
+- `action/index.js`: Main Action entry point. Validates runner environment (`GITHUB_WORKSPACE`, `GITHUB_OUTPUT`, `RUNNER_TEMP`), executes the CLI entry point (`src/cli.js`) via non-shell argument arrays (`child_process.spawn`), sanitizes child output streams to prevent workflow command injection, exports outputs to `GITHUB_OUTPUT`, coordinates annotation and summary generation, and strictly preserves original CLI exit code semantics.
+- `action/workflow-commands.js`: Formats GitHub Actions workflow commands (`::error`, `::warning`, `::notice`) with strict percent-encoding (`%`, `\r`, `\n`, `:`, `,` for properties; `%`, `\r`, `\n` for messages) to prevent command and property injection.
+- `action/annotations.js`: Maps report findings to workflow command annotations. Employs deterministic ordering (priority: `failed` > `warning` > `skipped`, then file, line, col, title, message), resolves finding paths relative to `GITHUB_WORKSPACE` using forward slashes while enforcing workspace containment, and caps emitted annotations at 50 to prevent runner throttling.
+- `action/summary.js`: Renders GitHub Actions Job Summaries appended to `GITHUB_STEP_SUMMARY`. Formats status badges, summary metrics, findings tables, check coverage, out-of-scope boundaries, and runner report locations. Enforces strict Markdown/HTML metacharacter escaping (`escapeMarkdown`, `escapeTableCell`, `escapeInlineCode`) and caps summary output at 512 KiB of UTF-8 text with multi-byte-safe truncation.
+- `action/paths.js`: Shared path utilities ensuring consistent comparison and preventing circular dependencies.
+
+Presentation failures (such as annotation formatting errors or unwritable step summary destinations) are caught and logged to `stderr` as safe diagnostics. They never alter the validated scan report, report status, or CLI exit codes. The report schema version 2 remains untouched as the canonical source of truth.
