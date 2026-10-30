@@ -12,6 +12,15 @@ and `2` (blocked or incomplete).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-30
+
+### Changed
+
+- The GitHub Action is named `CloneProof Check` so it can be listed on the
+  GitHub Marketplace, where the name `Cloneproof` belongs to a different
+  project. The `uses: psuvraneel-cyber/Clone-Proof@<ref>` reference, inputs,
+  and outputs are unchanged.
+
 ### Fixed
 
 - `ENV_EXAMPLE_MISSING` / `ENV_KEY_MISSING`: committed root `.env` files
@@ -67,5 +76,6 @@ First tagged release.
   Docker is not a complete sandbox, and `--allow-network` should be used only
   for trusted repositories.
 
-[Unreleased]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.1.0

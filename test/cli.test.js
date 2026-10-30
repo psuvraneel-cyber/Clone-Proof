@@ -37,8 +37,10 @@ test('version prints the package version and exits successfully', () => {
     encoding: 'utf8'
   });
 
+  const { version } = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /^0\.1\.0\n$/);
+  assert.match(version, /^\d+\.\d+\.\d+$/);
+  assert.equal(result.stdout, `${version}\n`);
   assert.equal(result.stderr, '');
 });
 
