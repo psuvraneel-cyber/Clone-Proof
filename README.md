@@ -201,7 +201,9 @@ The JSON report's `coverage.checked` lists the groups actually attempted for tha
 - `PACKAGE_MANAGER_UNRECOGNIZED` — `packageManager` names something other than npm, pnpm, Yarn or Bun. Advisory, not a failure.
 - `MONOREPO_ROOT_TEST_SCRIPT_MISSING` — a workspace root has no root test script; nested packages may own the tests. Advisory.
 
-Environment warnings skip example, fixture, mock, docs, benchmark, perf, tooling and CI scopes at any depth, plus conventional CI/test-tool prefixes (`CI_*`, `GITHUB_*`, `JEST_*`, `PLAYWRIGHT_*`, `BROWSERSTACK_*`, …). A variable with a literal fallback (`process.env.PORT ?? "3000"`) or a destructuring default counts as optional — but only if *every* reference has one. `AZURE_*` is deliberately **not** skipped, because keys like `AZURE_STORAGE_CONNECTION_STRING` are real app settings.
+Environment warnings skip example, fixture, mock, docs, benchmark, perf, tooling and CI scopes at any depth, plus conventional CI/test-tool prefixes (`CI_*`, `GITHUB_*`, `JEST_*`, `PLAYWRIGHT_*`, `BROWSERSTACK_*`, …). A variable with a literal fallback (`process.env.PORT ?? "3000"`) or a destructuring default counts as optional — but only if *every* reference has one. `AZURE_*` is deliberately **not** skipped, because keys like `AZURE_STORAGE_CONNECTION_STRING` are real app settings. Committed root `.env` files (`.env.development`, `.env.default`, …) count as documentation; CloneProof reads only their key names, never their values. Keys a framework sets itself (Vite's `import.meta.env.DEV`, create-react-app's `PUBLIC_URL`, WXT browser flags, values injected by a build-time define map) are not reported.
+
+`BROWSER_TESTS_DETECTED` fires only when `npm test` actually runs a browser: a dedicated browser runner (Playwright, Cypress, Karma, Puppeteer, Web Test Runner), or Vitest with `--browser` or `browser.enabled: true` in the configuration it loads.
 
 </details>
 
@@ -285,15 +287,16 @@ Full commands, target commits and per-finding verdicts are in [docs/FIELD_TEST.m
 |---|---:|
 | Random sample, pre-registered (Run 5, 50 repos) | 13 failed (exit 1), 36 passed, 1 incomplete |
 | Blocking findings, Run 5 | **14 / 14 factually correct**; 4 / 14 actionable, 10 were "this repo has no tests" |
-| Warnings, Run 5 | 8 / 26 real (**30.8%**); 13 / 26 false, mostly `ENV_EXAMPLE_MISSING` and `BROWSER_TESTS_DETECTED` |
+| Warnings, Run 5 | 8 / 26 real (30.8%); 13 / 26 false, mostly `ENV_EXAMPLE_MISSING` and `BROWSER_TESTS_DETECTED` |
+| Warnings, Run 5 rerun after the env and browser fixes | **1 / 31 false** (was 13 / 26); the rest are real or optional settings |
 | Hand-picked repositories (Run 3) | **13 correct + 2 environment-limited** out of 15; warning precision 5 / 6 |
 | Planted-bug mutations (offline) | **13 / 13** detected |
 | Planted bugs in real repositories | **39 / 39** detected across 3 repos |
-| Automated tests | **421** (offline, `npm test`) |
+| Automated tests | **434** (offline, `npm test`) |
 | CI | Ubuntu · macOS · Windows · Docker end-to-end · GitHub Action end-to-end |
 | Output determinism | Byte-identical JSON across repeated runs on 10 public repos |
 
-Run 5 is the honest noise measurement. Blocking findings were never wrong, but most fired on repositories that have no tests at all. Two warning checks (`ENV_EXAMPLE_MISSING`, `BROWSER_TESTS_DETECTED`) are noisy in the wild and are the next fixes. In Run 3, the two environment-limited cases are expected by design: native modules whose install scripts are skipped, and browser tests that the controlled image can't run.
+Run 5 is the honest noise measurement. Blocking findings were never wrong, but most fired on repositories that have no tests at all. Two warning checks (`ENV_EXAMPLE_MISSING`, `BROWSER_TESTS_DETECTED`) were noisy in the wild. After fixing them, a rerun of the same 50 repositories went from 13 false warnings to 1; most remaining environment warnings are true but name optional settings. In Run 3, the two environment-limited cases are expected by design: native modules whose install scripts are skipped, and browser tests that the controlled image can't run.
 
 ---
 
@@ -314,7 +317,7 @@ Run 5 is the honest noise measurement. Blocking findings were never wrong, but m
 git clone https://github.com/psuvraneel-cyber/Clone-Proof.git
 cd Clone-Proof
 npm ci
-npm test               # 421 offline tests
+npm test               # 434 offline tests
 npm run test:leaks     # same suite with an isolated temp folder; fails on any leftover file
 npm run build          # syntax check
 ```
@@ -339,7 +342,7 @@ No secrets are needed; `.env.example` is a placeholder template only.
 - Stronger isolation (gVisor or a dedicated VM)
 - A size watchdog during clones
 - Safe symlink recreation inside the container
-- Reduce the noise measured in field test Run 5: committed `.env.*` files and framework built-ins for environment checks, browser detection based on the selected test configuration, and a non-blocking result for repositories with no tests
+- Remaining Run 5 noise: a non-blocking result for repositories with no tests, one grouped finding instead of one per undocumented env key, and public npm mirrors reported apart from private registries
 
 ---
 

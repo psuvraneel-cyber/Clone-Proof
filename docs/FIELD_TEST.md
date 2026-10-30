@@ -498,6 +498,35 @@ Repositories with exit `1`: 13 of 50. Justified by at least one real blocking fi
 
 Any fix should be followed by a rerun of the same sample with the same judgments.
 
+### Run 5 rerun after fixes 1 and 2 (2026-10-30)
+
+Fixes 1 and 2 above were implemented on the `claude/noise-fixes` branch with regressions in `test/scan-noise.test.js`. The same 50 repositories were rerun on the same day with `node scripts/fieldtest.js run`. Results are in [`field-test/run5-rerun-results.json`](field-test/run5-rerun-results.json) and judgments in [`field-test/run5-rerun-judgments.json`](field-test/run5-rerun-judgments.json). Findings unchanged from Run 5 keep their original judgment; changed or new findings were judged by the same pre-registered rules.
+
+A first rerun exposed a regression before this result was recorded: `pixijs/pixi-react` lost its real `BROWSER_TESTS_DETECTED`, because `--project` in `tsc --project tsconfig.test.json && vitest run` was read as a Vitest project filter. Flags are now read only from the Vitest part of the command, there is a regression test, and the recorded rerun uses the corrected code.
+
+| | Run 5 | Rerun |
+|---|---:|---:|
+| Report status `passed` / `passed_with_warnings` / `failed` / `incomplete` | 17 / 19 / 13 / 1 | 23 / 13 / 13 / 1 |
+| Blocking findings: real / policy / false | 4 / 10 / 0 | 4 / 10 / 0 |
+| Warnings: real / policy / false | 8 / 5 / 13 | 8 / 22 / 1 |
+| Warning correctness (real + policy) | 13 / 26 = 50.0% | 30 / 31 = **96.8%** (95% cluster-bootstrap CI 85.7%–100.0%) |
+| Warning precision (real) | 8 / 26 = 30.8% | 8 / 31 = 25.8% (95% cluster-bootstrap CI 9.1%–64.7%) |
+| `BROWSER_TESTS_DETECTED`: real / false | 3 / 5 | 3 / 0 |
+| Environment findings: real / policy / false | 0 / 1 / 7 | 0 / 18 / 0 |
+
+**What changed.**
+
+- All 5 false `BROWSER_TESTS_DETECTED` findings are gone, and all 3 real ones remain.
+- All 7 false environment findings are gone. language-settings-manager, read-receipt, and hej no longer get any environment finding; lyricistant and TabsAsideExtension keep one listing only their genuinely optional keys.
+- Six repositories moved from `passed_with_warnings` to `passed`: biud436/InitialEditor, react-token-autocomplete, connex, cdav-library, language-settings-manager, and read-receipt.
+- The only false finding left is `PRIVATE_REGISTRY` on a public npm mirror (fix 4, not yet done).
+
+**What did not get better, and why.**
+
+- Warning *precision* did not rise. The remaining environment findings are all policy: optional settings such as release-signing secrets, analytics keys, and debug switches. Static inspection cannot tell an optional key from a required one, so these findings are true but rarely actionable.
+- The warning *count* went up from 26 to 31. `tidepool-org/uploader` commits a `.env`, so it now gets one `ENV_KEY_MISSING` per undocumented key (13 findings) instead of one `ENV_EXAMPLE_MISSING`; `learn-japanese` gets 2. Grouping per-key environment findings into one finding per repository would remove this fan-out. It is a reporting change and is left for a separate decision.
+- Blocking findings are unchanged: fix 3 (repositories with no tests) is still a product decision.
+
 ## Known limitations
 
 1. **Sensitive-file omission applies to local folders only.** Local staging still omits `.env*`, npm configuration, credentials, and certificate/key files and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Fresh public GitHub clones copy committed versions because they are already public; command-line flags still force `npm ci --ignore-scripts`.
