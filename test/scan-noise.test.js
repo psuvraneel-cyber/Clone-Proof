@@ -223,3 +223,10 @@ test('dedicated browser runners in the test workflow are still reported', () => 
 
   assert.match(finding(scanRepository(root), 'BROWSER_TESTS_DETECTED').message, /runs playwright/);
 }));
+
+test('flags of other commands in the test script do not filter Vitest projects', () => withRepository((root) => {
+  writeBrowserPackage(root, 'tsc --project tsconfig.test.json -c other.json && vitest run');
+  writeFile(root, 'vitest.workspace.ts', "export default defineWorkspace([{ test: { browser: { enabled: true, provider: 'playwright' } } }]);\n");
+
+  assert.equal(finding(scanRepository(root), 'BROWSER_TESTS_DETECTED').evidence.at(-1).path, 'vitest.workspace.ts');
+}));

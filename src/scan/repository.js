@@ -940,7 +940,13 @@ function normalizeConfigReference(value) {
 // plus vitest.workspace.* and project config files they reference). Projects
 // filtered out with --project are not counted. Unreadable configs give no evidence.
 function vitestBrowserModeEvidence(commands, files) {
-  const text = commands.filter((command) => typeof command === 'string').join('\n');
+  // Read flags only from the Vitest invocations: `tsc --project x && vitest run`
+  // must not treat tsc's --project as a Vitest project filter.
+  const text = commands
+    .filter((command) => typeof command === 'string')
+    .flatMap((command) => command.split(/&&|\|\||[;|]/))
+    .filter((segment) => /(?:^|[^A-Za-z0-9_@-])vitest(?=$|[^A-Za-z0-9_@-])/i.test(segment))
+    .join('\n');
   if (/(?:^|\s)--browser(?:[.=\s]|$)/.test(text)) {
     return { path: 'package.json', detail: 'The npm test workflow passes --browser to Vitest.' };
   }
