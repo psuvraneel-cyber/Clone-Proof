@@ -1,0 +1,3040 @@
+{
+  "source": "https://packages.ecosyste.ms/api/v1/registries/npmjs.org/packages",
+  "query": {
+    "sort": "dependent_packages_count",
+    "order": "desc",
+    "per_page": 100
+  },
+  "pages": [
+    {
+      "page": 1,
+      "fetchedAt": "2026-10-30T18:20:01.062Z",
+      "packages": [
+        {
+          "rank": 1,
+          "name": "typescript",
+          "dependentPackages": 488056,
+          "repositoryUrl": "https://github.com/microsoft/TypeScript"
+        },
+        {
+          "rank": 2,
+          "name": "eslint",
+          "dependentPackages": 424118,
+          "repositoryUrl": "https://github.com/eslint/eslint"
+        },
+        {
+          "rank": 3,
+          "name": "react",
+          "dependentPackages": 275174,
+          "repositoryUrl": "https://github.com/react/react"
+        },
+        {
+          "rank": 4,
+          "name": "mocha",
+          "dependentPackages": 261831,
+          "repositoryUrl": "https://github.com/mochajs/mocha"
+        },
+        {
+          "rank": 5,
+          "name": "@types/node",
+          "dependentPackages": 257481,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 6,
+          "name": "jest",
+          "dependentPackages": 241476,
+          "repositoryUrl": "https://github.com/jestjs/jest"
+        },
+        {
+          "rank": 7,
+          "name": "prettier",
+          "dependentPackages": 231277,
+          "repositoryUrl": "https://github.com/prettier/prettier"
+        },
+        {
+          "rank": 8,
+          "name": "webpack",
+          "dependentPackages": 216244,
+          "repositoryUrl": "https://github.com/webpack/webpack"
+        },
+        {
+          "rank": 9,
+          "name": "react-dom",
+          "dependentPackages": 211813,
+          "repositoryUrl": "https://github.com/react/react"
+        },
+        {
+          "rank": 10,
+          "name": "@babel/core",
+          "dependentPackages": 197540,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 11,
+          "name": "babel-loader",
+          "dependentPackages": 191645,
+          "repositoryUrl": "https://github.com/babel/babel-loader"
+        },
+        {
+          "rank": 12,
+          "name": "eslint-plugin-import",
+          "dependentPackages": 171438,
+          "repositoryUrl": "https://github.com/import-js/eslint-plugin-import"
+        },
+        {
+          "rank": 13,
+          "name": "rimraf",
+          "dependentPackages": 168689,
+          "repositoryUrl": "https://github.com/isaacs/rimraf"
+        },
+        {
+          "rank": 14,
+          "name": "chai",
+          "dependentPackages": 168401,
+          "repositoryUrl": "https://github.com/chaijs/chai"
+        },
+        {
+          "rank": 15,
+          "name": "@types/jest",
+          "dependentPackages": 163212,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 16,
+          "name": "lodash",
+          "dependentPackages": 159122,
+          "repositoryUrl": "https://github.com/lodash/lodash"
+        },
+        {
+          "rank": 17,
+          "name": "@babel/preset-env",
+          "dependentPackages": 158475,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 18,
+          "name": "babel-eslint",
+          "dependentPackages": 151269,
+          "repositoryUrl": "https://github.com/babel/babel-eslint"
+        },
+        {
+          "rank": 19,
+          "name": "babel-core",
+          "dependentPackages": 147359,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 20,
+          "name": "husky",
+          "dependentPackages": 134180,
+          "repositoryUrl": "https://github.com/typicode/husky"
+        },
+        {
+          "rank": 21,
+          "name": "rollup",
+          "dependentPackages": 130345,
+          "repositoryUrl": "https://github.com/rollup/rollup"
+        },
+        {
+          "rank": 22,
+          "name": "chalk",
+          "dependentPackages": 130085,
+          "repositoryUrl": "https://github.com/chalk/chalk"
+        },
+        {
+          "rank": 23,
+          "name": "@typescript-eslint/eslint-plugin",
+          "dependentPackages": 129460,
+          "repositoryUrl": "https://github.com/typescript-eslint/typescript-eslint"
+        },
+        {
+          "rank": 24,
+          "name": "@typescript-eslint/parser",
+          "dependentPackages": 128359,
+          "repositoryUrl": "https://github.com/typescript-eslint/typescript-eslint"
+        },
+        {
+          "rank": 25,
+          "name": "tslib",
+          "dependentPackages": 122729,
+          "repositoryUrl": "https://github.com/Microsoft/tslib"
+        },
+        {
+          "rank": 26,
+          "name": "ts-node",
+          "dependentPackages": 120593,
+          "repositoryUrl": "https://github.com/TypeStrong/ts-node"
+        },
+        {
+          "rank": 27,
+          "name": "eslint-config-prettier",
+          "dependentPackages": 120517,
+          "repositoryUrl": "https://github.com/prettier/eslint-config-prettier"
+        },
+        {
+          "rank": 28,
+          "name": "webpack-cli",
+          "dependentPackages": 112364,
+          "repositoryUrl": "https://github.com/webpack/webpack-cli"
+        },
+        {
+          "rank": 29,
+          "name": "@types/react",
+          "dependentPackages": 111414,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 30,
+          "name": "ts-jest",
+          "dependentPackages": 109976,
+          "repositoryUrl": "https://github.com/kulshekhar/ts-jest"
+        },
+        {
+          "rank": 31,
+          "name": "css-loader",
+          "dependentPackages": 109076,
+          "repositoryUrl": "https://github.com/webpack/css-loader"
+        },
+        {
+          "rank": 32,
+          "name": "eslint-plugin-react",
+          "dependentPackages": 105111,
+          "repositoryUrl": "https://github.com/jsx-eslint/eslint-plugin-react"
+        },
+        {
+          "rank": 33,
+          "name": "eslint-plugin-prettier",
+          "dependentPackages": 101897,
+          "repositoryUrl": "https://github.com/prettier/eslint-plugin-prettier"
+        },
+        {
+          "rank": 34,
+          "name": "cross-env",
+          "dependentPackages": 100802,
+          "repositoryUrl": "https://github.com/kentcdodds/cross-env"
+        },
+        {
+          "rank": 35,
+          "name": "babel-cli",
+          "dependentPackages": 99618,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 36,
+          "name": "axios",
+          "dependentPackages": 97210,
+          "repositoryUrl": "https://github.com/axios/axios"
+        },
+        {
+          "rank": 37,
+          "name": "vue",
+          "dependentPackages": 95178,
+          "repositoryUrl": "https://github.com/vuejs/core"
+        },
+        {
+          "rank": 38,
+          "name": "express",
+          "dependentPackages": 93237,
+          "repositoryUrl": "https://github.com/expressjs/express"
+        },
+        {
+          "rank": 39,
+          "name": "babel-preset-es2015",
+          "dependentPackages": 92275,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 40,
+          "name": "autoprefixer",
+          "dependentPackages": 90847,
+          "repositoryUrl": "https://github.com/postcss/autoprefixer"
+        },
+        {
+          "rank": 41,
+          "name": "webpack-dev-server",
+          "dependentPackages": 90823,
+          "repositoryUrl": "https://github.com/webpack/webpack-dev-server"
+        },
+        {
+          "rank": 42,
+          "name": "babel-preset-env",
+          "dependentPackages": 88608,
+          "repositoryUrl": "https://github.com/babel/babel-preset-env"
+        },
+        {
+          "rank": 43,
+          "name": "style-loader",
+          "dependentPackages": 86729,
+          "repositoryUrl": "https://github.com/webpack-contrib/style-loader"
+        },
+        {
+          "rank": 44,
+          "name": "tslint",
+          "dependentPackages": 86050,
+          "repositoryUrl": "https://github.com/palantir/tslint"
+        },
+        {
+          "rank": 45,
+          "name": "@babel/cli",
+          "dependentPackages": 85571,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 46,
+          "name": "lint-staged",
+          "dependentPackages": 84635,
+          "repositoryUrl": "https://github.com/lint-staged/lint-staged"
+        },
+        {
+          "rank": 47,
+          "name": "gulp",
+          "dependentPackages": 81436,
+          "repositoryUrl": "https://github.com/gulpjs/gulp"
+        },
+        {
+          "rank": 48,
+          "name": "sass-loader",
+          "dependentPackages": 76602,
+          "repositoryUrl": "https://github.com/webpack/sass-loader"
+        },
+        {
+          "rank": 49,
+          "name": "node-sass",
+          "dependentPackages": 76299,
+          "repositoryUrl": "https://github.com/sass/node-sass"
+        },
+        {
+          "rank": 50,
+          "name": "commander",
+          "dependentPackages": 74942,
+          "repositoryUrl": "https://github.com/tj/commander.js"
+        },
+        {
+          "rank": 51,
+          "name": "fs-extra",
+          "dependentPackages": 73834,
+          "repositoryUrl": "https://github.com/jprichardson/node-fs-extra"
+        },
+        {
+          "rank": 52,
+          "name": "sinon",
+          "dependentPackages": 70717,
+          "repositoryUrl": "https://github.com/sinonjs/sinon"
+        },
+        {
+          "rank": 53,
+          "name": "vue-template-compiler",
+          "dependentPackages": 69989,
+          "repositoryUrl": "https://github.com/vuejs/vue"
+        },
+        {
+          "rank": 54,
+          "name": "@types/react-dom",
+          "dependentPackages": 69864,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 55,
+          "name": "core-js",
+          "dependentPackages": 68956,
+          "repositoryUrl": "https://github.com/zloirock/core-js"
+        },
+        {
+          "rank": 56,
+          "name": "babel-jest",
+          "dependentPackages": 68349,
+          "repositoryUrl": "https://github.com/jestjs/jest"
+        },
+        {
+          "rank": 57,
+          "name": "@babel/preset-react",
+          "dependentPackages": 65620,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 58,
+          "name": "html-webpack-plugin",
+          "dependentPackages": 65055,
+          "repositoryUrl": "https://github.com/jantimon/html-webpack-plugin"
+        },
+        {
+          "rank": 59,
+          "name": "@rollup/plugin-node-resolve",
+          "dependentPackages": 63824,
+          "repositoryUrl": "https://github.com/rollup/plugins"
+        },
+        {
+          "rank": 60,
+          "name": "nyc",
+          "dependentPackages": 62707,
+          "repositoryUrl": "https://github.com/istanbuljs/nyc"
+        },
+        {
+          "rank": 61,
+          "name": "file-loader",
+          "dependentPackages": 62566,
+          "repositoryUrl": "https://github.com/webpack-contrib/file-loader"
+        },
+        {
+          "rank": 62,
+          "name": "eslint-plugin-promise",
+          "dependentPackages": 62226,
+          "repositoryUrl": "https://github.com/eslint-community/eslint-plugin-promise"
+        },
+        {
+          "rank": 63,
+          "name": "prop-types",
+          "dependentPackages": 60306,
+          "repositoryUrl": "https://github.com/facebook/prop-types"
+        },
+        {
+          "rank": 64,
+          "name": "eslint-plugin-node",
+          "dependentPackages": 59465,
+          "repositoryUrl": "https://github.com/mysticatea/eslint-plugin-node"
+        },
+        {
+          "rank": 65,
+          "name": "request",
+          "dependentPackages": 58231,
+          "repositoryUrl": "https://github.com/request/request"
+        },
+        {
+          "rank": 66,
+          "name": "eslint-plugin-jsx-a11y",
+          "dependentPackages": 55378,
+          "repositoryUrl": "https://github.com/jsx-eslint/eslint-plugin-jsx-a11y"
+        },
+        {
+          "rank": 67,
+          "name": "@rollup/plugin-commonjs",
+          "dependentPackages": 54999,
+          "repositoryUrl": "https://github.com/rollup/plugins"
+        },
+        {
+          "rank": 68,
+          "name": "moment",
+          "dependentPackages": 54055,
+          "repositoryUrl": "https://github.com/moment/moment"
+        },
+        {
+          "rank": 69,
+          "name": "coveralls",
+          "dependentPackages": 53153,
+          "repositoryUrl": "https://github.com/nickmerwin/node-coveralls"
+        },
+        {
+          "rank": 70,
+          "name": "npm-run-all",
+          "dependentPackages": 51551,
+          "repositoryUrl": "https://github.com/mysticatea/npm-run-all"
+        },
+        {
+          "rank": 71,
+          "name": "karma",
+          "dependentPackages": 49913,
+          "repositoryUrl": "https://github.com/karma-runner/karma"
+        },
+        {
+          "rank": 72,
+          "name": "babel-preset-react",
+          "dependentPackages": 49787,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 73,
+          "name": "@types/mocha",
+          "dependentPackages": 49785,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 74,
+          "name": "eslint-config-standard",
+          "dependentPackages": 48621,
+          "repositoryUrl": "https://github.com/standard/eslint-config-standard"
+        },
+        {
+          "rank": 75,
+          "name": "postcss-loader",
+          "dependentPackages": 48390,
+          "repositoryUrl": "https://github.com/webpack/postcss-loader"
+        },
+        {
+          "rank": 76,
+          "name": "eslint-plugin-standard",
+          "dependentPackages": 48323,
+          "repositoryUrl": "https://github.com/standard/eslint-plugin-standard"
+        },
+        {
+          "rank": 77,
+          "name": "glob",
+          "dependentPackages": 48165,
+          "repositoryUrl": "https://github.com/isaacs/node-glob"
+        },
+        {
+          "rank": 78,
+          "name": "inquirer",
+          "dependentPackages": 47744,
+          "repositoryUrl": "https://github.com/SBoudrias/Inquirer.js"
+        },
+        {
+          "rank": 79,
+          "name": "@babel/plugin-proposal-class-properties",
+          "dependentPackages": 47155,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 80,
+          "name": "eslint-plugin-vue",
+          "dependentPackages": 47028,
+          "repositoryUrl": "https://github.com/vuejs/eslint-plugin-vue"
+        },
+        {
+          "rank": 81,
+          "name": "url-loader",
+          "dependentPackages": 46970,
+          "repositoryUrl": "https://github.com/webpack-contrib/url-loader"
+        },
+        {
+          "rank": 82,
+          "name": "debug",
+          "dependentPackages": 46672,
+          "repositoryUrl": "https://github.com/debug-js/debug"
+        },
+        {
+          "rank": 83,
+          "name": "@babel/runtime",
+          "dependentPackages": 46559,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 84,
+          "name": "ts-loader",
+          "dependentPackages": 46150,
+          "repositoryUrl": "https://github.com/TypeStrong/ts-loader"
+        },
+        {
+          "rank": 85,
+          "name": "react-scripts",
+          "dependentPackages": 45896,
+          "repositoryUrl": "https://github.com/facebook/create-react-app"
+        },
+        {
+          "rank": 86,
+          "name": "rollup-plugin-node-resolve",
+          "dependentPackages": 45513,
+          "repositoryUrl": "https://github.com/rollup/rollup-plugin-node-resolve"
+        },
+        {
+          "rank": 87,
+          "name": "sass",
+          "dependentPackages": 45433,
+          "repositoryUrl": "https://github.com/sass/dart-sass"
+        },
+        {
+          "rank": 88,
+          "name": "istanbul",
+          "dependentPackages": 45223,
+          "repositoryUrl": "https://github.com/gotwarlost/istanbul"
+        },
+        {
+          "rank": 89,
+          "name": "rollup-plugin-terser",
+          "dependentPackages": 44996,
+          "repositoryUrl": "https://github.com/TrySound/rollup-plugin-terser"
+        },
+        {
+          "rank": 90,
+          "name": "eslint-config-airbnb",
+          "dependentPackages": 44436,
+          "repositoryUrl": "https://github.com/airbnb/javascript"
+        },
+        {
+          "rank": 91,
+          "name": "rollup-plugin-babel",
+          "dependentPackages": 44190,
+          "repositoryUrl": "https://github.com/rollup/rollup-plugin-babel"
+        },
+        {
+          "rank": 92,
+          "name": "@testing-library/react",
+          "dependentPackages": 43775,
+          "repositoryUrl": "https://github.com/testing-library/react-testing-library"
+        },
+        {
+          "rank": 93,
+          "name": "semver",
+          "dependentPackages": 43561,
+          "repositoryUrl": "https://github.com/npm/node-semver"
+        },
+        {
+          "rank": 94,
+          "name": "yargs",
+          "dependentPackages": 42638,
+          "repositoryUrl": "https://github.com/yargs/yargs"
+        },
+        {
+          "rank": 95,
+          "name": "dotenv",
+          "dependentPackages": 42583,
+          "repositoryUrl": "https://github.com/motdotla/dotenv"
+        },
+        {
+          "rank": 96,
+          "name": "@babel/plugin-transform-runtime",
+          "dependentPackages": 42378,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 97,
+          "name": "rxjs",
+          "dependentPackages": 42178,
+          "repositoryUrl": "https://github.com/reactivex/rxjs"
+        },
+        {
+          "rank": 98,
+          "name": "@vue/cli-service",
+          "dependentPackages": 42142,
+          "repositoryUrl": "https://github.com/vuejs/vue-cli"
+        },
+        {
+          "rank": 99,
+          "name": "uuid",
+          "dependentPackages": 41299,
+          "repositoryUrl": "https://github.com/uuidjs/uuid"
+        },
+        {
+          "rank": 100,
+          "name": "eslint-plugin-react-hooks",
+          "dependentPackages": 41283,
+          "repositoryUrl": "https://github.com/react/react"
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "fetchedAt": "2026-10-30T18:20:02.937Z",
+      "packages": [
+        {
+          "rank": 101,
+          "name": "rollup-plugin-commonjs",
+          "dependentPackages": 41102,
+          "repositoryUrl": "https://github.com/rollup/rollup-plugin-commonjs"
+        },
+        {
+          "rank": 102,
+          "name": "@storybook/react",
+          "dependentPackages": 41076,
+          "repositoryUrl": "https://github.com/storybookjs/storybook"
+        },
+        {
+          "rank": 103,
+          "name": "@babel/preset-typescript",
+          "dependentPackages": 40818,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 104,
+          "name": "karma-chrome-launcher",
+          "dependentPackages": 40738,
+          "repositoryUrl": "https://github.com/karma-runner/karma-chrome-launcher"
+        },
+        {
+          "rank": 105,
+          "name": "@vue/cli-plugin-babel",
+          "dependentPackages": 40684,
+          "repositoryUrl": "https://github.com/vuejs/vue-cli"
+        },
+        {
+          "rank": 106,
+          "name": "eslint-config-airbnb-base",
+          "dependentPackages": 40487,
+          "repositoryUrl": "https://github.com/airbnb/javascript"
+        },
+        {
+          "rank": 107,
+          "name": "@types/lodash",
+          "dependentPackages": 40055,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 108,
+          "name": "grunt",
+          "dependentPackages": 39195,
+          "repositoryUrl": "https://github.com/gruntjs/grunt"
+        },
+        {
+          "rank": 109,
+          "name": "less",
+          "dependentPackages": 38920,
+          "repositoryUrl": "https://github.com/less/less.js"
+        },
+        {
+          "rank": 110,
+          "name": "postcss",
+          "dependentPackages": 38375,
+          "repositoryUrl": "https://github.com/postcss/postcss"
+        },
+        {
+          "rank": 111,
+          "name": "nodemon",
+          "dependentPackages": 37791,
+          "repositoryUrl": "https://github.com/remy/nodemon"
+        },
+        {
+          "rank": 112,
+          "name": "rollup-plugin-typescript2",
+          "dependentPackages": 37702,
+          "repositoryUrl": "https://github.com/ezolenko/rollup-plugin-typescript2"
+        },
+        {
+          "rank": 113,
+          "name": "tape",
+          "dependentPackages": 37690,
+          "repositoryUrl": "https://github.com/tape-testing/tape"
+        },
+        {
+          "rank": 114,
+          "name": "@types/chai",
+          "dependentPackages": 37653,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 115,
+          "name": "extract-text-webpack-plugin",
+          "dependentPackages": 37600,
+          "repositoryUrl": "https://github.com/webpack-contrib/extract-text-webpack-plugin"
+        },
+        {
+          "rank": 116,
+          "name": "@testing-library/jest-dom",
+          "dependentPackages": 37321,
+          "repositoryUrl": "https://github.com/testing-library/jest-dom"
+        },
+        {
+          "rank": 117,
+          "name": "@storybook/addon-links",
+          "dependentPackages": 36931,
+          "repositoryUrl": "https://github.com/storybookjs/storybook"
+        },
+        {
+          "rank": 118,
+          "name": "async",
+          "dependentPackages": 36565,
+          "repositoryUrl": "https://github.com/caolan/async"
+        },
+        {
+          "rank": 119,
+          "name": "antd",
+          "dependentPackages": 36410,
+          "repositoryUrl": "https://github.com/ant-design/ant-design"
+        },
+        {
+          "rank": 120,
+          "name": "vue-loader",
+          "dependentPackages": 36237,
+          "repositoryUrl": "https://github.com/vuejs/vue-loader"
+        },
+        {
+          "rank": 121,
+          "name": "@vue/cli-plugin-eslint",
+          "dependentPackages": 36236,
+          "repositoryUrl": "https://github.com/vuejs/vue-cli"
+        },
+        {
+          "rank": 122,
+          "name": "babel-preset-stage-0",
+          "dependentPackages": 36227,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 123,
+          "name": "typedoc",
+          "dependentPackages": 35918,
+          "repositoryUrl": "https://github.com/TypeStrong/TypeDoc"
+        },
+        {
+          "rank": 124,
+          "name": "semantic-release",
+          "dependentPackages": 35747,
+          "repositoryUrl": "https://github.com/semantic-release/semantic-release"
+        },
+        {
+          "rank": 125,
+          "name": "babel-plugin-transform-runtime",
+          "dependentPackages": 35733,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 126,
+          "name": "classnames",
+          "dependentPackages": 35031,
+          "repositoryUrl": "https://github.com/JedWatson/classnames"
+        },
+        {
+          "rank": 127,
+          "name": "node-fetch",
+          "dependentPackages": 34871,
+          "repositoryUrl": "https://github.com/bitinn/node-fetch"
+        },
+        {
+          "rank": 128,
+          "name": "mkdirp",
+          "dependentPackages": 34778,
+          "repositoryUrl": "https://github.com/isaacs/node-mkdirp"
+        },
+        {
+          "rank": 129,
+          "name": "ava",
+          "dependentPackages": 34776,
+          "repositoryUrl": "https://github.com/avajs/ava"
+        },
+        {
+          "rank": 130,
+          "name": "ora",
+          "dependentPackages": 34717,
+          "repositoryUrl": "https://github.com/sindresorhus/ora"
+        },
+        {
+          "rank": 131,
+          "name": "minimist",
+          "dependentPackages": 33291,
+          "repositoryUrl": "https://github.com/minimistjs/minimist"
+        },
+        {
+          "rank": 132,
+          "name": "standard",
+          "dependentPackages": 33227,
+          "repositoryUrl": "https://github.com/standard/standard"
+        },
+        {
+          "rank": 133,
+          "name": "react-test-renderer",
+          "dependentPackages": 33120,
+          "repositoryUrl": "https://github.com/react/react"
+        },
+        {
+          "rank": 134,
+          "name": "@commitlint/config-conventional",
+          "dependentPackages": 33041,
+          "repositoryUrl": "https://github.com/conventional-changelog/commitlint"
+        },
+        {
+          "rank": 135,
+          "name": "shelljs",
+          "dependentPackages": 32986,
+          "repositoryUrl": "https://github.com/shelljs/shelljs"
+        },
+        {
+          "rank": 136,
+          "name": "vue-router",
+          "dependentPackages": 32952,
+          "repositoryUrl": "https://github.com/vuejs/router"
+        },
+        {
+          "rank": 137,
+          "name": "@testing-library/user-event",
+          "dependentPackages": 32356,
+          "repositoryUrl": "https://github.com/testing-library/user-event"
+        },
+        {
+          "rank": 138,
+          "name": "webpack-merge",
+          "dependentPackages": 32351,
+          "repositoryUrl": "https://github.com/survivejs/webpack-merge"
+        },
+        {
+          "rank": 139,
+          "name": "jsdom",
+          "dependentPackages": 31840,
+          "repositoryUrl": "https://github.com/jsdom/jsdom"
+        },
+        {
+          "rank": 140,
+          "name": "@rollup/plugin-typescript",
+          "dependentPackages": 31792,
+          "repositoryUrl": "https://github.com/rollup/plugins"
+        },
+        {
+          "rank": 141,
+          "name": "@storybook/addon-actions",
+          "dependentPackages": 31683,
+          "repositoryUrl": "https://github.com/storybookjs/storybook"
+        },
+        {
+          "rank": 142,
+          "name": "@storybook/addon-essentials",
+          "dependentPackages": 31634,
+          "repositoryUrl": "https://github.com/storybookjs/storybook"
+        },
+        {
+          "rank": 143,
+          "name": "vite",
+          "dependentPackages": 31388,
+          "repositoryUrl": "https://github.com/vitejs/vite"
+        },
+        {
+          "rank": 144,
+          "name": "babel-runtime",
+          "dependentPackages": 31333,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 145,
+          "name": "browserify",
+          "dependentPackages": 31322,
+          "repositoryUrl": "https://github.com/browserify/browserify"
+        },
+        {
+          "rank": 146,
+          "name": "less-loader",
+          "dependentPackages": 31138,
+          "repositoryUrl": "https://github.com/webpack/less-loader"
+        },
+        {
+          "rank": 147,
+          "name": "@commitlint/cli",
+          "dependentPackages": 30958,
+          "repositoryUrl": "https://github.com/conventional-changelog/commitlint"
+        },
+        {
+          "rank": 148,
+          "name": "eslint-loader",
+          "dependentPackages": 30813,
+          "repositoryUrl": "https://github.com/webpack-contrib/eslint-loader"
+        },
+        {
+          "rank": 149,
+          "name": "babel-polyfill",
+          "dependentPackages": 30423,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 150,
+          "name": "gh-pages",
+          "dependentPackages": 30364,
+          "repositoryUrl": "https://github.com/tschaub/gh-pages"
+        },
+        {
+          "rank": 151,
+          "name": "@types/hyper-function-component",
+          "dependentPackages": 30283,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 152,
+          "name": "bluebird",
+          "dependentPackages": 30080,
+          "repositoryUrl": "https://github.com/petkaantonov/bluebird"
+        },
+        {
+          "rank": 153,
+          "name": "eslint-plugin-jest",
+          "dependentPackages": 29896,
+          "repositoryUrl": "https://github.com/jest-community/eslint-plugin-jest"
+        },
+        {
+          "rank": 154,
+          "name": "enzyme",
+          "dependentPackages": 29834,
+          "repositoryUrl": "https://github.com/airbnb/enzyme"
+        },
+        {
+          "rank": 155,
+          "name": "should",
+          "dependentPackages": 29283,
+          "repositoryUrl": "https://github.com/shouldjs/should.js"
+        },
+        {
+          "rank": 156,
+          "name": "colors",
+          "dependentPackages": 29121,
+          "repositoryUrl": "https://github.com/Marak/colors.js"
+        },
+        {
+          "rank": 157,
+          "name": "styled-components",
+          "dependentPackages": 28894,
+          "repositoryUrl": "https://github.com/styled-components/styled-components"
+        },
+        {
+          "rank": 158,
+          "name": "@types/express",
+          "dependentPackages": 28802,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 159,
+          "name": "karma-jasmine",
+          "dependentPackages": 28620,
+          "repositoryUrl": "https://github.com/karma-runner/karma-jasmine"
+        },
+        {
+          "rank": 160,
+          "name": "rollup-plugin-postcss",
+          "dependentPackages": 28580,
+          "repositoryUrl": "https://github.com/egoist/rollup-plugin-postcss"
+        },
+        {
+          "rank": 161,
+          "name": "babel-register",
+          "dependentPackages": 28395,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 162,
+          "name": "jquery",
+          "dependentPackages": 28173,
+          "repositoryUrl": "https://github.com/jquery/jquery"
+        },
+        {
+          "rank": 163,
+          "name": "@rollup/plugin-babel",
+          "dependentPackages": 28094,
+          "repositoryUrl": "https://github.com/rollup/plugins"
+        },
+        {
+          "rank": 164,
+          "name": "jasmine-core",
+          "dependentPackages": 26801,
+          "repositoryUrl": "https://github.com/jasmine/jasmine"
+        },
+        {
+          "rank": 165,
+          "name": "rollup-plugin-peer-deps-external",
+          "dependentPackages": 26633,
+          "repositoryUrl": "https://github.com/pmowrer/rollup-plugin-peer-deps-external"
+        },
+        {
+          "rank": 166,
+          "name": "body-parser",
+          "dependentPackages": 26598,
+          "repositoryUrl": "https://github.com/expressjs/body-parser"
+        },
+        {
+          "rank": 167,
+          "name": "uglify-js",
+          "dependentPackages": 26568,
+          "repositoryUrl": "https://github.com/mishoo/UglifyJS"
+        },
+        {
+          "rank": 168,
+          "name": "babel-plugin-transform-object-rest-spread",
+          "dependentPackages": 26549,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 169,
+          "name": "gulp-rename",
+          "dependentPackages": 26507,
+          "repositoryUrl": "https://github.com/hparra/gulp-rename"
+        },
+        {
+          "rank": 170,
+          "name": "@angular/core",
+          "dependentPackages": 26429,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 171,
+          "name": "del",
+          "dependentPackages": 26159,
+          "repositoryUrl": "https://github.com/sindresorhus/del"
+        },
+        {
+          "rank": 172,
+          "name": "cz-conventional-changelog",
+          "dependentPackages": 25725,
+          "repositoryUrl": "https://github.com/commitizen/cz-conventional-changelog"
+        },
+        {
+          "rank": 173,
+          "name": "mini-css-extract-plugin",
+          "dependentPackages": 25645,
+          "repositoryUrl": "https://github.com/webpack/mini-css-extract-plugin"
+        },
+        {
+          "rank": 174,
+          "name": "babel-preset-stage-2",
+          "dependentPackages": 25357,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 175,
+          "name": "underscore",
+          "dependentPackages": 25330,
+          "repositoryUrl": "https://github.com/jashkenas/underscore"
+        },
+        {
+          "rank": 176,
+          "name": "copy-webpack-plugin",
+          "dependentPackages": 25162,
+          "repositoryUrl": "https://github.com/webpack/copy-webpack-plugin"
+        },
+        {
+          "rank": 177,
+          "name": "@angular/common",
+          "dependentPackages": 24687,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 178,
+          "name": "tslint-config-prettier",
+          "dependentPackages": 24110,
+          "repositoryUrl": "https://github.com/prettier/tslint-config-prettier"
+        },
+        {
+          "rank": 179,
+          "name": "@angular/compiler",
+          "dependentPackages": 24110,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 180,
+          "name": "@types/jasmine",
+          "dependentPackages": 23664,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 181,
+          "name": "react-native",
+          "dependentPackages": 23543,
+          "repositoryUrl": "https://github.com/react/react-native"
+        },
+        {
+          "rank": 182,
+          "name": "sinon-chai",
+          "dependentPackages": 23394,
+          "repositoryUrl": "https://github.com/chaijs/sinon-chai"
+        },
+        {
+          "rank": 183,
+          "name": "zone.js",
+          "dependentPackages": 23195,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 184,
+          "name": "tsup",
+          "dependentPackages": 23096,
+          "repositoryUrl": "https://github.com/egoist/tsup"
+        },
+        {
+          "rank": 185,
+          "name": "react-router-dom",
+          "dependentPackages": 23067,
+          "repositoryUrl": "https://github.com/remix-run/react-router"
+        },
+        {
+          "rank": 186,
+          "name": "uglifyjs-webpack-plugin",
+          "dependentPackages": 23026,
+          "repositoryUrl": "https://github.com/webpack-contrib/uglifyjs-webpack-plugin"
+        },
+        {
+          "rank": 187,
+          "name": "@angular/platform-browser",
+          "dependentPackages": 23006,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 188,
+          "name": "webpack-bundle-analyzer",
+          "dependentPackages": 22731,
+          "repositoryUrl": "https://github.com/webpack/webpack-bundle-analyzer"
+        },
+        {
+          "rank": 189,
+          "name": "optimize-css-assets-webpack-plugin",
+          "dependentPackages": 22358,
+          "repositoryUrl": "https://github.com/NMFR/optimize-css-assets-webpack-plugin"
+        },
+        {
+          "rank": 190,
+          "name": "@angular/compiler-cli",
+          "dependentPackages": 22263,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 191,
+          "name": "clean-webpack-plugin",
+          "dependentPackages": 22156,
+          "repositoryUrl": "https://github.com/johnagan/clean-webpack-plugin"
+        },
+        {
+          "rank": 192,
+          "name": "jsonwebtoken",
+          "dependentPackages": 21931,
+          "repositoryUrl": "https://github.com/auth0/node-jsonwebtoken"
+        },
+        {
+          "rank": 193,
+          "name": "reflect-metadata",
+          "dependentPackages": 21618,
+          "repositoryUrl": "https://github.com/rbuckton/reflect-metadata"
+        },
+        {
+          "rank": 194,
+          "name": "gulp-uglify",
+          "dependentPackages": 21522,
+          "repositoryUrl": "https://github.com/terinjokes/gulp-uglify"
+        },
+        {
+          "rank": 195,
+          "name": "terser-webpack-plugin",
+          "dependentPackages": 21370,
+          "repositoryUrl": "https://github.com/webpack/minimizer-webpack-plugin"
+        },
+        {
+          "rank": 196,
+          "name": "redux",
+          "dependentPackages": 21274,
+          "repositoryUrl": "https://github.com/reduxjs/redux"
+        },
+        {
+          "rank": 197,
+          "name": "stylelint",
+          "dependentPackages": 21173,
+          "repositoryUrl": "https://github.com/stylelint/stylelint"
+        },
+        {
+          "rank": 198,
+          "name": "@angular/platform-browser-dynamic",
+          "dependentPackages": 21147,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 199,
+          "name": "@ant-design/web3-common",
+          "dependentPackages": 20875,
+          "repositoryUrl": "https://github.com/ant-design/ant-design-web3"
+        },
+        {
+          "rank": 200,
+          "name": "@ant-design/web3-icons",
+          "dependentPackages": 20869,
+          "repositoryUrl": "https://github.com/ant-design/ant-design-web3"
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "fetchedAt": "2026-10-30T18:20:04.817Z",
+      "packages": [
+        {
+          "rank": 201,
+          "name": "js-yaml",
+          "dependentPackages": 20789,
+          "repositoryUrl": "https://github.com/nodeca/js-yaml"
+        },
+        {
+          "rank": 202,
+          "name": "grunt-contrib-jshint",
+          "dependentPackages": 20715,
+          "repositoryUrl": "https://github.com/gruntjs/grunt-contrib-jshint"
+        },
+        {
+          "rank": 203,
+          "name": "karma-mocha",
+          "dependentPackages": 20647,
+          "repositoryUrl": "https://github.com/karma-runner/karma-mocha"
+        },
+        {
+          "rank": 204,
+          "name": "path",
+          "dependentPackages": 20628,
+          "repositoryUrl": "https://github.com/jinder/path"
+        },
+        {
+          "rank": 205,
+          "name": "concurrently",
+          "dependentPackages": 20534,
+          "repositoryUrl": "https://github.com/open-cli-tools/concurrently"
+        },
+        {
+          "rank": 206,
+          "name": "commitizen",
+          "dependentPackages": 20397,
+          "repositoryUrl": "https://github.com/commitizen/cz-cli"
+        },
+        {
+          "rank": 207,
+          "name": "babel",
+          "dependentPackages": 20238,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 208,
+          "name": "standard-version",
+          "dependentPackages": 20218,
+          "repositoryUrl": "https://github.com/conventional-changelog/standard-version"
+        },
+        {
+          "rank": 209,
+          "name": "cheerio",
+          "dependentPackages": 20164,
+          "repositoryUrl": "https://github.com/cheeriojs/cheerio"
+        },
+        {
+          "rank": 210,
+          "name": "karma-coverage",
+          "dependentPackages": 19991,
+          "repositoryUrl": "https://github.com/karma-runner/karma-coverage"
+        },
+        {
+          "rank": 211,
+          "name": "codecov",
+          "dependentPackages": 19925,
+          "repositoryUrl": "https://github.com/codecov/codecov-node"
+        },
+        {
+          "rank": 212,
+          "name": "eslint-plugin-flowtype",
+          "dependentPackages": 19839,
+          "repositoryUrl": "https://github.com/gajus/eslint-plugin-flowtype"
+        },
+        {
+          "rank": 213,
+          "name": "@rollup/plugin-json",
+          "dependentPackages": 19764,
+          "repositoryUrl": "https://github.com/rollup/plugins"
+        },
+        {
+          "rank": 214,
+          "name": "del-cli",
+          "dependentPackages": 19690,
+          "repositoryUrl": "https://github.com/sindresorhus/del-cli"
+        },
+        {
+          "rank": 215,
+          "name": "jshint",
+          "dependentPackages": 19674,
+          "repositoryUrl": "https://github.com/jshint/jshint"
+        },
+        {
+          "rank": 216,
+          "name": "source-map-support",
+          "dependentPackages": 19601,
+          "repositoryUrl": "https://github.com/evanw/node-source-map-support"
+        },
+        {
+          "rank": 217,
+          "name": "enzyme-adapter-react-16",
+          "dependentPackages": 19545,
+          "repositoryUrl": "https://github.com/enzymejs/enzyme"
+        },
+        {
+          "rank": 218,
+          "name": "ws",
+          "dependentPackages": 19475,
+          "repositoryUrl": "https://github.com/websockets/ws"
+        },
+        {
+          "rank": 219,
+          "name": "supertest",
+          "dependentPackages": 19319,
+          "repositoryUrl": "https://github.com/ladjs/supertest"
+        },
+        {
+          "rank": 220,
+          "name": "@babel/plugin-proposal-object-rest-spread",
+          "dependentPackages": 19208,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 221,
+          "name": "@angular/forms",
+          "dependentPackages": 19158,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 222,
+          "name": "@babel/polyfill",
+          "dependentPackages": 19057,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 223,
+          "name": "@babel/register",
+          "dependentPackages": 19043,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 224,
+          "name": "tsdx",
+          "dependentPackages": 19033,
+          "repositoryUrl": "https://github.com/jaredpalmer/tsdx"
+        },
+        {
+          "rank": 225,
+          "name": "react-redux",
+          "dependentPackages": 18675,
+          "repositoryUrl": "https://github.com/reduxjs/react-redux"
+        },
+        {
+          "rank": 226,
+          "name": "babel-plugin-add-module-exports",
+          "dependentPackages": 18621,
+          "repositoryUrl": "https://github.com/59naga/babel-plugin-add-module-exports"
+        },
+        {
+          "rank": 227,
+          "name": "web-vitals",
+          "dependentPackages": 18381,
+          "repositoryUrl": "https://github.com/GoogleChrome/web-vitals"
+        },
+        {
+          "rank": 228,
+          "name": "@vitejs/plugin-vue",
+          "dependentPackages": 18217,
+          "repositoryUrl": "https://github.com/vitejs/vite-plugin-vue"
+        },
+        {
+          "rank": 229,
+          "name": "karma-webpack",
+          "dependentPackages": 18146,
+          "repositoryUrl": "https://github.com/webpack-contrib/karma-webpack"
+        },
+        {
+          "rank": 230,
+          "name": "babel-plugin-transform-class-properties",
+          "dependentPackages": 17987,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 231,
+          "name": "gulp-util",
+          "dependentPackages": 17955,
+          "repositoryUrl": "https://github.com/gulpjs/gulp-util"
+        },
+        {
+          "rank": 232,
+          "name": "bootstrap",
+          "dependentPackages": 17952,
+          "repositoryUrl": "https://github.com/twbs/bootstrap"
+        },
+        {
+          "rank": 233,
+          "name": "through2",
+          "dependentPackages": 17943,
+          "repositoryUrl": "https://github.com/rvagg/through2"
+        },
+        {
+          "rank": 234,
+          "name": "chokidar",
+          "dependentPackages": 17735,
+          "repositoryUrl": "https://github.com/paulmillr/chokidar"
+        },
+        {
+          "rank": 235,
+          "name": "execa",
+          "dependentPackages": 17598,
+          "repositoryUrl": "https://github.com/sindresorhus/execa"
+        },
+        {
+          "rank": 236,
+          "name": "vuex",
+          "dependentPackages": 17404,
+          "repositoryUrl": "https://github.com/vuejs/vuex"
+        },
+        {
+          "rank": 237,
+          "name": "@angular/router",
+          "dependentPackages": 17318,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 238,
+          "name": "@types/fs-extra",
+          "dependentPackages": 17213,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 239,
+          "name": "gulp-babel",
+          "dependentPackages": 17138,
+          "repositoryUrl": "https://github.com/babel/gulp-babel"
+        },
+        {
+          "rank": 240,
+          "name": "rollup-plugin-uglify",
+          "dependentPackages": 17121,
+          "repositoryUrl": "https://github.com/TrySound/rollup-plugin-uglify"
+        },
+        {
+          "rank": 241,
+          "name": "chai-as-promised",
+          "dependentPackages": 17100,
+          "repositoryUrl": "https://github.com/chaijs/chai-as-promised"
+        },
+        {
+          "rank": 242,
+          "name": "@babel/eslint-parser",
+          "dependentPackages": 16772,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 243,
+          "name": "puppeteer",
+          "dependentPackages": 16722,
+          "repositoryUrl": "https://github.com/puppeteer/puppeteer"
+        },
+        {
+          "rank": 244,
+          "name": "winston",
+          "dependentPackages": 16466,
+          "repositoryUrl": "https://github.com/winstonjs/winston"
+        },
+        {
+          "rank": 245,
+          "name": "coffee-script",
+          "dependentPackages": 16366,
+          "repositoryUrl": "https://github.com/jashkenas/coffeescript"
+        },
+        {
+          "rank": 246,
+          "name": "@storybook/addon-interactions",
+          "dependentPackages": 16286,
+          "repositoryUrl": "https://github.com/storybookjs/storybook"
+        },
+        {
+          "rank": 247,
+          "name": "case-sensitive-paths-webpack-plugin",
+          "dependentPackages": 16271,
+          "repositoryUrl": "https://github.com/Urthen/case-sensitive-paths-webpack-plugin"
+        },
+        {
+          "rank": 248,
+          "name": "grunt-contrib-watch",
+          "dependentPackages": 16229,
+          "repositoryUrl": "https://github.com/gruntjs/grunt-contrib-watch"
+        },
+        {
+          "rank": 249,
+          "name": "release-it",
+          "dependentPackages": 16134,
+          "repositoryUrl": "https://github.com/release-it/release-it"
+        },
+        {
+          "rank": 250,
+          "name": "@types/styled-components",
+          "dependentPackages": 16110,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 251,
+          "name": "graphql",
+          "dependentPackages": 16004,
+          "repositoryUrl": "https://github.com/graphql/graphql-js"
+        },
+        {
+          "rank": 252,
+          "name": "aws-sdk",
+          "dependentPackages": 15973,
+          "repositoryUrl": "https://github.com/aws/aws-sdk-js"
+        },
+        {
+          "rank": 253,
+          "name": "esbuild",
+          "dependentPackages": 15949,
+          "repositoryUrl": "https://github.com/evanw/esbuild"
+        },
+        {
+          "rank": 254,
+          "name": "qs",
+          "dependentPackages": 15944,
+          "repositoryUrl": "https://github.com/ljharb/qs"
+        },
+        {
+          "rank": 255,
+          "name": "gulp-sourcemaps",
+          "dependentPackages": 15927,
+          "repositoryUrl": "https://github.com/gulp-sourcemaps/gulp-sourcemaps"
+        },
+        {
+          "rank": 256,
+          "name": "@angular/cli",
+          "dependentPackages": 15758,
+          "repositoryUrl": "https://github.com/angular/angular-cli"
+        },
+        {
+          "rank": 257,
+          "name": "@types/uuid",
+          "dependentPackages": 15745,
+          "repositoryUrl": null
+        },
+        {
+          "rank": 258,
+          "name": "raw-loader",
+          "dependentPackages": 15630,
+          "repositoryUrl": "https://github.com/webpack-contrib/raw-loader"
+        },
+        {
+          "rank": 259,
+          "name": "handlebars",
+          "dependentPackages": 15556,
+          "repositoryUrl": "https://github.com/handlebars-lang/handlebars.js"
+        },
+        {
+          "rank": 260,
+          "name": "rollup-plugin-dts",
+          "dependentPackages": 15465,
+          "repositoryUrl": "https://github.com/Swatinem/rollup-plugin-dts"
+        },
+        {
+          "rank": 261,
+          "name": "@types/react-native",
+          "dependentPackages": 15428,
+          "repositoryUrl": null
+        },
+        {
+          "rank": 262,
+          "name": "@angular/animations",
+          "dependentPackages": 15248,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 263,
+          "name": "@types/inquirer",
+          "dependentPackages": 15223,
+          "repositoryUrl": null
+        },
+        {
+          "rank": 264,
+          "name": "grunt-contrib-clean",
+          "dependentPackages": 15181,
+          "repositoryUrl": "https://github.com/gruntjs/grunt-contrib-clean"
+        },
+        {
+          "rank": 265,
+          "name": "jest-cli",
+          "dependentPackages": 15041,
+          "repositoryUrl": "https://github.com/jestjs/jest"
+        },
+        {
+          "rank": 266,
+          "name": "ejs",
+          "dependentPackages": 15041,
+          "repositoryUrl": "https://github.com/mde/ejs"
+        },
+        {
+          "rank": 267,
+          "name": "karma-jasmine-html-reporter",
+          "dependentPackages": 15015,
+          "repositoryUrl": "https://github.com/dfederm/karma-jasmine-html-reporter"
+        },
+        {
+          "rank": 268,
+          "name": "vue-style-loader",
+          "dependentPackages": 14833,
+          "repositoryUrl": "https://github.com/vuejs/vue-style-loader"
+        },
+        {
+          "rank": 269,
+          "name": "dayjs",
+          "dependentPackages": 14783,
+          "repositoryUrl": "https://github.com/iamkun/dayjs"
+        },
+        {
+          "rank": 270,
+          "name": "@rollup/plugin-replace",
+          "dependentPackages": 14772,
+          "repositoryUrl": "https://github.com/rollup/plugins"
+        },
+        {
+          "rank": 271,
+          "name": "webpack-node-externals",
+          "dependentPackages": 14658,
+          "repositoryUrl": "https://github.com/liady/webpack-node-externals"
+        },
+        {
+          "rank": 272,
+          "name": "jsdoc",
+          "dependentPackages": 14591,
+          "repositoryUrl": "https://github.com/jsdoc/jsdoc"
+        },
+        {
+          "rank": 273,
+          "name": "@storybook/testing-library",
+          "dependentPackages": 14559,
+          "repositoryUrl": "https://github.com/storybookjs/testing-library"
+        },
+        {
+          "rank": 274,
+          "name": "ajv",
+          "dependentPackages": 14548,
+          "repositoryUrl": "https://github.com/ajv-validator/ajv"
+        },
+        {
+          "rank": 275,
+          "name": "flow-bin",
+          "dependentPackages": 14469,
+          "repositoryUrl": "https://github.com/facebook/flow"
+        },
+        {
+          "rank": 276,
+          "name": "codelyzer",
+          "dependentPackages": 14462,
+          "repositoryUrl": "https://github.com/mgechev/codelyzer"
+        },
+        {
+          "rank": 277,
+          "name": "json-loader",
+          "dependentPackages": 14287,
+          "repositoryUrl": "https://github.com/webpack/json-loader"
+        },
+        {
+          "rank": 278,
+          "name": "@vue/test-utils",
+          "dependentPackages": 14280,
+          "repositoryUrl": "https://github.com/vuejs/test-utils"
+        },
+        {
+          "rank": 279,
+          "name": "gulp-sass",
+          "dependentPackages": 14272,
+          "repositoryUrl": "https://github.com/dlmanning/gulp-sass"
+        },
+        {
+          "rank": 280,
+          "name": "karma-phantomjs-launcher",
+          "dependentPackages": 14203,
+          "repositoryUrl": "https://github.com/karma-runner/karma-phantomjs-launcher"
+        },
+        {
+          "rank": 281,
+          "name": "cross-spawn",
+          "dependentPackages": 14155,
+          "repositoryUrl": "https://github.com/moxystudio/node-cross-spawn"
+        },
+        {
+          "rank": 282,
+          "name": "jasmine",
+          "dependentPackages": 14127,
+          "repositoryUrl": "https://github.com/jasmine/jasmine-npm"
+        },
+        {
+          "rank": 283,
+          "name": "fs",
+          "dependentPackages": 14088,
+          "repositoryUrl": null
+        },
+        {
+          "rank": 284,
+          "name": "element-ui",
+          "dependentPackages": 14048,
+          "repositoryUrl": "https://github.com/ElemeFE/element"
+        },
+        {
+          "rank": 285,
+          "name": "karma-sourcemap-loader",
+          "dependentPackages": 13993,
+          "repositoryUrl": "https://github.com/demerzel3/karma-sourcemap-loader"
+        },
+        {
+          "rank": 286,
+          "name": "gulp-concat",
+          "dependentPackages": 13959,
+          "repositoryUrl": "https://github.com/contra/gulp-concat"
+        },
+        {
+          "rank": 287,
+          "name": "@emotion/styled",
+          "dependentPackages": 13904,
+          "repositoryUrl": "https://github.com/emotion-js/emotion"
+        },
+        {
+          "rank": 288,
+          "name": "postcss-import",
+          "dependentPackages": 13885,
+          "repositoryUrl": "https://github.com/postcss/postcss-import"
+        },
+        {
+          "rank": 289,
+          "name": "pre-commit",
+          "dependentPackages": 13871,
+          "repositoryUrl": "https://github.com/observing/pre-commit"
+        },
+        {
+          "rank": 290,
+          "name": "mongoose",
+          "dependentPackages": 13842,
+          "repositoryUrl": "https://github.com/Automattic/mongoose"
+        },
+        {
+          "rank": 291,
+          "name": "@babel/plugin-syntax-dynamic-import",
+          "dependentPackages": 13726,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 292,
+          "name": "@semantic-release/git",
+          "dependentPackages": 13724,
+          "repositoryUrl": "https://github.com/semantic-release/git"
+        },
+        {
+          "rank": 293,
+          "name": "@types/jsonwebtoken",
+          "dependentPackages": 13620,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 294,
+          "name": "@babel/plugin-proposal-decorators",
+          "dependentPackages": 13612,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 295,
+          "name": "deepmerge",
+          "dependentPackages": 13604,
+          "repositoryUrl": "https://github.com/TehShrike/deepmerge"
+        },
+        {
+          "rank": 296,
+          "name": "cssnano",
+          "dependentPackages": 13557,
+          "repositoryUrl": "https://github.com/cssnano/cssnano"
+        },
+        {
+          "rank": 297,
+          "name": "jasmine-spec-reporter",
+          "dependentPackages": 13557,
+          "repositoryUrl": "https://github.com/bcaudan/jasmine-spec-reporter"
+        },
+        {
+          "rank": 298,
+          "name": "date-fns",
+          "dependentPackages": 13555,
+          "repositoryUrl": "https://github.com/date-fns/date-fns"
+        },
+        {
+          "rank": 299,
+          "name": "regenerator-runtime",
+          "dependentPackages": 13548,
+          "repositoryUrl": "https://github.com/facebook/regenerator"
+        },
+        {
+          "rank": 300,
+          "name": "cors",
+          "dependentPackages": 13273,
+          "repositoryUrl": "https://github.com/expressjs/cors"
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "fetchedAt": "2026-10-30T18:20:06.534Z",
+      "packages": [
+        {
+          "rank": 301,
+          "name": "vite-plugin-dts",
+          "dependentPackages": 13215,
+          "repositoryUrl": "https://github.com/qmhc/unplugin-dts"
+        },
+        {
+          "rank": 302,
+          "name": "nock",
+          "dependentPackages": 13189,
+          "repositoryUrl": "https://github.com/nock/nock"
+        },
+        {
+          "rank": 303,
+          "name": "rollup-plugin-vue",
+          "dependentPackages": 13174,
+          "repositoryUrl": null
+        },
+        {
+          "rank": 304,
+          "name": "ethers",
+          "dependentPackages": 13154,
+          "repositoryUrl": "https://github.com/ethers-io/ethers.js"
+        },
+        {
+          "rank": 305,
+          "name": "babel-plugin-istanbul",
+          "dependentPackages": 13126,
+          "repositoryUrl": "https://github.com/istanbuljs/babel-plugin-istanbul"
+        },
+        {
+          "rank": 306,
+          "name": "eslint-plugin-babel",
+          "dependentPackages": 13089,
+          "repositoryUrl": "https://github.com/babel/eslint-plugin-babel"
+        },
+        {
+          "rank": 307,
+          "name": "protractor",
+          "dependentPackages": 13081,
+          "repositoryUrl": "https://github.com/angular/protractor"
+        },
+        {
+          "rank": 308,
+          "name": "globby",
+          "dependentPackages": 13076,
+          "repositoryUrl": "https://github.com/sindresorhus/globby"
+        },
+        {
+          "rank": 309,
+          "name": "yeoman-generator",
+          "dependentPackages": 12914,
+          "repositoryUrl": "https://github.com/yeoman/generator"
+        },
+        {
+          "rank": 310,
+          "name": "grunt-contrib-uglify",
+          "dependentPackages": 12845,
+          "repositoryUrl": "https://github.com/gruntjs/grunt-contrib-uglify"
+        },
+        {
+          "rank": 311,
+          "name": "@storybook/addons",
+          "dependentPackages": 12841,
+          "repositoryUrl": "https://github.com/storybookjs/storybook"
+        },
+        {
+          "rank": 312,
+          "name": "babel-preset-stage-3",
+          "dependentPackages": 12769,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 313,
+          "name": "size-limit",
+          "dependentPackages": 12671,
+          "repositoryUrl": "https://github.com/ai/size-limit"
+        },
+        {
+          "rank": 314,
+          "name": "object-assign",
+          "dependentPackages": 12624,
+          "repositoryUrl": "https://github.com/sindresorhus/object-assign"
+        },
+        {
+          "rank": 315,
+          "name": "@emotion/react",
+          "dependentPackages": 12586,
+          "repositoryUrl": "https://github.com/emotion-js/emotion"
+        },
+        {
+          "rank": 316,
+          "name": "@types/sinon",
+          "dependentPackages": 12537,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 317,
+          "name": "identity-obj-proxy",
+          "dependentPackages": 12472,
+          "repositoryUrl": "https://github.com/keyanzhang/identity-obj-proxy"
+        },
+        {
+          "rank": 318,
+          "name": "eslint-config-react-app",
+          "dependentPackages": 12447,
+          "repositoryUrl": "https://github.com/facebook/create-react-app"
+        },
+        {
+          "rank": 319,
+          "name": "eslint-config-standard-react",
+          "dependentPackages": 12430,
+          "repositoryUrl": "https://github.com/standard/eslint-config-standard-react"
+        },
+        {
+          "rank": 320,
+          "name": "eslint-plugin-html",
+          "dependentPackages": 12410,
+          "repositoryUrl": "https://github.com/BenoitZugmeyer/eslint-plugin-html"
+        },
+        {
+          "rank": 321,
+          "name": "karma-coverage-istanbul-reporter",
+          "dependentPackages": 12404,
+          "repositoryUrl": "https://github.com/mattlewis92/karma-coverage-istanbul-reporter"
+        },
+        {
+          "rank": 322,
+          "name": "marked",
+          "dependentPackages": 12165,
+          "repositoryUrl": "https://github.com/markedjs/marked"
+        },
+        {
+          "rank": 323,
+          "name": "html-loader",
+          "dependentPackages": 12164,
+          "repositoryUrl": "https://github.com/webpack-contrib/html-loader"
+        },
+        {
+          "rank": 324,
+          "name": "xo",
+          "dependentPackages": 12156,
+          "repositoryUrl": "https://github.com/xojs/xo"
+        },
+        {
+          "rank": 325,
+          "name": "open",
+          "dependentPackages": 12019,
+          "repositoryUrl": "https://github.com/sindresorhus/open"
+        },
+        {
+          "rank": 326,
+          "name": "pretty-quick",
+          "dependentPackages": 11998,
+          "repositoryUrl": "https://github.com/prettier/pretty-quick"
+        },
+        {
+          "rank": 327,
+          "name": "webpack-dev-middleware",
+          "dependentPackages": 11986,
+          "repositoryUrl": "https://github.com/webpack/webpack-dev-middleware"
+        },
+        {
+          "rank": 328,
+          "name": "gulp-mocha",
+          "dependentPackages": 11938,
+          "repositoryUrl": "https://github.com/sindresorhus/gulp-mocha"
+        },
+        {
+          "rank": 329,
+          "name": "@vue/compiler-sfc",
+          "dependentPackages": 11912,
+          "repositoryUrl": "https://github.com/vuejs/core"
+        },
+        {
+          "rank": 330,
+          "name": "@types/node-fetch",
+          "dependentPackages": 11906,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 331,
+          "name": "q",
+          "dependentPackages": 11894,
+          "repositoryUrl": "https://github.com/kriskowal/q"
+        },
+        {
+          "rank": 332,
+          "name": "crypto-js",
+          "dependentPackages": 11874,
+          "repositoryUrl": "https://github.com/brix/crypto-js"
+        },
+        {
+          "rank": 333,
+          "name": "np",
+          "dependentPackages": 11796,
+          "repositoryUrl": "https://github.com/sindresorhus/np"
+        },
+        {
+          "rank": 334,
+          "name": "@vitejs/plugin-react",
+          "dependentPackages": 11789,
+          "repositoryUrl": "https://github.com/vitejs/vite-plugin-react"
+        },
+        {
+          "rank": 335,
+          "name": "babelify",
+          "dependentPackages": 11789,
+          "repositoryUrl": "https://github.com/babel/babelify"
+        },
+        {
+          "rank": 336,
+          "name": "babel-preset-react-app",
+          "dependentPackages": 11773,
+          "repositoryUrl": "https://github.com/facebook/create-react-app"
+        },
+        {
+          "rank": 337,
+          "name": "tailwindcss",
+          "dependentPackages": 11727,
+          "repositoryUrl": "https://github.com/tailwindlabs/tailwindcss"
+        },
+        {
+          "rank": 338,
+          "name": "es6-promise",
+          "dependentPackages": 11715,
+          "repositoryUrl": "https://github.com/stefanpenner/es6-promise"
+        },
+        {
+          "rank": 339,
+          "name": "babel-plugin-module-resolver",
+          "dependentPackages": 11603,
+          "repositoryUrl": "https://github.com/tleunen/babel-plugin-module-resolver"
+        },
+        {
+          "rank": 340,
+          "name": "babel-plugin-external-helpers",
+          "dependentPackages": 11589,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 341,
+          "name": "mongodb",
+          "dependentPackages": 11544,
+          "repositoryUrl": "https://github.com/mongodb/node-mongodb-native"
+        },
+        {
+          "rank": 342,
+          "name": "vue-tsc",
+          "dependentPackages": 11525,
+          "repositoryUrl": "https://github.com/vuejs/language-tools"
+        },
+        {
+          "rank": 343,
+          "name": "ramda",
+          "dependentPackages": 11485,
+          "repositoryUrl": "https://github.com/ramda/ramda"
+        },
+        {
+          "rank": 344,
+          "name": "copyfiles",
+          "dependentPackages": 11459,
+          "repositoryUrl": "https://github.com/calvinmetcalf/copyfiles"
+        },
+        {
+          "rank": 345,
+          "name": "babel-plugin-import",
+          "dependentPackages": 11442,
+          "repositoryUrl": "https://github.com/ant-design/babel-plugin-import"
+        },
+        {
+          "rank": 346,
+          "name": "karma-firefox-launcher",
+          "dependentPackages": 11429,
+          "repositoryUrl": "https://github.com/karma-runner/karma-firefox-launcher"
+        },
+        {
+          "rank": 347,
+          "name": "@size-limit/preset-small-lib",
+          "dependentPackages": 11369,
+          "repositoryUrl": "https://github.com/ai/size-limit"
+        },
+        {
+          "rank": 348,
+          "name": "highlight.js",
+          "dependentPackages": 11299,
+          "repositoryUrl": "https://github.com/highlightjs/highlight.js"
+        },
+        {
+          "rank": 349,
+          "name": "friendly-errors-webpack-plugin",
+          "dependentPackages": 11180,
+          "repositoryUrl": "https://github.com/geowarin/friendly-errors-webpack-plugin"
+        },
+        {
+          "rank": 350,
+          "name": "rollup-plugin-replace",
+          "dependentPackages": 11137,
+          "repositoryUrl": "https://github.com/rollup/rollup-plugin-replace"
+        },
+        {
+          "rank": 351,
+          "name": "vitest",
+          "dependentPackages": 11085,
+          "repositoryUrl": "https://github.com/vitest-dev/vitest"
+        },
+        {
+          "rank": 352,
+          "name": "@angular-devkit/build-angular",
+          "dependentPackages": 11019,
+          "repositoryUrl": "https://github.com/angular/angular-cli"
+        },
+        {
+          "rank": 353,
+          "name": "tap",
+          "dependentPackages": 10984,
+          "repositoryUrl": "https://github.com/tapjs/tapjs"
+        },
+        {
+          "rank": 354,
+          "name": "lodash-es",
+          "dependentPackages": 10953,
+          "repositoryUrl": "https://github.com/lodash/lodash"
+        },
+        {
+          "rank": 355,
+          "name": "resolve",
+          "dependentPackages": 10935,
+          "repositoryUrl": "https://github.com/browserify/resolve"
+        },
+        {
+          "rank": 356,
+          "name": "react-addons-test-utils",
+          "dependentPackages": 10896,
+          "repositoryUrl": "https://github.com/facebook/react"
+        },
+        {
+          "rank": 357,
+          "name": "co",
+          "dependentPackages": 10884,
+          "repositoryUrl": "https://github.com/tj/co"
+        },
+        {
+          "rank": 358,
+          "name": "@semantic-release/changelog",
+          "dependentPackages": 10871,
+          "repositoryUrl": "https://github.com/semantic-release/changelog"
+        },
+        {
+          "rank": 359,
+          "name": "@babel/node",
+          "dependentPackages": 10837,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 360,
+          "name": "rollup-plugin-json",
+          "dependentPackages": 10807,
+          "repositoryUrl": "https://github.com/rollup/rollup-plugin-json"
+        },
+        {
+          "rank": 361,
+          "name": "socket.io",
+          "dependentPackages": 10715,
+          "repositoryUrl": "https://github.com/socketio/socket.io"
+        },
+        {
+          "rank": 362,
+          "name": "webpack-hot-middleware",
+          "dependentPackages": 10601,
+          "repositoryUrl": "https://github.com/webpack-contrib/webpack-hot-middleware"
+        },
+        {
+          "rank": 363,
+          "name": "@babel/plugin-proposal-optional-chaining",
+          "dependentPackages": 10598,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 364,
+          "name": "react-router",
+          "dependentPackages": 10588,
+          "repositoryUrl": "https://github.com/remix-run/react-router"
+        },
+        {
+          "rank": 365,
+          "name": "@alifd/next",
+          "dependentPackages": 10549,
+          "repositoryUrl": "https://github.com/alibaba-fusion/next"
+        },
+        {
+          "rank": 366,
+          "name": "babel-plugin-syntax-jsx",
+          "dependentPackages": 10544,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 367,
+          "name": "source-map-loader",
+          "dependentPackages": 10530,
+          "repositoryUrl": "https://github.com/webpack-contrib/source-map-loader"
+        },
+        {
+          "rank": 368,
+          "name": "stylelint-config-standard",
+          "dependentPackages": 10481,
+          "repositoryUrl": "https://github.com/stylelint/stylelint-config-standard"
+        },
+        {
+          "rank": 369,
+          "name": "koa",
+          "dependentPackages": 10470,
+          "repositoryUrl": "https://github.com/koajs/koa"
+        },
+        {
+          "rank": 370,
+          "name": "figlet",
+          "dependentPackages": 10414,
+          "repositoryUrl": "https://github.com/patorjk/figlet.js"
+        },
+        {
+          "rank": 371,
+          "name": "tsconfig-paths",
+          "dependentPackages": 10366,
+          "repositoryUrl": "https://github.com/dividab/tsconfig-paths"
+        },
+        {
+          "rank": 372,
+          "name": "react-is",
+          "dependentPackages": 10364,
+          "repositoryUrl": "https://github.com/react/react"
+        },
+        {
+          "rank": 373,
+          "name": "superagent",
+          "dependentPackages": 10302,
+          "repositoryUrl": "https://github.com/ladjs/superagent"
+        },
+        {
+          "rank": 374,
+          "name": "@angular/http",
+          "dependentPackages": 10242,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 375,
+          "name": "http-server",
+          "dependentPackages": 10203,
+          "repositoryUrl": "https://github.com/http-party/http-server"
+        },
+        {
+          "rank": 376,
+          "name": "ng-packagr",
+          "dependentPackages": 10199,
+          "repositoryUrl": "https://github.com/ng-packagr/ng-packagr"
+        },
+        {
+          "rank": 377,
+          "name": "form-data",
+          "dependentPackages": 10194,
+          "repositoryUrl": "https://github.com/form-data/form-data"
+        },
+        {
+          "rank": 378,
+          "name": "gulp-eslint",
+          "dependentPackages": 10181,
+          "repositoryUrl": "https://github.com/adametry/gulp-eslint"
+        },
+        {
+          "rank": 379,
+          "name": "expect.js",
+          "dependentPackages": 10113,
+          "repositoryUrl": "https://github.com/LearnBoost/expect.js"
+        },
+        {
+          "rank": 380,
+          "name": "esm",
+          "dependentPackages": 10048,
+          "repositoryUrl": "https://github.com/standard-things/esm"
+        },
+        {
+          "rank": 381,
+          "name": "download-git-repo",
+          "dependentPackages": 10004,
+          "repositoryUrl": "https://gitlab.com/flippidippi/download-git-repo"
+        },
+        {
+          "rank": 382,
+          "name": "grunt-cli",
+          "dependentPackages": 9986,
+          "repositoryUrl": "https://github.com/gruntjs/grunt-cli"
+        },
+        {
+          "rank": 383,
+          "name": "c8",
+          "dependentPackages": 9964,
+          "repositoryUrl": "https://github.com/bcoe/c8"
+        },
+        {
+          "rank": 384,
+          "name": "gulp-autoprefixer",
+          "dependentPackages": 9869,
+          "repositoryUrl": "https://github.com/sindresorhus/gulp-autoprefixer"
+        },
+        {
+          "rank": 385,
+          "name": "babel-plugin-transform-decorators-legacy",
+          "dependentPackages": 9864,
+          "repositoryUrl": "https://github.com/loganfsmyth/babel-plugin-transform-decorators-legacy"
+        },
+        {
+          "rank": 386,
+          "name": "browser-sync",
+          "dependentPackages": 9860,
+          "repositoryUrl": "https://github.com/BrowserSync/browser-sync"
+        },
+        {
+          "rank": 387,
+          "name": "got",
+          "dependentPackages": 9787,
+          "repositoryUrl": "https://github.com/sindresorhus/got"
+        },
+        {
+          "rank": 388,
+          "name": "minimatch",
+          "dependentPackages": 9743,
+          "repositoryUrl": "https://github.com/isaacs/minimatch"
+        },
+        {
+          "rank": 389,
+          "name": "@material-ui/core",
+          "dependentPackages": 9738,
+          "repositoryUrl": "https://github.com/mui-org/material-ui"
+        },
+        {
+          "rank": 390,
+          "name": "buffer",
+          "dependentPackages": 9726,
+          "repositoryUrl": "https://github.com/feross/buffer"
+        },
+        {
+          "rank": 391,
+          "name": "awesome-typescript-loader",
+          "dependentPackages": 9708,
+          "repositoryUrl": "https://github.com/s-panferov/awesome-typescript-loader"
+        },
+        {
+          "rank": 392,
+          "name": "@types/debug",
+          "dependentPackages": 9707,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 393,
+          "name": "microbundle",
+          "dependentPackages": 9700,
+          "repositoryUrl": "https://github.com/developit/microbundle"
+        },
+        {
+          "rank": 394,
+          "name": "react-hot-loader",
+          "dependentPackages": 9691,
+          "repositoryUrl": "https://github.com/gaearon/react-hot-loader"
+        },
+        {
+          "rank": 395,
+          "name": "npm",
+          "dependentPackages": 9618,
+          "repositoryUrl": "https://github.com/npm/cli"
+        },
+        {
+          "rank": 396,
+          "name": "gulp-typescript",
+          "dependentPackages": 9552,
+          "repositoryUrl": "https://github.com/ivogabe/gulp-typescript"
+        },
+        {
+          "rank": 397,
+          "name": "tap-spec",
+          "dependentPackages": 9546,
+          "repositoryUrl": "https://github.com/scottcorgan/tap-spec"
+        },
+        {
+          "rank": 398,
+          "name": "babel-plugin-transform-es2015-modules-commonjs",
+          "dependentPackages": 9541,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 399,
+          "name": "assert",
+          "dependentPackages": 9537,
+          "repositoryUrl": "https://github.com/browserify/commonjs-assert"
+        },
+        {
+          "rank": 400,
+          "name": "karma-spec-reporter",
+          "dependentPackages": 9488,
+          "repositoryUrl": "https://github.com/tmcgee123/karma-spec-reporter"
+        }
+      ]
+    },
+    {
+      "page": 5,
+      "fetchedAt": "2026-10-30T18:20:08.379Z",
+      "packages": [
+        {
+          "rank": 401,
+          "name": "postcss-preset-env",
+          "dependentPackages": 9438,
+          "repositoryUrl": "https://github.com/csstools/postcss-plugins"
+        },
+        {
+          "rank": 402,
+          "name": "express-validator",
+          "dependentPackages": 9424,
+          "repositoryUrl": "https://github.com/express-validator/express-validator"
+        },
+        {
+          "rank": 403,
+          "name": "@react-native-community/eslint-config",
+          "dependentPackages": 9385,
+          "repositoryUrl": "https://github.com/facebook/react-native"
+        },
+        {
+          "rank": 404,
+          "name": "storybook",
+          "dependentPackages": 9325,
+          "repositoryUrl": "https://github.com/storybookjs/storybook"
+        },
+        {
+          "rank": 405,
+          "name": "run-sequence",
+          "dependentPackages": 9302,
+          "repositoryUrl": "https://github.com/OverZealous/run-sequence"
+        },
+        {
+          "rank": 406,
+          "name": "@angular/language-service",
+          "dependentPackages": 9297,
+          "repositoryUrl": "https://github.com/angular/angular"
+        },
+        {
+          "rank": 407,
+          "name": "babel-plugin-transform-vue-jsx",
+          "dependentPackages": 9250,
+          "repositoryUrl": "https://github.com/vuejs/babel-plugin-transform-vue-jsx"
+        },
+        {
+          "rank": 408,
+          "name": "@types/react-router-dom",
+          "dependentPackages": 9212,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 409,
+          "name": "@types/jasminewd2",
+          "dependentPackages": 9202,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 410,
+          "name": "@types/yargs",
+          "dependentPackages": 9197,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 411,
+          "name": "terser",
+          "dependentPackages": 9173,
+          "repositoryUrl": "https://github.com/terser/terser"
+        },
+        {
+          "rank": 412,
+          "name": "cookie-session",
+          "dependentPackages": 9170,
+          "repositoryUrl": "https://github.com/expressjs/cookie-session"
+        },
+        {
+          "rank": 413,
+          "name": "shx",
+          "dependentPackages": 9160,
+          "repositoryUrl": "https://github.com/shelljs/shx"
+        },
+        {
+          "rank": 414,
+          "name": "whatwg-fetch",
+          "dependentPackages": 9143,
+          "repositoryUrl": "https://github.com/github/fetch"
+        },
+        {
+          "rank": 415,
+          "name": "eslint-plugin-jsdoc",
+          "dependentPackages": 9073,
+          "repositoryUrl": "https://github.com/gajus/eslint-plugin-jsdoc"
+        },
+        {
+          "rank": 416,
+          "name": "@vue/eslint-config-prettier",
+          "dependentPackages": 9063,
+          "repositoryUrl": "https://github.com/vuejs/eslint-config-prettier"
+        },
+        {
+          "rank": 417,
+          "name": "immutable",
+          "dependentPackages": 8975,
+          "repositoryUrl": "https://github.com/immutable-js/immutable-js"
+        },
+        {
+          "rank": 418,
+          "name": "jest-environment-jsdom",
+          "dependentPackages": 8956,
+          "repositoryUrl": "https://github.com/jestjs/jest"
+        },
+        {
+          "rank": 419,
+          "name": "xml2js",
+          "dependentPackages": 8930,
+          "repositoryUrl": "https://github.com/Leonidas-from-XIV/node-xml2js"
+        },
+        {
+          "rank": 420,
+          "name": "rollup-plugin-sourcemaps",
+          "dependentPackages": 8930,
+          "repositoryUrl": "https://github.com/maxdavidson/rollup-plugin-sourcemaps"
+        },
+        {
+          "rank": 421,
+          "name": "pg",
+          "dependentPackages": 8927,
+          "repositoryUrl": "https://github.com/brianc/node-postgres"
+        },
+        {
+          "rank": 422,
+          "name": "acorn",
+          "dependentPackages": 8880,
+          "repositoryUrl": "https://github.com/acornjs/acorn"
+        },
+        {
+          "rank": 423,
+          "name": "eslint-friendly-formatter",
+          "dependentPackages": 8853,
+          "repositoryUrl": "https://github.com/royriojas/eslint-friendly-formatter"
+        },
+        {
+          "rank": 424,
+          "name": "socket.io-client",
+          "dependentPackages": 8837,
+          "repositoryUrl": "https://github.com/socketio/socket.io"
+        },
+        {
+          "rank": 425,
+          "name": "cookie-parser",
+          "dependentPackages": 8826,
+          "repositoryUrl": "https://github.com/expressjs/cookie-parser"
+        },
+        {
+          "rank": 426,
+          "name": "gulp-plumber",
+          "dependentPackages": 8825,
+          "repositoryUrl": "https://github.com/floatdrop/gulp-plumber"
+        },
+        {
+          "rank": 427,
+          "name": "svelte",
+          "dependentPackages": 8815,
+          "repositoryUrl": "https://github.com/sveltejs/svelte"
+        },
+        {
+          "rank": 428,
+          "name": "redis",
+          "dependentPackages": 8794,
+          "repositoryUrl": "https://github.com/redis/node-redis"
+        },
+        {
+          "rank": 429,
+          "name": "commitlint",
+          "dependentPackages": 8793,
+          "repositoryUrl": "https://github.com/conventional-changelog/commitlint"
+        },
+        {
+          "rank": 430,
+          "name": "eslint-config-airbnb-typescript",
+          "dependentPackages": 8743,
+          "repositoryUrl": "https://github.com/iamturns/eslint-config-airbnb-typescript"
+        },
+        {
+          "rank": 431,
+          "name": "proxyquire",
+          "dependentPackages": 8734,
+          "repositoryUrl": "https://github.com/thlorenz/proxyquire"
+        },
+        {
+          "rank": 432,
+          "name": "camelcase",
+          "dependentPackages": 8687,
+          "repositoryUrl": "https://github.com/sindresorhus/camelcase"
+        },
+        {
+          "rank": 433,
+          "name": "morgan",
+          "dependentPackages": 8657,
+          "repositoryUrl": "https://github.com/expressjs/morgan"
+        },
+        {
+          "rank": 434,
+          "name": "babel-helper-vue-jsx-merge-props",
+          "dependentPackages": 8640,
+          "repositoryUrl": "https://github.com/vuejs/babel-helper-vue-jsx-merge-props"
+        },
+        {
+          "rank": 435,
+          "name": "@rollup/plugin-alias",
+          "dependentPackages": 8604,
+          "repositoryUrl": "https://github.com/rollup/plugins"
+        },
+        {
+          "rank": 436,
+          "name": "postcss-flexbugs-fixes",
+          "dependentPackages": 8597,
+          "repositoryUrl": "https://github.com/luisrudge/postcss-flexbugs-fixes"
+        },
+        {
+          "rank": 437,
+          "name": "karma-mocha-reporter",
+          "dependentPackages": 8585,
+          "repositoryUrl": "https://github.com/litixsoft/karma-mocha-reporter"
+        },
+        {
+          "rank": 438,
+          "name": "eslint-import-resolver-typescript",
+          "dependentPackages": 8566,
+          "repositoryUrl": "https://github.com/import-js/eslint-import-resolver-typescript"
+        },
+        {
+          "rank": 439,
+          "name": "@types/cookie-session",
+          "dependentPackages": 8547,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 440,
+          "name": "@babel/plugin-transform-modules-commonjs",
+          "dependentPackages": 8518,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 441,
+          "name": "eslint-plugin-n",
+          "dependentPackages": 8503,
+          "repositoryUrl": "https://github.com/eslint-community/eslint-plugin-n"
+        },
+        {
+          "rank": 442,
+          "name": "request-promise",
+          "dependentPackages": 8488,
+          "repositoryUrl": "https://github.com/request/request-promise"
+        },
+        {
+          "rank": 443,
+          "name": "markdown-it",
+          "dependentPackages": 8475,
+          "repositoryUrl": "https://github.com/markdown-it/markdown-it"
+        },
+        {
+          "rank": 444,
+          "name": "react-dev-utils",
+          "dependentPackages": 8469,
+          "repositoryUrl": "https://github.com/facebook/create-react-app"
+        },
+        {
+          "rank": 445,
+          "name": "next",
+          "dependentPackages": 8463,
+          "repositoryUrl": "https://github.com/vercel/next.js"
+        },
+        {
+          "rank": 446,
+          "name": "mime",
+          "dependentPackages": 8416,
+          "repositoryUrl": "https://github.com/broofa/mime"
+        },
+        {
+          "rank": 447,
+          "name": "fast-glob",
+          "dependentPackages": 8379,
+          "repositoryUrl": "https://github.com/mrmlnc/fast-glob"
+        },
+        {
+          "rank": 448,
+          "name": "stylus",
+          "dependentPackages": 8352,
+          "repositoryUrl": "https://github.com/stylus/stylus"
+        },
+        {
+          "rank": 449,
+          "name": "@babel/plugin-proposal-export-default-from",
+          "dependentPackages": 8335,
+          "repositoryUrl": "https://github.com/babel/babel"
+        },
+        {
+          "rank": 450,
+          "name": "@types/webpack",
+          "dependentPackages": 8332,
+          "repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped"
+        },
+        {
+          "rank": 451,
+          "name": "css-split-webpack-plugin",
+          "dependentPackages": 8323,
+          "repositoryUrl": "https://github.com/metalabdesign/css-split-webpack-plugin"
+        },
+        {
+          "rank": 452,
+          "name": "phantomjs-prebuilt",
+          "dependentPackages": 8288,
+          "repositoryUrl": "https://github.com/Medium/phantomjs"
+        },
+        {
+          "rank": 453,
+          "name": "nan",
+          "dependentPackages": 8275,
+          "repositoryUrl": "https://github.com/nodejs/nan"
+        },
+        {
+          "rank": 454,
+          "name": "loader-utils",
+          "dependentPackages": 8210,
+          "repositoryUrl": "https://github.com/webpack/loader-utils"
+        },
+        {
+          "rank": 455,
+          "name": "node-notifier",
+          "dependentPackages": 8208,
+          "repositoryUrl": "https://github.com/mikaelbr/node-notifier"
+        },
+        {
+          "rank": 456,
+          "name": "expect",
+          "dependentPackages": 8207,
+          "repositoryUrl": "https://github.com/jestjs/jest"
+        },
+        {
+          "rank": 457,
+          "name": "conventional-changelog-cli",
+          "dependentPackages": 8191,
+          "repositoryUrl": "https://github.com/conventional-changelog/conventional-changelog"
+        },
+        {
+          "rank": 458,
+          "name": "jshint-stylish",
+          "dependentPackages": 8187,
+          "repositoryUrl": "https://github.com/sindresorhus/jshint-stylish"
+        },
+        {
+          "rank": 459,
+          "name": "@rollup/plugin-terser",
+          "dependentPackages": 8139,
+          "repositoryUrl": "https://github.com/rollup/plugins"
+        },
+        {
+          "rank": 460,
+          "name": "portfinder",
+          "dependentPackages": 8122,
+          "repositoryUrl": "https://github.com/http-party/node-portfinder"
+        },
+        {
+          "rank": 461,
+          "name": "eslint-plugin-mocha",
+          "dependentPackages": 8100,
+          "repositoryUrl": "https://github.com/lo1tuma/eslint-plugin-mocha"
+        },
+        {
+          "rank": 462,
+          "name": "http-proxy-middleware",
+          "dependentPackages": 8072,
+          "repositoryUrl": "https://github.com/chimurai/http-proxy-middleware"
+        },
+        {
+          "rank": 463,
+          "name": "fast-sass-loader",
+          "dependentPackages": 8066,
+          "repositoryUrl": "https://github.com/yibn2008/fast-sass-loader"
+        },
+        {
+          "rank": 464,
+          "name": "@alifd/babel-preset-next",
+          "dependentPackages": 8062,
+          "repositoryUrl": "https://github.com/alibaba-fusion/babel-preset-next"
+        },
+        {
+          "rank": 465,
+          "name": "@vue/eslint-config-typescript",
+          "dependentPackages": 8028,
+          "repositoryUrl": "https://github.com/vuejs/eslint-config-typescript"
+        },
+        {
+          "rank": 466,
+          "name": "karma-cli",
+          "dependentPackages": 8002,
+          "repositoryUrl": "https://github.com/karma-runner/karma-cli"
+        },
+        {
+          "rank": 467,
+          "name": "@mui/material",
+          "dependentPackages": 7981,
+          "repositoryUrl": "https://github.com/mui/material-ui"
+        },
+        {
+          "rank": 468,
+          "name": "mysql",
+          "dependentPackages": 7977,
+          "repositoryUrl": "https://github.com/mysqljs/mysql"
+        },
+        {
+          "rank": 469,
+          "name": "joi",
+          "dependentPackages": 7976,
+          "repositoryUrl": "https://github.com/hapijs/joi"
+        },
+        {
+          "rank": 470,
+          "name": "prompts",
+          "dependentPackages": 7975,
+          "repositoryUrl": "https://github.com/terkelg/prompts"
+        },
+        {
+          "rank": 471,
+          "name": "less-plugin-sass2less",
+          "dependentPackages": 7952,
+          "repositoryUrl": "https://github.com/mediafreakch/less-plugin-sass2less"
+        },
+        {
+          "rank": 472,
+          "name": "@types/glob",
+          "dependentPackages": 7895,
+          "repositoryUrl": null
+        },
+        {
+          "rank": 473,
+          "name": "query-string",
+          "dependentPackages": 7882,
+          "repositoryUrl": "https://github.com/sindresorhus/query-string"
+        },
+        {
+          "rank": 474,
+          "name": "@nestjs/common",
+          "dependentPackages": 7878,
+          "repositoryUrl": "https://github.com/nestjs/nest"
+        },
+        {
+          "rank": 475,
+          "name": "eslint-plugin-unicorn",
+          "dependentPackages": 7871,
+          "repositoryUrl": "https://github.com/sindresorhus/eslint-plugin-unicorn"
+        },
+        {
+          "rank": 476,
+          "name": "@release-it/conventional-changelog",
+          "dependentPackages": 7870,
+          "repositoryUrl": "https://github.com/release-it/conventional-changelog"
+        },
+        {
+          "rank": 477,
+          "name": "isomorphic-fetch",
+          "dependentPackages": 7832,
+          "repositoryUrl": "https://github.com/matthew-andrews/isomorphic-fetch"
+        },
+        {
+          "rank": 478,
+          "name": "nanoid",
+          "dependentPackages": 7827,
+          "repositoryUrl": "https://github.com/ai/nanoid"
+        },
+        {
+          "rank": 479,
+          "name": "acertea",
+          "dependentPackages": 7824,
+          "repositoryUrl": "https://github.com/miftah1231/acertea"
+        },
+        {
+          "rank": 480,
+          "name": "@testing-library/react-hooks",
+          "dependentPackages": 7813,
+          "repositoryUrl": "https://github.com/testing-library/react-hooks-testing-library"
+        },
+        {
+          "rank": 481,
+          "name": "react-transition-group",
+          "dependentPackages": 7804,
+          "repositoryUrl": "https://github.com/reactjs/react-transition-group"
+        },
+        {
+          "rank": 482,
+          "name": "microbundle-crl",
+          "dependentPackages": 7779,
+          "repositoryUrl": "https://github.com/developit/microbundle"
+        },
+        {
+          "rank": 483,
+          "name": "@types/classnames",
+          "dependentPackages": 7769,
+          "repositoryUrl": null
+        },
+        {
+          "rank": 484,
+          "name": "anywhere-dream",
+          "dependentPackages": 7763,
+          "repositoryUrl": "https://github.com/anywhere-dream/anywhere-dream"
+        },
+        {
+          "rank": 485,
+          "name": "anything-kitchen-pack-tears",
+          "dependentPackages": 7761,
+          "repositoryUrl": "https://github.com/anything-kitchen-pack-tears/anything-kitchen-pack-tears"
+        },
+        {
+          "rank": 486,
+          "name": "anywhere-leon",
+          "dependentPackages": 7758,
+          "repositoryUrl": "https://github.com/anywhere-leon/anywhere-leon"
+        },
+        {
+          "rank": 487,
+          "name": "anywhere-leon-eth",
+          "dependentPackages": 7756,
+          "repositoryUrl": "https://github.com/anywhere-leon-eth/anywhere-leon-eth"
+        },
+        {
+          "rank": 488,
+          "name": "anywhere-dream-term",
+          "dependentPackages": 7756,
+          "repositoryUrl": "https://github.com/anywhere-dream-term/anywhere-dream-term"
+        },
+        {
+          "rank": 489,
+          "name": "anywhere-dream-demo",
+          "dependentPackages": 7755,
+          "repositoryUrl": "https://github.com/anywhere-dream-demo/anywhere-dream-demo"
+        },
+        {
+          "rank": 490,
+          "name": "anywhere-leonterms",
+          "dependentPackages": 7754,
+          "repositoryUrl": "https://github.com/anywhere-leonterms/anywhere-leonterms"
+        },
+        {
+          "rank": 491,
+          "name": "anywhere-leon-ethers",
+          "dependentPackages": 7754,
+          "repositoryUrl": "https://github.com/anywhere-leon-ethers/anywhere-leon-ethers"
+        },
+        {
+          "rank": 492,
+          "name": "anywhere-leon-demo",
+          "dependentPackages": 7752,
+          "repositoryUrl": "https://github.com/anywhere-leon-demo/anywhere-leon-demo"
+        },
+        {
+          "rank": 493,
+          "name": "anywhere-leon-web3",
+          "dependentPackages": 7751,
+          "repositoryUrl": "https://github.com/anywhere-leon-web3/anywhere-leon-web3"
+        },
+        {
+          "rank": 494,
+          "name": "actually-web3-win",
+          "dependentPackages": 7750,
+          "repositoryUrl": "https://github.com/actually-web3-win/actually-web3-win"
+        },
+        {
+          "rank": 495,
+          "name": "anywhere-leon-test",
+          "dependentPackages": 7750,
+          "repositoryUrl": "https://github.com/anywhere-leon-test/anywhere-leon-test"
+        },
+        {
+          "rank": 496,
+          "name": "avoid-web3-plenty",
+          "dependentPackages": 7748,
+          "repositoryUrl": "https://github.com/avoid-web3-plenty/avoid-web3-plenty"
+        },
+        {
+          "rank": 497,
+          "name": "alphabet-minute",
+          "dependentPackages": 7744,
+          "repositoryUrl": "https://github.com/alphabet-minute/alphabet-minute"
+        },
+        {
+          "rank": 498,
+          "name": "webpack-manifest-plugin",
+          "dependentPackages": 7705,
+          "repositoryUrl": "https://github.com/shellscape/webpack-manifest-plugin"
+        },
+        {
+          "rank": 499,
+          "name": "grunt-contrib-copy",
+          "dependentPackages": 7689,
+          "repositoryUrl": "https://github.com/gruntjs/grunt-contrib-copy"
+        },
+        {
+          "rank": 500,
+          "name": "opn",
+          "dependentPackages": 7686,
+          "repositoryUrl": "https://github.com/sindresorhus/open"
+        }
+      ]
+    }
+  ]
+}

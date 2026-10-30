@@ -543,6 +543,185 @@ Exactly the 10 `TEST_SCRIPT_MISSING` findings judged *policy* (repositories with
 
 The warning count rose from 31 to 41 because the 10 downgraded findings are now warnings. They are all true but are policy, which is why warning precision fell to 8 / 41 while warning correctness rose to 40 / 41 (97.6%).
 
+## Run 6: top 100 most-depended-on npm packages (pre-registered)
+
+Runs 1–5 measured hand-picked repositories and a random sample of small and mid-sized projects. Run 6 measures the repositories behind the npm packages that the most other packages depend on. This section, the tooling, and the sample were committed and pushed before any CloneProof command ran against these repositories.
+
+### Population and selection
+
+- **Ranking:** npm packages ordered by `dependent_packages_count`, descending, from `https://packages.ecosyste.ms/api/v1/registries/npmjs.org/packages?sort=dependent_packages_count&order=desc&per_page=100&page=N`. Pages 1–5 (500 packages) were fetched on 2026-10-30 at 18:20 UTC with `node scripts/fieldtest.js ranking --pages 5 --out docs/field-test/run6-ranking.json`. The raw rows used (rank, name, dependent-package count, repository URL, fetch time per page) are in [`field-test/run6-ranking.json`](field-test/run6-ranking.json).
+- **Selection:** `node scripts/fieldtest.js sample-list --ranking docs/field-test/run6-ranking.json --count 100 --out docs/field-test/run6-sample.json` walks the ranking in order. For each package it:
+  1. normalizes `repository_url` to a GitHub `owner/repo` (strips `git+`, `.git`, trailing slashes, and `/tree/...` subpaths); a URL outside github.com is skipped as `not-github`, and a missing URL as `no-repository-url`;
+  2. resolves renames and redirects with `gh api repos/OWNER/REPO` and uses the returned `full_name`;
+  3. skips repositories that are missing (`not-found`), private, archived, or have no root `package.json`;
+  4. keeps each repository once, credited to its highest-ranked package, and records every later package in the walked range that maps to it (`alsoProvides`);
+  5. stops at 100 unique repositories.
+- **Outcome:** the walk reached rank 153. 100 repositories were accepted and 17 packages were skipped, all because their repository is archived. Every package in the walked range had a GitHub repository URL, and every accepted repository has a root `package.json`. 36 more packages mapped to a repository already in the sample, for example 15 Babel packages to `babel/babel` and 7 `@types/*` packages to `DefinitelyTyped/DefinitelyTyped`.
+- **Pre-run facts:** for each repository, the same facts as Run 5 (default-branch head commit, root lockfiles, `scripts.test` kind, `packageManager`, workspaces, `private`), read through the GitHub API between 18:20 and 18:25 UTC. Nothing was cloned or executed while sampling.
+
+**Framing.** CloneProof checks the repository **root**. Many of these packages are published from a sub-folder of a monorepo, so the results describe "cloning this repository and setting it up", not "installing this package from npm". These are among the most widely used and best-maintained projects in the ecosystem, so the sample is not typical of Node.js repositories.
+
+Skipped packages:
+
+| Rank | Package | Repository | Reason |
+|---:|---|---|---|
+| 18 | `babel-eslint` | `babel/babel-eslint` | archived |
+| 31 | `css-loader` | `webpack/css-loader` | archived |
+| 34 | `cross-env` | `kentcdodds/cross-env` | archived |
+| 42 | `babel-preset-env` | `babel/babel-preset-env` | archived |
+| 43 | `style-loader` | `webpack/style-loader` | archived |
+| 44 | `tslint` | `palantir/tslint` | archived |
+| 49 | `node-sass` | `sass/node-sass` | archived |
+| 61 | `file-loader` | `webpack-contrib/file-loader` | archived |
+| 63 | `prop-types` | `meta/prop-types` | archived |
+| 81 | `url-loader` | `webpack-contrib/url-loader` | archived |
+| 86 | `rollup-plugin-node-resolve` | `rollup/rollup-plugin-node-resolve` | archived |
+| 88 | `istanbul` | `gotwarlost/istanbul` | archived |
+| 89 | `rollup-plugin-terser` | `TrySound/rollup-plugin-terser` | archived |
+| 91 | `rollup-plugin-babel` | `rollup/rollup-plugin-babel` | archived |
+| 101 | `rollup-plugin-commonjs` | `rollup/rollup-plugin-commonjs` | archived |
+| 115 | `extract-text-webpack-plugin` | `webpack-contrib/extract-text-webpack-plugin` | archived |
+| 148 | `eslint-loader` | `webpack-contrib/eslint-loader` | archived |
+
+### Sample
+
+Language is GitHub's primary language for the repository. `(+N)` means N more packages in the walked range map to the same repository. Long `packageManager` hashes are shortened.
+
+| Rank | Package | Repository | Head commit | Language | Stars | Root lockfiles | `scripts.test` | `packageManager` | Expected findings |
+|---:|---|---|---|---|---:|---|---|---|---|
+| 1 | `typescript` | `microsoft/TypeScript` | `f2c93ea86827` | Go | 111681 | `package-lock.json` | present (workspaces) | `npm@11.19.1+sha512…` | none |
+| 2 | `eslint` | `eslint/eslint` | `12cbff4125db` | JavaScript | 27601 | none | present (workspaces) | — | `LOCKFILE_MISSING` |
+| 3 | `react` (+3) | `react/react` | `952f45b70dab` | JavaScript | 251765 | `yarn.lock` | present (workspaces) | `yarn@1.22.22` | none |
+| 4 | `mocha` | `mochajs/mocha` | `5b5afa7b12e3` | JavaScript | 22916 | `package-lock.json` | present | — | none |
+| 5 | `@types/node` (+7) | `DefinitelyTyped/DefinitelyTyped` | `72e15dbdd808` | TypeScript | 51461 | none | present (workspaces) | `pnpm@10.30.1+sha512…` | `LOCKFILE_MISSING` |
+| 6 | `jest` (+1) | `jestjs/jest` | `61050e9323e7` | TypeScript | 45467 | `yarn.lock` | present (workspaces) | `yarn@4.18.0` | none |
+| 7 | `prettier` | `prettier/prettier` | `bed4edbb1cf2` | JavaScript | 52381 | `yarn.lock` | present | `yarn@4.18.1` | none |
+| 8 | `webpack` | `webpack/webpack` | `a11411af097b` | JavaScript | 65969 | `yarn.lock` | present | `yarn@1.22.22+sha512…` | none |
+| 10 | `@babel/core` (+15) | `babel/babel` | `633b97541f68` | TypeScript | 44056 | `yarn.lock` | present (workspaces) | `yarn@4.17.0+sha512…` | none |
+| 11 | `babel-loader` | `babel/babel-loader` | `04a08e1c667b` | JavaScript | 4835 | `yarn.lock` | present | `yarn@4.17.0` | none |
+| 12 | `eslint-plugin-import` | `import-js/eslint-plugin-import` | `a60d71548b0d` | JavaScript | 5957 | none | present | — | `LOCKFILE_MISSING` |
+| 13 | `rimraf` | `isaacs/rimraf` | `051e6c72a703` | TypeScript | 5855 | `package-lock.json` | present | — | none |
+| 14 | `chai` | `chaijs/chai` | `8cd999c735f0` | JavaScript | 8264 | `package-lock.json` | present | — | none |
+| 16 | `lodash` | `lodash/lodash` | `2b5e6f7399a7` | JavaScript | 61275 | `package-lock.json` | present | — | none |
+| 20 | `husky` | `typicode/husky` | `3f0023dc10d7` | JavaScript | 35370 | `package-lock.json` | missing | — | `TEST_SCRIPT_MISSING` |
+| 21 | `rollup` | `rollup/rollup` | `1147f535769c` | JavaScript | 26305 | `package-lock.json` | present | — | none |
+| 22 | `chalk` | `chalk/chalk` | `72110019e147` | JavaScript | 23337 | none | present | — | `LOCKFILE_MISSING` |
+| 23 | `@typescript-eslint/eslint-plugin` (+1) | `typescript-eslint/typescript-eslint` | `bdf0a9c5fc58` | TypeScript | 16459 | `pnpm-lock.yaml` | present (workspaces) | `pnpm@12.15.0+sha512…` | none |
+| 25 | `tslib` | `microsoft/tslib` | `8d6f9cdef0a2` | TypeScript | 1345 | none | missing | — | `LOCKFILE_MISSING`, `TEST_SCRIPT_MISSING` |
+| 26 | `ts-node` | `TypeStrong/ts-node` | `ddb05ef23be9` | TypeScript | 13118 | `yarn.lock` | present | `yarn@3.4.1` | none |
+| 27 | `eslint-config-prettier` | `prettier/eslint-config-prettier` | `bd6e6171434c` | JavaScript | 5900 | `yarn.lock` | present | `yarn@4.18.0` | none |
+| 28 | `webpack-cli` | `webpack/webpack-cli` | `02a85ac404b4` | JavaScript | 2621 | `package-lock.json` | present (workspaces) | — | none |
+| 30 | `ts-jest` | `kulshekhar/ts-jest` | `48153cec2954` | TypeScript | 7073 | `package-lock.json` | present | — | none |
+| 32 | `eslint-plugin-react` | `jsx-eslint/eslint-plugin-react` | `da5431790717` | JavaScript | 9292 | none | present | — | `LOCKFILE_MISSING` |
+| 33 | `eslint-plugin-prettier` | `prettier/eslint-plugin-prettier` | `e6dd27a4e401` | JavaScript | 3655 | `yarn.lock` | present | `yarn@4.18.1` | none |
+| 36 | `axios` | `axios/axios` | `9d11464a75ee` | JavaScript | 109308 | `package-lock.json` | present | — | none |
+| 37 | `vue` | `vuejs/core` | `24c9d0bffb22` | TypeScript | 54799 | `pnpm-lock.yaml` | present (workspaces) | `pnpm@12.11.2` | none |
+| 38 | `express` | `expressjs/express` | `1c6f1b0fe400` | JavaScript | 69580 | none | present | — | `LOCKFILE_MISSING` |
+| 40 | `autoprefixer` | `postcss/autoprefixer` | `a7dbf4de8763` | JavaScript | 22198 | `pnpm-lock.yaml` | present (workspaces) | — | none |
+| 41 | `webpack-dev-server` | `webpack/webpack-dev-server` | `9a6472e52f88` | JavaScript | 7846 | `package-lock.json` | present | — | none |
+| 46 | `lint-staged` | `lint-staged/lint-staged` | `48f9f4ea4b88` | JavaScript | 14752 | `package-lock.json` | present | — | none |
+| 47 | `gulp` | `gulpjs/gulp` | `61f22dc11bb1` | JavaScript | 32915 | none | present | — | `LOCKFILE_MISSING` |
+| 48 | `sass-loader` | `webpack/sass-loader` | `35cf965aa2c8` | JavaScript | 3889 | `package-lock.json` | present | — | none |
+| 50 | `commander` | `tj/commander.js` | `ba6d13ddb424` | JavaScript | 28446 | `package-lock.json` | present | — | none |
+| 51 | `fs-extra` | `jprichardson/node-fs-extra` | `1e223d3b1e26` | JavaScript | 9595 | none | present | — | `LOCKFILE_MISSING` |
+| 52 | `sinon` | `sinonjs/sinon` | `41c89bfc87da` | JavaScript | 9752 | `package-lock.json` | present | — | none |
+| 53 | `vue-template-compiler` | `vuejs/vue` | `9e8870794008` | TypeScript | 212487 | `pnpm-lock.yaml` | present (workspaces) | `pnpm@8.9.2` | none |
+| 55 | `core-js` | `zloirock/core-js` | `479a799d782c` | JavaScript | 25524 | `package-lock.json` | present (workspaces) | — | none |
+| 58 | `html-webpack-plugin` | `jantimon/html-webpack-plugin` | `9e342d2202e1` | JavaScript | 10720 | `package-lock.json` | present | — | none |
+| 59 | `@rollup/plugin-node-resolve` (+2) | `rollup/plugins` | `b09437adcd70` | JavaScript | 3762 | `pnpm-lock.yaml` | missing (workspaces) | `pnpm@9.5.0` | `MONOREPO_ROOT_TEST_SCRIPT_MISSING` |
+| 60 | `nyc` | `istanbuljs/nyc` | `908620475199` | JavaScript | 5763 | `package-lock.json` | present | — | none |
+| 62 | `eslint-plugin-promise` | `eslint-community/eslint-plugin-promise` | `51c6308694da` | JavaScript | 1005 | `package-lock.json` | present | — | none |
+| 64 | `eslint-plugin-node` | `mysticatea/eslint-plugin-node` | `8ef07af5711b` | JavaScript | 956 | none | present | — | `LOCKFILE_MISSING` |
+| 65 | `request` | `request/request` | `3c0cddc7c8eb` | JavaScript | 25485 | none | present | — | `LOCKFILE_MISSING` |
+| 66 | `eslint-plugin-jsx-a11y` | `jsx-eslint/eslint-plugin-jsx-a11y` | `8f75961d965e` | JavaScript | 3632 | none | present | — | `LOCKFILE_MISSING` |
+| 68 | `moment` | `moment/moment` | `c2a703a4d84a` | JavaScript | 47885 | `pnpm-lock.yaml` | present | `pnpm@11.22.0` | none |
+| 69 | `coveralls` | `nickmerwin/node-coveralls` | `933dd331b763` | JavaScript | 1063 | `package-lock.json` | present | — | none |
+| 70 | `npm-run-all` | `mysticatea/npm-run-all` | `bf91f94ce597` | JavaScript | 5834 | none | present | — | `LOCKFILE_MISSING` |
+| 71 | `karma` | `karma-runner/karma` | `84f85e7016ef` | JavaScript | 11952 | `package-lock.json` | present | — | none |
+| 74 | `eslint-config-standard` | `standard/eslint-config-standard` | `3dacfca5b476` | TypeScript | 2643 | `package-lock.json` | present | — | none |
+| 75 | `postcss-loader` | `webpack/postcss-loader` | `ed3e1f7592a5` | JavaScript | 2839 | `package-lock.json` | present | — | none |
+| 76 | `eslint-plugin-standard` | `standard/eslint-plugin-standard` | `ca587fc3506b` | JavaScript | 126 | none | present | — | `LOCKFILE_MISSING` |
+| 77 | `glob` | `isaacs/node-glob` | `d1bfd61f8eda` | TypeScript | 8707 | `package-lock.json` | present | — | none |
+| 78 | `inquirer` | `SBoudrias/Inquirer.js` | `34d7d364bc1d` | TypeScript | 21639 | `yarn.lock` | present (workspaces) | `yarn@4.18.1+sha512…` | none |
+| 80 | `eslint-plugin-vue` | `vuejs/eslint-plugin-vue` | `9bde0bff1bf3` | TypeScript | 4589 | none | present | — | `LOCKFILE_MISSING` |
+| 82 | `debug` | `debug-js/debug` | `666dbc506809` | JavaScript | 11456 | none | present | — | `LOCKFILE_MISSING` |
+| 84 | `ts-loader` | `TypeStrong/ts-loader` | `93d692541bd0` | TypeScript | 3484 | `package-lock.json` | present | — | none |
+| 85 | `react-scripts` | `react/create-react-app` | `6254386531d2` | JavaScript | 103234 | `package-lock.json` | present (workspaces) | — | none |
+| 87 | `sass` | `sass/dart-sass` | `1f895ca5bff6` | Dart | 4238 | none | missing | — | `LOCKFILE_MISSING`, `TEST_SCRIPT_MISSING` |
+| 90 | `eslint-config-airbnb` (+1) | `airbnb/javascript` | `8ed19247bef1` | JavaScript | 148031 | none | present | — | `LOCKFILE_MISSING` |
+| 92 | `@testing-library/react` | `testing-library/react-testing-library` | `20ce75f2907c` | JavaScript | 19675 | none | present | `yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610` | `LOCKFILE_MISSING` |
+| 93 | `semver` | `npm/node-semver` | `7257c1423947` | JavaScript | 5476 | none | present | — | `LOCKFILE_MISSING` |
+| 94 | `yargs` | `yargs/yargs` | `8021675da057` | JavaScript | 11506 | `package-lock.json` | present | — | none |
+| 95 | `dotenv` | `motdotla/dotenv` | `3d11a6e4e5b9` | JavaScript | 20557 | `package-lock.json` | present | — | none |
+| 97 | `rxjs` | `ReactiveX/rxjs` | `54796b38a57e` | TypeScript | 31709 | `pnpm-lock.yaml` | missing (workspaces) | `pnpm@10.34.5` | `MONOREPO_ROOT_TEST_SCRIPT_MISSING` |
+| 98 | `@vue/cli-service` (+2) | `vuejs/vue-cli` | `7eb93c169c75` | JavaScript | 29505 | `yarn.lock` | present (workspaces) | `yarn@1.22.11` | none |
+| 99 | `uuid` | `uuidjs/uuid` | `8eed10acf6b1` | TypeScript | 15345 | `package-lock.json` | present | `npm@12.0.2` | none |
+| 102 | `@storybook/react` (+3) | `storybookjs/storybook` | `43a13889a499` | TypeScript | 91413 | `yarn.lock` | present (workspaces) | `yarn@4.18.0` | none |
+| 104 | `karma-chrome-launcher` | `karma-runner/karma-chrome-launcher` | `276f829b0be7` | JavaScript | 474 | `package-lock.json` | present | — | none |
+| 108 | `grunt` | `gruntjs/grunt` | `50a8a686522b` | JavaScript | 12234 | none | present | — | `LOCKFILE_MISSING` |
+| 109 | `less` | `less/less.js` | `713331655e43` | JavaScript | 17008 | `package-lock.json`, `pnpm-lock.yaml` | present (workspaces) | `pnpm@9.15.9` | none |
+| 110 | `postcss` | `postcss/postcss` | `2455ac8212fe` | TypeScript | 28966 | `pnpm-lock.yaml` | present (workspaces) | — | none |
+| 111 | `nodemon` | `remy/nodemon` | `6812a7472215` | JavaScript | 26658 | `package-lock.json` | present | — | none |
+| 112 | `rollup-plugin-typescript2` | `ezolenko/rollup-plugin-typescript2` | `4cff90bbe88a` | TypeScript | 824 | `package-lock.json` | present | — | none |
+| 113 | `tape` | `tape-testing/tape` | `223d58ebbde2` | JavaScript | 5798 | none | present | — | `LOCKFILE_MISSING` |
+| 116 | `@testing-library/jest-dom` | `testing-library/jest-dom` | `3782c78b3dc9` | JavaScript | 4606 | none | present | — | `LOCKFILE_MISSING` |
+| 118 | `async` | `caolan/async` | `3921e54bd070` | JavaScript | 28116 | `package-lock.json` | present | — | none |
+| 119 | `antd` | `ant-design/ant-design` | `aab929818837` | TypeScript | 100014 | none | present | — | `LOCKFILE_MISSING` |
+| 120 | `vue-loader` | `vuejs/vue-loader` | `698636508e08` | TypeScript | 4956 | `pnpm-lock.yaml` | present | `pnpm@8.12.0` | none |
+| 123 | `typedoc` | `TypeStrong/typedoc` | `6d8c856bbb46` | TypeScript | 8453 | `pnpm-lock.yaml` | present | — | none |
+| 124 | `semantic-release` | `semantic-release/semantic-release` | `04c1923646eb` | JavaScript | 24148 | `package-lock.json` | present | `npm@12.0.2+sha512…` | none |
+| 126 | `classnames` | `JedWatson/classnames` | `abd6314010de` | JavaScript | 17772 | `package-lock.json` | present | — | none |
+| 127 | `node-fetch` | `node-fetch/node-fetch` | `8b3320d2a7c0` | JavaScript | 8846 | none | present | — | `LOCKFILE_MISSING` |
+| 128 | `mkdirp` | `isaacs/node-mkdirp` | `fdf6005432c2` | TypeScript | 199 | `package-lock.json` | present | — | none |
+| 129 | `ava` | `avajs/ava` | `8640039a46c8` | JavaScript | 20826 | `pnpm-lock.yaml` | present (workspaces) | — | none |
+| 130 | `ora` | `sindresorhus/ora` | `b204360b0df9` | JavaScript | 9768 | none | present | — | `LOCKFILE_MISSING` |
+| 131 | `minimist` | `minimistjs/minimist` | `ecfdaea23e79` | JavaScript | 663 | none | present | — | `LOCKFILE_MISSING` |
+| 132 | `standard` | `standard/standard` | `753309b21bfd` | JavaScript | 29426 | none | present | — | `LOCKFILE_MISSING` |
+| 134 | `@commitlint/config-conventional` (+1) | `conventional-changelog/commitlint` | `f9dc49ce7073` | TypeScript | 18791 | `pnpm-lock.yaml` | present (workspaces) | `pnpm@12.16.0+sha512…` | none |
+| 135 | `shelljs` | `shelljs/shelljs` | `060e8ac15aa3` | JavaScript | 14402 | `package-lock.json` | present | — | none |
+| 136 | `vue-router` | `vuejs/router` | `593d7ad9ff99` | TypeScript | 4707 | `pnpm-lock.yaml` | present (workspaces) | `pnpm@12.14.0` | none |
+| 137 | `@testing-library/user-event` | `testing-library/user-event` | `1951eb77cc19` | TypeScript | 2335 | none | present | — | `LOCKFILE_MISSING` |
+| 138 | `webpack-merge` | `survivejs/webpack-merge` | `400ba410bf88` | TypeScript | 2682 | `package-lock.json` | present | — | none |
+| 139 | `jsdom` | `jsdom/jsdom` | `27614bf74750` | JavaScript | 21741 | `package-lock.json` | present | — | none |
+| 143 | `vite` | `vitejs/vite` | `90bc034a97e7` | TypeScript | 83626 | `pnpm-lock.yaml` | present (workspaces) | `pnpm@12.15.0` | none |
+| 145 | `browserify` | `browserify/browserify` | `cd60f059d7a8` | JavaScript | 14692 | none | present | — | `LOCKFILE_MISSING` |
+| 146 | `less-loader` | `webpack/less-loader` | `7a40320f5218` | JavaScript | 960 | `package-lock.json` | present | — | none |
+| 150 | `gh-pages` | `tschaub/gh-pages` | `48f62a750216` | JavaScript | 3352 | `package-lock.json` | present | — | none |
+| 152 | `bluebird` | `petkaantonov/bluebird` | `c220cfe48086` | JavaScript | 20465 | `package-lock.json` | present | — | none |
+| 153 | `eslint-plugin-jest` | `jest-community/eslint-plugin-jest` | `af4ad59a1e03` | TypeScript | 1174 | `yarn.lock` | present | `yarn@4.18.1` | none |
+
+Summary of the facts: 95 repositories have a test script and 5 do not; 24 declare workspaces; 30 have no root lockfile, 42 commit only `package-lock.json`, 13 `yarn.lock`, 14 `pnpm-lock.yaml`, and 1 both `package-lock.json` and `pnpm-lock.yaml`; 29 declare `packageManager` (14 Yarn, 12 pnpm, 3 npm).
+
+### Pre-registered expectations
+
+`expected` in `run6-sample.json` uses the Run 5 rules unchanged. Two notes apply to the CloneProof version under test (v0.2.0, which added the test-script policy after Run 5):
+
+1. A missing or placeholder test script is reported as `TEST_SCRIPT_MISSING` / `TEST_SCRIPT_PLACEHOLDER` only when the repository has tests that `npm test` cannot run, and as the `NO_TESTS_FOUND` warning otherwise. The sampler does not look for test files, so either code counts as matching a `TEST_SCRIPT_MISSING` or `TEST_SCRIPT_PLACEHOLDER` prediction.
+2. `SBoudrias/Inquirer.js` reports 4,793,604 KiB of history, above CloneProof's 4 GiB API sanity limit, so it is predicted to stop with `GITHUB_REPOSITORY_TOO_LARGE` before cloning.
+
+`README_SCRIPT_UNKNOWN`, `LOCKFILE_OUT_OF_SYNC`, environment, and clone-limit findings are not predicted.
+
+### Procedure
+
+- **Code under test:** CloneProof v0.2.0, commit `79bbe788e868`. `src/` does not change during Run 6.
+- **Command:** `node scripts/fieldtest.js run --sample docs/field-test/run6-sample.json --out docs/field-test/run6-results.json --reports reports/field/run6`. This runs `node src/cli.js check <url> --format json` once per repository: static inspection only, one isolated shallow clone per repository, no `verify`, no install, and no repository code executed. Reports stay in the ignored `reports/` folder.
+- **Host:** the same Windows host as Run 5 (Node.js 24). Git on Windows cannot check out paths containing characters such as `:`. A clone failure caused by that is reported separately as host-specific and excluded from the accuracy tables.
+- **Preflight:** 100 preflights exceed GitHub's unauthenticated limit, so `CLONEPROOF_GITHUB_TOKEN` is set from `gh auth token` in the environment of the run process only. CloneProof uses it only for the size and visibility preflight, and it is never written to a file or report.
+- **Recorded:** start and end time, Node version, OS, and how many reported commits differ from the sampled head commits.
+- **Stop rule:** if more than 10 runs end without a report (tool errors rather than repository findings), the run stops and the errors are reported instead.
+
+### Judging rules
+
+The Run 5 judging rules apply verbatim (see [Run 5, Judging rules](#judging-rules)). Every `failed` and `warning` finding is judged **real**, **policy**, or **false**, with the same code-specific rules and the same precedence for environment findings recorded in `run5-judgments.json`:
+
+> ENV_EXAMPLE_MISSING: real if any listed key is required with no default; otherwise false if any listed key is documented in a committed .env* file or injected by a framework or build tool; otherwise policy.
+
+The precedence applies equally to `ENV_KEY_MISSING`. `NO_TESTS_FOUND`, added after Run 5, is judged by the Run 5 test-script rule: policy if the repository has no tests at all; false if it has tests or a working root test command. Findings are judged per repository and code, as in Run 5. For codes that produce one finding per key, the results section also reports counts per repository, so one repository cannot dominate the totals.
+
+Reported metrics are the same as Run 5: precision (real ÷ total) and correctness ((real + policy) ÷ total) for blocking and warning findings, with the Wilson or repository-cluster bootstrap 95% intervals printed by `scripts/fieldtest.js summary`, and the share of exit-`1` repositories justified by at least one real blocking finding.
+
+Limitation: one reviewer (Claude, an AI assistant) makes every judgment by reading each repository at the checked commit through the GitHub API, and is not blind to CloneProof's output. Every judgment records its reason so anyone can re-judge.
+
 ## Known limitations
 
 1. **Sensitive-file omission applies to local folders only.** Local staging still omits `.env*`, npm configuration, credentials, and certificate/key files and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Fresh public GitHub clones copy committed versions because they are already public; command-line flags still force `npm ci --ignore-scripts`.
