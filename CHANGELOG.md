@@ -36,6 +36,9 @@ First tagged release.
 - A native GitHub Action (`node24`) with `check` and `verify` modes,
   workflow annotations, and a Job Summary. Docker verification from the Action
   runs only on Linux runners for `push` and `workflow_dispatch` events.
+- Release tarballs built by CI from version tags, published with
+  `SHA256SUMS` and a build-provenance attestation; see
+  [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Security
 

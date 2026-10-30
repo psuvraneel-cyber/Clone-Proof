@@ -80,6 +80,7 @@ jobs:
             .filter(Boolean)
             .map((path) => path.replaceAll('\\', '/'));
           const expected = [
+            'CHANGELOG.md',
             'LICENSE',
             'README.md',
             'package.json',

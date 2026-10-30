@@ -94,3 +94,30 @@ test('release workflow publishes only from version tags on main', () => {
   }
   assert.doesNotMatch(text, /\$\{\{\s*github\.(ref_name|head_ref|event\.)/, 'tag names must reach scripts through environment variables');
 });
+
+test('documented install commands reference the current release, never a branch', () => {
+  let releaseUrls = 0;
+  for (const doc of userDocs) {
+    const text = readDoc(doc);
+    assert.doesNotMatch(text, /Clone-Proof\/archive\/refs\/heads\//, `${doc} installs from a branch archive`);
+    for (const match of text.matchAll(/Clone-Proof\/releases\/(?:download|tag)\/v(\d+\.\d+\.\d+)(?:\/cloneproof-(\d+\.\d+\.\d+)\.tgz)?/g)) {
+      releaseUrls += 1;
+      assert.equal(match[1], version, `${doc} links release v${match[1]}`);
+      if (match[2]) assert.equal(match[2], version, `${doc} links tarball ${match[2]}`);
+    }
+    for (const match of text.matchAll(/github:psuvraneel-cyber\/Clone-Proof(#\S+)?/g)) {
+      assert.equal(match[1], `#v${version}`, `${doc} runs npx from ${match[1] || 'the default branch'}`);
+    }
+    for (const match of text.matchAll(/cloneproof-(\d+\.\d+\.\d+)\.tgz/g)) {
+      assert.equal(match[1], version, `${doc} names tarball cloneproof-${match[1]}.tgz`);
+    }
+  }
+  assert.ok(releaseUrls > 0, 'expected a documented release download URL');
+});
+
+test('the published package ships the changelog', () => {
+  const { files } = JSON.parse(readDoc('package.json'));
+  assert.ok(files.includes('CHANGELOG.md'));
+  const ci = readDoc('.github/workflows/ci.yml');
+  assert.match(ci, /'CHANGELOG\.md',\s*\n\s*'LICENSE',/, 'CI pack-content check must expect CHANGELOG.md');
+});
