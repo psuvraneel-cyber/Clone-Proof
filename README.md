@@ -55,17 +55,19 @@ Run CloneProof automatically in CI using the native GitHub Action (`node24`):
 
 ```yaml
 - name: Run CloneProof Static Check
-  uses: psuvraneel-cyber/Clone-Proof@main
+  uses: psuvraneel-cyber/Clone-Proof@v0.1.0
   with:
     target-path: '.'
     mode: 'check' # default: read-only static scan
 ```
 
+Pin a release tag such as `@v0.1.0`, or the release's full commit SHA for supply-chain-sensitive workflows (`uses: psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.1.0`). Don't use `@main`: it changes with every merge. While the version is `0.x` there is no moving major tag, so upgrades are always explicit; see [Releases](https://github.com/psuvraneel-cyber/Clone-Proof/releases) and the [changelog](CHANGELOG.md).
+
 To run controlled container verification on trusted branches:
 
 ```yaml
 - name: Run CloneProof Docker Verification
-  uses: psuvraneel-cyber/Clone-Proof@main
+  uses: psuvraneel-cyber/Clone-Proof@v0.1.0
   with:
     target-path: '.'
     mode: 'verify' # runs static check + hardened Docker verification
