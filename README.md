@@ -174,7 +174,8 @@ cloneproof check examples/broken-node      # failed, exit 1
 | No lockfile, so dependency versions drift | `LOCKFILE_MISSING` |
 | Lockfile out of sync with `package.json`, or several conflicting lockfiles | `LOCKFILE_OUT_OF_SYNC`, `MULTIPLE_LOCKFILES` |
 | `packageManager` disagrees with the lockfile | `PACKAGE_MANAGER_LOCKFILE_MISMATCH` |
-| No `npm test`, or the npm placeholder test script | `TEST_SCRIPT_MISSING`, `TEST_SCRIPT_PLACEHOLDER` |
+| Tests exist, but there is no `npm test` (or only the npm placeholder) to run them | `TEST_SCRIPT_MISSING`, `TEST_SCRIPT_PLACEHOLDER` |
+| The repository has no tests at all | `NO_TESTS_FOUND` (warning; `--require-tests` makes it fail) |
 | The README tells you to run a script that doesn't exist | `README_SCRIPT_UNKNOWN` |
 | The code reads environment variables nobody documented | `ENV_EXAMPLE_MISSING`, with `file:line` for each reference |
 | `.nvmrc`, `engines.node`, and the Dockerfile disagree | `RUNTIME_VERSION_MISMATCH` |
@@ -192,6 +193,7 @@ Every report also lists **what was not checked** (build steps, starting services
 - **Environment checks** skip example, fixture, mock, docs, benchmark, perf, tooling, and CI scopes at any depth, plus conventional CI and test-tool prefixes (`CI_*`, `GITHUB_*`, `JEST_*`, `PLAYWRIGHT_*`, …). A variable with a literal fallback (`process.env.PORT ?? "3000"`) or a destructuring default counts as optional, but only if *every* reference has one. Committed root `.env` files (`.env.development`, `.env.default`, …) count as documentation; CloneProof reads only their key names, never their values. Keys a framework sets itself (Vite's `import.meta.env.DEV`, create-react-app's `PUBLIC_URL`, WXT browser flags, values injected by a build-time define map) are not reported. `AZURE_*` is deliberately **not** skipped, because keys like `AZURE_STORAGE_CONNECTION_STRING` are real application settings.
 - **`BROWSER_TESTS_DETECTED`** fires only when `npm test` actually runs a browser: a dedicated browser runner (Playwright, Cypress, Karma, Puppeteer, Web Test Runner), or Vitest with `--browser` or `browser.enabled: true` in the configuration it loads.
 - **`VERIFY_NO_TESTS_RAN`**: `npm test` exited `0`, but the output matched a zero-test result (node:test, Jest, Vitest, Mocha, AVA, tap). It is reported as a **failed** verification, with the matched line as evidence.
+- **No tests is a warning, not a failure:** a repository with no test files and no README test instructions gets `NO_TESTS_FOUND` (a warning). A missing or placeholder test script fails only when there are tests that `npm test` can't run. Use `--require-tests` (Action: `require-tests: 'true'`) to make a repository without tests fail. The exact rules are in [docs/FINDINGS.md](docs/FINDINGS.md#test-script-policy).
 - **Advisory, not failures:** `GIT_METADATA_REQUIRED` (a test script needs `.git`, which the Docker snapshot removes), `PACKAGE_MANAGER_UNRECOGNIZED`, and `MONOREPO_ROOT_TEST_SCRIPT_MISSING`.
 
 </details>
@@ -268,7 +270,7 @@ Target repositories are treated as **untrusted input**.
 |---|---|---|:-:|
 | ✅ `passed` | No known problem in the checks that ran (not a guarantee) | `npm ci` and `npm test` succeeded in the container | `0` |
 | 🟡 `passed_with_warnings` | Completed, with advisory findings to review | Succeeded, with static warnings or omitted local files | `0` |
-| ❌ `failed` | A blocking finding, such as a missing test script or out-of-sync lockfile | Install or tests failed, **zero tests ran**, or cleanup wasn't confirmed | `1` |
+| ❌ `failed` | A blocking finding, such as tests that `npm test` can't run or an out-of-sync lockfile | Install or tests failed, **zero tests ran**, or cleanup wasn't confirmed | `1` |
 | ⛔ `blocked` | Safely refused: unsupported root, private repository, invalid URL, limits | Missing consent, Docker, image, network consent, or symlink policy | `2` |
 | ⚠️ `incomplete` | Something couldn't be inspected completely | Source couldn't be scanned or staged completely | `2` |
 
@@ -276,8 +278,8 @@ Target repositories are treated as **untrusted input**.
 <summary><b>Usage reference</b></summary>
 
 ```text
-cloneproof check  <path-or-github-url> [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]
-cloneproof verify <path-or-github-url> --docker --execute [--allow-network] [--timeout-ms N]
+cloneproof check  <path-or-github-url> [--require-tests] [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]
+cloneproof verify <path-or-github-url> --docker --execute [--allow-network] [--timeout-ms N] [--require-tests]
                                        [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]
 cloneproof setup
 cloneproof receipt verify <receipt-file>
@@ -291,6 +293,7 @@ cloneproof --version
 | `--color` / `--no-color` | Terminal color preference; `NO_COLOR` always disables it |
 | `--docker --execute` | Both required to run anything in `verify` |
 | `--allow-network` | Allow network in the container; trusted repositories only |
+| `--require-tests` | Treat a repository without tests as failed instead of a `NO_TESTS_FOUND` warning |
 | `--timeout-ms N` | Verification time limit (default 5 minutes, max 10) |
 | `--receipt FILE` | Also write a reproducibility receipt (opt-in; must differ from `--output`) |
 
@@ -320,15 +323,16 @@ CloneProof is measured on real repositories, with the method written down before
 | Random sample, pre-registered (Run 5, 50 repositories) | 13 failed (exit 1), 36 passed, 1 incomplete |
 | Blocking findings, Run 5 | **14 / 14 factually correct**; 4 / 14 actionable, 10 were "this repo has no tests" |
 | Warnings, Run 5 | 8 / 26 real (30.8%); 13 / 26 false, mostly `ENV_EXAMPLE_MISSING` and `BROWSER_TESTS_DETECTED` |
+| Failing repositories, Run 5 rerun with the no-tests policy | **3 of 50, all 3 genuinely broken** (was 13, of which 3 were) |
 | Warnings, Run 5 rerun after the env and browser fixes | **1 / 31 false** (was 13 / 26); the rest are real or optional settings |
 | Hand-picked repositories (Run 3) | **13 correct + 2 environment-limited** out of 15; warning precision 5 / 6 |
 | Planted-bug mutations (offline) | **13 / 13** detected |
 | Planted bugs in real repositories | **39 / 39** detected across 3 repositories |
-| Automated tests | **434** (offline, `npm test`) |
+| Automated tests | **445** (offline, `npm test`) |
 | CI | Ubuntu · macOS · Windows · Docker end-to-end · GitHub Action end-to-end |
 | Output determinism | Byte-identical JSON across repeated runs on 10 public repositories |
 
-Run 5 is the honest noise measurement. Blocking findings were never wrong, but most fired on repositories that have no tests at all. Two warning checks were noisy in the wild; after fixing them, a rerun of the same 50 repositories went from 13 false warnings to 1, and most remaining environment warnings are true but name optional settings.
+Run 5 is the honest noise measurement. Blocking findings were never wrong, but most fired on repositories that have no tests at all; with the no-tests policy, only 3 of the 50 repositories fail, and all 3 are genuinely broken. Two warning checks were noisy in the wild; after fixing them, a rerun of the same 50 repositories went from 13 false warnings to 1, and most remaining environment warnings are true but name optional settings.
 
 ---
 
@@ -348,7 +352,7 @@ Run 5 is the honest noise measurement. Blocking findings were never wrong, but m
 - Stronger isolation (gVisor or a dedicated VM)
 - A size watchdog during clones
 - Safe symlink recreation inside the container
-- Remaining Run 5 noise: a non-blocking result for repositories with no tests, one grouped finding instead of one per undocumented env key, and public npm mirrors reported apart from private registries
+- Remaining Run 5 noise: one grouped finding instead of one per undocumented env key, and public npm mirrors reported apart from private registries
 
 ---
 
@@ -360,7 +364,7 @@ Contributions are welcome. The most useful thing right now is a report when Clon
 git clone https://github.com/psuvraneel-cyber/Clone-Proof.git
 cd Clone-Proof
 npm ci
-npm test               # 434 offline tests
+npm test               # 445 offline tests
 npm run test:leaks     # same suite with an isolated temp folder; fails on any leftover file
 npm run build          # syntax check
 ```

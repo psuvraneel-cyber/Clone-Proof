@@ -1478,13 +1478,14 @@ test('warns instead of failing when a workspace root has no root test script', (
   assert.doesNotThrow(() => assertCoverageConsistency(report.findings, report.coverage));
 }));
 
-test('single-package roots without a test script still fail', () => withRepository((root) => {
+test('single-package roots with tests but no test script still fail', () => withRepository((root) => {
   writeFile(root, 'package.json', JSON.stringify({
     name: 'single-package',
     scripts: { build: 'node build.js' }
   }, null, 2));
   writeFile(root, 'package-lock.json', '{"name":"single-package","lockfileVersion":3,"packages":{}}\n');
   writeFile(root, 'src/index.js', 'module.exports = 1;\n');
+  writeFile(root, 'src/index.test.js', 'test("index", () => {});\n');
 
   const report = scanRepository(root);
 

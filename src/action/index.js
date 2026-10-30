@@ -61,6 +61,15 @@ function validateMode(rawMode) {
   throw new Error(`Invalid mode: "${rawMode}". Supported modes are "check" and "verify".`);
 }
 
+function validateRequireTests(rawRequireTests) {
+  if (rawRequireTests === undefined || rawRequireTests === null || (typeof rawRequireTests === 'string' && rawRequireTests.trim() === '')) {
+    return false;
+  }
+  if (rawRequireTests === true || rawRequireTests === 'true') return true;
+  if (rawRequireTests === false || rawRequireTests === 'false') return false;
+  throw new Error(`Invalid require-tests value: "${rawRequireTests}". Must be "true" or "false".`);
+}
+
 function validateAllowNetwork(rawAllowNetwork, mode = 'check') {
   let parsed = false;
   if (rawAllowNetwork === undefined || rawAllowNetwork === null || (typeof rawAllowNetwork === 'string' && rawAllowNetwork.trim() === '')) {
@@ -580,6 +589,11 @@ async function runAction(options = {}) {
     : getActionInput('allow-network', env);
   const allowNetwork = validateAllowNetwork(rawAllowNetwork, mode);
 
+  const rawRequireTests = options.requireTests !== undefined
+    ? options.requireTests
+    : getActionInput('require-tests', env);
+  const testPolicyArgs = validateRequireTests(rawRequireTests) ? ['--require-tests'] : [];
+
   const rawTimeoutMs = options.timeoutMs !== undefined
     ? options.timeoutMs
     : getActionInput('timeout-ms', env);
@@ -627,7 +641,7 @@ async function runAction(options = {}) {
     const childExitCode = await spawnAndCapture(
       spawnFn,
       execPath,
-      [cliPath, 'check', resolvedTarget, '--format', 'json', '--output', resolvedReport],
+      [cliPath, 'check', resolvedTarget, ...testPolicyArgs, '--format', 'json', '--output', resolvedReport],
       spawnOpts,
       stdout,
       stderr
@@ -693,7 +707,7 @@ async function runAction(options = {}) {
     await spawnAndCapture(
       spawnFn,
       execPath,
-      [cliPath, 'check', resolvedTarget, '--format', 'json', '--output', resolvedReport],
+      [cliPath, 'check', resolvedTarget, ...testPolicyArgs, '--format', 'json', '--output', resolvedReport],
       spawnOpts,
       stdout,
       stderr
@@ -791,7 +805,7 @@ async function runAction(options = {}) {
     await spawnAndCapture(
       spawnFn,
       execPath,
-      [cliPath, 'check', resolvedTarget, '--format', 'json', '--output', resolvedReport],
+      [cliPath, 'check', resolvedTarget, ...testPolicyArgs, '--format', 'json', '--output', resolvedReport],
       spawnOpts,
       stdout,
       stderr
@@ -877,6 +891,7 @@ async function runAction(options = {}) {
   if (allowNetwork) {
     verifyArgs.push('--allow-network');
   }
+  verifyArgs.push(...testPolicyArgs);
 
   const childExitCode = await spawnAndCapture(
     spawnFn,
@@ -963,6 +978,7 @@ module.exports = {
   getActionInput,
   isAllowedVerifyEvent,
   isLinuxRunner,
+  validateRequireTests,
   isSubPath,
   makeBlockedVerificationObject,
   normalizePathForComparison,

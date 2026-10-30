@@ -32,8 +32,8 @@ function printHelp() {
     '',
     'Usage:',
     '  cloneproof --version',
-    '  cloneproof check <repository-or-github-url> [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]',
-    '  cloneproof verify <repository-or-github-url> --docker --execute [--allow-network] [--timeout-ms N] [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]',
+    '  cloneproof check <repository-or-github-url> [--require-tests] [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]',
+    '  cloneproof verify <repository-or-github-url> --docker --execute [--allow-network] [--timeout-ms N] [--require-tests] [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]',
     '  cloneproof setup',
     '  cloneproof receipt verify <receipt-file>',
     '',
@@ -41,6 +41,7 @@ function printHelp() {
     'A receipt digest is not a signature: it detects changes only when the expected digest is trusted independently.',
     'Static check never executes repository code. Docker verification requires explicit --docker --execute consent.',
     'Docker verification network access is disabled unless --allow-network is also provided.',
+    'A repository without tests gets a NO_TESTS_FOUND warning; --require-tests makes it a failure.',
     'Text output uses color only on a TTY; use --color or --no-color. NO_COLOR always disables ANSI color.',
     'GitHub input accepts only public https://github.com/OWNER/REPOSITORY URLs.',
     ''
@@ -71,6 +72,7 @@ function parseArguments(argv) {
   let docker = false;
   let execute = false;
   let allowNetwork = false;
+  let requireTests = false;
   let timeoutMs;
   let outputPath = null;
   let receiptPath = null;
@@ -142,6 +144,10 @@ function parseArguments(argv) {
       allowNetwork = true;
       continue;
     }
+    if (value === '--require-tests') {
+      requireTests = true;
+      continue;
+    }
     if (value === '--timeout-ms') {
       timeoutMs = Number(values[index + 1]);
       index += 1;
@@ -178,7 +184,7 @@ function parseArguments(argv) {
     throw new Error('setup only supports text output');
   }
 
-  if (command === 'setup' && (outputPath || allowNetwork || timeoutMs !== undefined || docker || execute)) {
+  if (command === 'setup' && (outputPath || allowNetwork || requireTests || timeoutMs !== undefined || docker || execute)) {
     throw new Error('setup does not accept Docker, output, or verification options');
   }
 
@@ -204,7 +210,8 @@ function parseArguments(argv) {
     allowNetwork,
     timeoutMs,
     outputPath,
-    ...(receiptPath ? { receiptPath } : {})
+    ...(receiptPath ? { receiptPath } : {}),
+    ...(requireTests ? { requireTests } : {})
   };
 }
 
@@ -469,7 +476,8 @@ async function runCheck(options) {
       scanRepository(resolved.path, {
         freshClone: Boolean(resolved.source),
         symlinkPaths: resolved.source ? resolved.source.symlinkPaths : [],
-        repositoryName: resolved.source ? resolved.source.repo : undefined
+        repositoryName: resolved.source ? resolved.source.repo : undefined,
+        requireTests: options.requireTests === true
       }),
       resolved.source
     );
@@ -517,7 +525,8 @@ async function runVerify(options) {
       freshClone: Boolean(resolved.source),
       repositoryName: resolved.source ? resolved.source.repo : undefined,
       executablePaths: resolved.source ? resolved.source.executablePaths : [],
-      symlinkPaths: resolved.source ? resolved.source.symlinkPaths : []
+      symlinkPaths: resolved.source ? resolved.source.symlinkPaths : [],
+      requireTests: options.requireTests === true
     }), resolved.source);
     addGithubRepositorySuggestion(report, resolved.localGithubSuggestion);
     reportPreflightNotice(resolved.source);

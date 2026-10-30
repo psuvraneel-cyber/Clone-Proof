@@ -12,6 +12,24 @@ and `2` (blocked or incomplete).
 
 ## [Unreleased]
 
+### Changed
+
+- **Exit behavior:** a repository with no tests no longer fails `check`. When
+  there is no test script (or only npm's placeholder) and no test files or
+  README test instructions, CloneProof reports the new `NO_TESTS_FOUND`
+  warning instead of failing with `TEST_SCRIPT_MISSING` /
+  `TEST_SCRIPT_PLACEHOLDER`. A missing or placeholder test script still fails
+  when the repository has tests that `npm test` cannot run, and whenever the
+  scan is incomplete. `verify` still requires a test script.
+- For this decision, test files are `*.test.*`, `*.spec.*`, Cypress `*.cy.*`,
+  files in `__tests__/`, and files under `test/` or `tests/` that use a test
+  API. Other files under `test/` (dev playgrounds, examples) do not count.
+
+### Added
+
+- `--require-tests` for `check` and `verify`, and the Action input
+  `require-tests`, to treat a repository without tests as failed.
+
 ## [0.1.1] - 2026-10-30
 
 ### Changed

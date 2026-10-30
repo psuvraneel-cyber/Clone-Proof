@@ -276,6 +276,20 @@ function isTestPath(relativePath) {
     || /(?:\.test|\.spec)\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/.test(baseName);
 }
 
+const TEST_API_REFERENCE = /\b(?:describe|it|test|suite)\s*\(|\bexpect\s*\(|\bassert[.(]|['"](?:node:)?(?:assert|test)(?:\/strict)?['"]|['"](?:vitest|@jest\/globals|mocha|ava|tap|uvu|@playwright\/test)['"]/;
+
+// A file that is part of a test suite: named like one (*.test.*, *.spec.*,
+// Cypress *.cy.*, or inside __tests__/), or a file under test/ or tests/ that
+// uses a test API. A plain file under test/ is not enough; dev playgrounds and
+// example programs often live there (field test Run 5).
+function isTestSuiteFile(relativePath, text) {
+  if (!isSourcePath(relativePath)) return false;
+  const normalized = relativePath.toLowerCase();
+  if (/(^|\/)__tests__\//.test(normalized)) return true;
+  if (/\.(?:test|spec|cy)\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/.test(path.posix.basename(normalized))) return true;
+  return /(^|\/)tests?\//.test(normalized) && typeof text === 'string' && TEST_API_REFERENCE.test(text);
+}
+
 function isRootPath(relativePath) {
   return !relativePath.includes('/');
 }
@@ -3272,6 +3286,35 @@ function scanRepository(rootPath, options) {
           'Provide a readable package.json and run the scan again.'
         );
       }
+    }
+  }
+
+  // A missing or placeholder test script blocks only when the repository has
+  // tests that npm test cannot run: test-suite files, or README instructions to
+  // run tests (README evidence is attached to the finding above). A repository
+  // with no tests at all gets the advisory NO_TESTS_FOUND, unless the caller
+  // requires tests. An incomplete scan may have missed test files, so it keeps
+  // the blocking finding.
+  const unrunnableTestFinding = missingTestFinding && missingTestFinding.code === 'TEST_SCRIPT_MISSING'
+    ? missingTestFinding
+    : placeholderTestFinding;
+  if (unrunnableTestFinding && scanOptions.requireTests !== true && scanned.complete) {
+    const testSuiteFile = [...scanned.files.keys()]
+      .sort(compareStrings)
+      .find((relativePath) => isTestSuiteFile(relativePath, decodeText(scanned.files.get(relativePath))));
+    const readmeAsksForTests = unrunnableTestFinding.evidence.some((item) => item.path !== 'package.json');
+    if (!testSuiteFile && !readmeAsksForTests) {
+      const placeholder = unrunnableTestFinding === placeholderTestFinding;
+      Object.assign(unrunnableTestFinding, {
+        code: 'NO_TESTS_FOUND',
+        status: 'warning',
+        severity: 'warning',
+        title: 'No tests were found',
+        message: `${placeholder
+          ? 'scripts.test is npm’s placeholder'
+          : 'package.json does not define a test script'}, and no test files or README test instructions were found, so there is no test suite to run.`,
+        recommendation: 'Add tests and a scripts.test command that runs them. Use --require-tests to treat repositories without tests as failed.'
+      });
     }
   }
 
