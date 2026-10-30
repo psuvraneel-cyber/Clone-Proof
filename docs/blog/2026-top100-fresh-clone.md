@@ -1,5 +1,7 @@
 # We fresh-cloned the top 100 npm packages. The biggest problem we found was in our own tool.
 
+![We fresh-cloned the top 100 npm packages. The biggest problem was in our own tool. False build failures 9 to 0; repositories failing CI 6 to 3, all real; 60 of 63 warnings correct.](images/cover.png)
+
 *Draft, not published. Every number below comes from committed files in this repository; see [How to reproduce](#how-to-reproduce).*
 
 **Alternative titles**
@@ -52,7 +54,11 @@ The pre-registered run used CloneProof v0.2.0. We then fixed the bugs it exposed
 | Blocking findings: real / policy / false | 1 / 0 / 9 | **3 / 0 / 0** |
 | Warnings: real / policy / false | 10 / 46 / 17 | 10 / 50 / **3** |
 
+![Stacked bars of every finding judged real, policy, or false. Blocking findings: v0.2.0 had 1 real and 9 false; v0.2.4 has 3 real. Warnings: v0.2.0 had 10 real, 46 policy, 17 false; v0.2.4 has 10 real, 50 policy, 3 false.](images/before-after.png)
+
 ### What was real
+
+![Repositories with each kind of real setup finding: npm test starts a real browser, 6; tests the root npm test cannot run, 5; stale npm lockfile next to the pnpm one, 1.](images/real-findings.png)
 
 **Tests that need a browser (6 repositories).** In `chai`, `axios`, `vuejs/core`, `karma`, `debug`, and `karma-chrome-launcher`, `npm test` starts a real browser through Playwright, Karma, or web-test-runner. That is a good, deliberate choice, but a fresh machine or minimal container needs a browser installed first. For example:
 
@@ -73,6 +79,8 @@ The most common finding by far was **no committed lockfile: 29 repositories**, a
 Of the 6 repositories that v0.2.0 would have failed in CI, 5 failed only because of false findings, so "six top packages fail a fresh-clone check" would have been a misleading headline. With v0.2.4, three fail, and each points at something a new contributor would actually hit.
 
 ### The landscape
+
+![Root lockfiles in the top 100: npm only 42, pnpm 14, Yarn 13, npm and pnpm 1, none 30.](images/lockfiles.png)
 
 - **Lockfiles at the root:** 42 npm only, 14 pnpm, 13 Yarn, 1 npm and pnpm together, 0 Bun, 30 none.
 - **`packageManager`:** declared by 29 repositories (14 Yarn, 12 pnpm, 3 npm).
