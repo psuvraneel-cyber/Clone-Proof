@@ -188,3 +188,10 @@
 - **Authoritative runner OS validation:** Runner OS validation requires both `RUNNER_OS === 'Linux'` and `process.platform === 'linux'`. Non-Linux runners or missing runner OS values fail closed with exit code 2 and finding `DOCKER_UNAVAILABLE`.
 - **Testability via internal dependency injection:** Tests in `test/action.test.js` pass internal options (`runAction({ eventName, runnerOs })`) directly rather than setting custom environment variables. Public Action inputs and custom workflow environment variables cannot influence authorization.
 - **Real PR E2E validation:** Added `action-e2e-pull-request` workflow job triggered exclusively by `pull_request` events, asserting that deliberate spoofing via `CLONEPROOF_EVENT_NAME: push` is ignored by CloneProof, blocking Docker execution and returning exit code 2.
+
+## 2026-10-30 — Restrict direct Docker E2E execution to trusted GitHub events (Part 3.3)
+
+- **Decision:** Restrict standalone Docker E2E CI jobs (`docker-e2e` in `.github/workflows/ci.yml`) to trusted events (`push` and `workflow_dispatch`) using the job-level condition `if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'`.
+- **Why:** While the native GitHub Action previously enforced authoritative event authorization, the standalone `docker-e2e` CI job invoked `node src/cli.js setup` and `node src/cli.js verify ... --docker --execute` directly without a job-level event guard. On pull requests, this ran repository code inside Docker containers, creating a security-boundary inconsistency between the Action and the CI workflow.
+- **Pull-request preservation:** Pull-request workflows continue to execute comprehensive cross-platform unit tests, leak checks, build validation, and packaging checks, as well as the Action's PR security guard job (`action-e2e-pull-request`). The `docker-e2e` job is skipped entirely on pull requests before runner provisioning.
+- **Action guard independence:** Direct CLI verification must never be used in untrusted workflows to circumvent the Action's event authorization model. Both the Action runtime and CI job orchestration enforce the same trusted-event invariant.

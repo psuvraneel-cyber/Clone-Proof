@@ -100,6 +100,7 @@ jobs:
   docker-e2e:
     name: Docker E2E
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 15
     env:
       VERIFY_IMAGE: node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90
@@ -155,7 +156,7 @@ jobs:
   action-e2e:
     name: GitHub Action E2E (Linux)
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 15
     env:
       VERIFY_IMAGE: node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90
