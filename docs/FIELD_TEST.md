@@ -320,7 +320,171 @@ Run 4's target results above remain valid historical measurements from `ef8056d`
 - The npm package-content assertion failed because its hard-coded source list omitted `src/util/cleanup-supervisor.js`. Commit `3393290` now derives the expected source list from sorted `git ls-files src`, normalizes separators, and keeps exact equality against `npm pack --dry-run --json`.
 - The healthy fixture exposed a false zero-test result because top-level `node:test` output includes `# suites 0`/`ℹ suites 0`. Commit `040ff96` removes suite-count-only triggers, vetoes detection when any positive test evidence is present, and adds a real child-process regression using `examples/healthy-node`.
 - A first local verifier image inspect can transiently miss an existing image while Docker Desktop wakes from Resource Saver. Commit `fef9119` waits two seconds and retries exactly once without pulling; injected tests cover both recovery and persistent failure.
-- The post-fix `npm test` count is 232 tests (231 passed, 0 failed, 1 expected Windows symlink `EPERM` skip). The replacement CI receipt and the requested Docker/network rechecks are pending the next `review-fixes` push.
+- The post-fix `npm test` count was 232 tests (231 passed, 0 failed, 1 expected Windows symlink `EPERM` skip). The replacement CI receipt is main run `39446244932` for the PR #1 merge `bdef68f`, which passed; no separate Docker/network recheck for this follow-up is recorded.
+
+## Run 5: random sample, pre-registered (2026-10-30)
+
+Runs 1–4 used hand-picked, well-known repositories, and no blocking (exit `1`) finding fired in any of them, so the accuracy of the findings that fail a build was never measured. Run 5 uses a seeded random sample, and the judging rules below were committed before any CloneProof command ran against it.
+
+### Sampling frame
+
+- **Population:** public, non-fork, non-archived GitHub repositories whose primary language is JavaScript or TypeScript, created between 2014-01-01 and 2025-10-29, with at least 10 stars, pushed on or after 2025-10-30, and with a root `package.json` on the default branch.
+- **Draw:** `node scripts/fieldtest.js sample --seed 20261030 --count 50 --out docs/field-test/run5-sample.json`. Each draw picks a language and a creation day uniformly at random, runs the GitHub search `language:<language> created:<day> stars:>=10 pushed:>=2025-10-30 fork:false archived:false is:public`, and takes a uniformly random result among the first 1,000. Days with no results, duplicates, and repositories without a root `package.json` are recorded as rejected draws and redrawn.
+- **Known biases:** sampling is uniform over creation days, not over repositories, so repositories created on quiet days are over-represented; GitHub search caps each query at 1,000 results; the 10-star floor and the 12-month activity window exclude abandoned and very small projects. The result describes this frame, not all Node.js repositories.
+- **Pre-run facts:** for every sampled repository, the sampler records the default-branch head commit, root lockfiles, the `scripts.test` kind, `packageManager`, workspaces, and `private`, read through the GitHub API. No repository is cloned or executed while sampling.
+
+### Sample
+
+Drawn on 2026-10-30 with seed `20261030`. Draws: 62 (accepted 50, empty 2, rejected: no-root-package-json 10).
+
+| # | Repository | Head commit | Language | Stars | Root lockfiles | `scripts.test` | `packageManager` | Expected findings |
+|---:|---|---|---|---:|---|---|---|---|
+| 1 | `mfuu/vue3-virtual-sortable` | `60cc9f4cc057` | TypeScript | 59 | none | missing | — | `LOCKFILE_MISSING`, `TEST_SCRIPT_MISSING` |
+| 2 | `wardellbagby/lyricistant` | `12508c9d21b9` | TypeScript | 74 | `package-lock.json` | missing | `npm@11.3.0` | `TEST_SCRIPT_MISSING` |
+| 3 | `knowankit/trello-clone` | `19e9d64a4211` | TypeScript | 357 | `yarn.lock` | missing | — | `TEST_SCRIPT_MISSING` |
+| 4 | `tidepool-org/uploader` | `4c44f03d670a` | JavaScript | 128 | `yarn.lock` | present | `yarn@3.6.4` | none |
+| 5 | `os-climate/physrisk-ui` | `d285d03b0cfd` | JavaScript | 10 | `package-lock.json` | present | — | none |
+| 6 | `snowcoders/sortier` | `9ab4d0bec05e` | TypeScript | 31 | `package-lock.json` | present (workspaces) | — | none |
+| 7 | `XFox111/TabsAsideExtension` | `0829b24c81b1` | TypeScript | 180 | `package-lock.json` | missing | — | `TEST_SCRIPT_MISSING` |
+| 8 | `eemeli/yaml` | `528ef30d6ded` | TypeScript | 1702 | `package-lock.json` | present | — | none |
+| 9 | `biud436/InitialEditor` | `8d84e1ea21d2` | TypeScript | 12 | `yarn.lock` | present (workspaces) | `yarn@4.3.1` | none |
+| 10 | `uphold/uphold-sdk-javascript` | `a282ae571bfa` | JavaScript | 89 | `yarn.lock` | present | `yarn@4.12.0` | none |
+| 11 | `XiaoLuoTian189/LanQiao` | `3dd0b6b60fee` | JavaScript | 38 | `package-lock.json` | missing | — | `TEST_SCRIPT_MISSING` |
+| 12 | `Unibeautify/vscode` | `faa42041a32f` | TypeScript | 118 | `package-lock.json` | present | — | none |
+| 13 | `stackblitz/starters` | `bfcd719483e7` | TypeScript | 152 | `package-lock.json` | present | — | none |
+| 14 | `jembi/openhim-core-js` | `b62a2e4dbdc6` | JavaScript | 95 | `package-lock.json` | present | — | none |
+| 15 | `TomPlum/learn-japanese` | `ec06e2ac96df` | TypeScript | 17 | `package-lock.json` | present | — | none |
+| 16 | `peterKaleta/react-token-autocomplete` | `72b0c5aa66c8` | TypeScript | 104 | `package-lock.json` | present | — | none |
+| 17 | `eemeli/make-plural` | `819a748c47be` | JavaScript | 71 | `package-lock.json` | present (workspaces) | — | none |
+| 18 | `artus9033/chartjs-plugin-dragdata` | `dc96befa732c` | TypeScript | 276 | `package-lock.json` | present | — | none |
+| 19 | `Pithaya/spicetify-apps` | `9a7da4e7c34d` | TypeScript | 96 | `package-lock.json` | missing (workspaces) | — | `MONOREPO_ROOT_TEST_SCRIPT_MISSING` |
+| 20 | `vuejs/repl` | `9b5bc873415b` | TypeScript | 1098 | `pnpm-lock.yaml` | missing | `pnpm@10.14.0` | `TEST_SCRIPT_MISSING` |
+| 21 | `FluffyBubu/cypress-sandbox` | `1bdacb9fc876` | JavaScript | 22 | `package-lock.json` | missing | — | `TEST_SCRIPT_MISSING` |
+| 22 | `meikidd/iso-639-1` | `403255b1a0d6` | JavaScript | 221 | `package-lock.json` | present | — | none |
+| 23 | `DanWahlin/Observable-Store` | `a2066a183cc0` | TypeScript | 631 | none | present | — | `LOCKFILE_MISSING` |
+| 24 | `vechain/connex` | `2c9193257389` | TypeScript | 84 | `package-lock.json` | present | — | none |
+| 25 | `ruanqizhen/python_book` | `bfca0141ec76` | JavaScript | 27 | `package-lock.json` | missing | — | `TEST_SCRIPT_MISSING` |
+| 26 | `hmara-info/language-settings-manager` | `c7ae8399045b` | JavaScript | 23 | `package-lock.json` | present | — | none |
+| 27 | `braiekhazem/react-kanban-kit` | `8a6aeaeb2c16` | TypeScript | 99 | `package-lock.json` | present | — | none |
+| 28 | `MIDA-group/CytoBrowser` | `8bacc6497ff5` | JavaScript | 22 | `package-lock.json` | missing | — | `TEST_SCRIPT_MISSING` |
+| 29 | `taiga-family/ng-morph` | `6611356a76a9` | TypeScript | 158 | `package-lock.json` | present (workspaces) | — | none |
+| 30 | `gabrielbs/react-placeholder-loading` | `e03e7ab53616` | TypeScript | 13 | `yarn.lock` | present | — | none |
+| 31 | `nextcloud/cdav-library` | `8f2dbccf9d76` | JavaScript | 74 | `package-lock.json` | present | — | none |
+| 32 | `tobysmith568/read-receipt` | `389c4a519811` | TypeScript | 16 | `bun.lock` | present | — | none |
+| 33 | `ChristopherChudzicki/math3d-next` | `464506c8387d` | TypeScript | 10 | `yarn.lock` | present (workspaces) | `yarn@4.8.1` | none |
+| 34 | `josin/kusto-syntax-highlighting` | `83c54cfe67ed` | TypeScript | 13 | `package-lock.json` | missing | — | `TEST_SCRIPT_MISSING` |
+| 35 | `glacier-studio/CoCo-Source-Code-Plan` | `91c9b89ea975` | JavaScript | 10 | `package-lock.json` | missing | — | `TEST_SCRIPT_MISSING` |
+| 36 | `digitalmediabremen/hej` | `474e6734f881` | JavaScript | 11 | none | present | — | `LOCKFILE_MISSING` |
+| 37 | `projectwallace/css-code-quality` | `eb29e3045cdd` | TypeScript | 155 | `pnpm-lock.yaml` | present (workspaces) | `pnpm@11.16.0` | none |
+| 38 | `FiloSottile/typage` | `38b8b10cb224` | TypeScript | 496 | `package-lock.json` | present | — | none |
+| 39 | `vtex-apps/checkout-ui-custom` | `287e0a027e72` | JavaScript | 25 | `yarn.lock` | missing | — | `TEST_SCRIPT_MISSING` |
+| 40 | `sourcefuse/loopback4-soft-delete` | `eeb07e347767` | TypeScript | 40 | `package-lock.json` | present | — | none |
+| 41 | `org-nexus-projects/ufabc-next` | `ae1a2d682f5e` | TypeScript | 73 | `pnpm-lock.yaml` | present (workspaces) | `pnpm@10.33.2` | none |
+| 42 | `UMAprotocol/protocol` | `c8c3f67367af` | JavaScript | 490 | `yarn.lock` | present (workspaces) | — | none |
+| 43 | `MomenSherif/react-oauth` | `cbe0d2b5fe1a` | TypeScript | 1339 | `yarn.lock` | missing (workspaces) | `yarn@4.6.0` | `MONOREPO_ROOT_TEST_SCRIPT_MISSING` |
+| 44 | `fraunhoferfokus/peer-dial` | `dea62c29884c` | JavaScript | 45 | `package-lock.json` | missing | — | `TEST_SCRIPT_MISSING` |
+| 45 | `fedstack-org/aoi` | `a8ca8261e413` | TypeScript | 21 | `yarn.lock` | missing (workspaces) | `yarn@4.9.1` | `MONOREPO_ROOT_TEST_SCRIPT_MISSING` |
+| 46 | `IRCraziestTaxi/typeorm-linq-repository` | `701cfaa16f52` | TypeScript | 185 | `package-lock.json` | present | — | none |
+| 47 | `pixijs/pixi-react` | `30cf1f86a590` | TypeScript | 2888 | `package-lock.json` | present (workspaces) | — | none |
+| 48 | `meowtec/imgo` | `9fe7450970dd` | TypeScript | 4458 | `pnpm-lock.yaml` | present (workspaces) | `pnpm@12.0.0` | none |
+| 49 | `2factorauth/twofactorauth` | `9b39477ccf25` | JavaScript | 3469 | none | present | — | `LOCKFILE_MISSING` |
+| 50 | `NextJSTemplates/startup-nextjs` | `e730b6a99c77` | TypeScript | 1687 | `package-lock.json` | missing | — | `TEST_SCRIPT_MISSING` |
+
+### Pre-registered expectations
+
+`expected` in `run5-sample.json` lists the findings predicted from those facts alone, by fixed rules in `scripts/fieldtest.js`:
+
+1. Invalid `package.json` → `PACKAGE_JSON_INVALID` (nothing else predicted).
+2. Missing or empty `scripts.test` → `TEST_SCRIPT_MISSING`, or `MONOREPO_ROOT_TEST_SCRIPT_MISSING` when workspaces are declared.
+3. The npm placeholder test script (`no test specified`) → `TEST_SCRIPT_PLACEHOLDER`.
+4. No root lockfile → `LOCKFILE_MISSING`.
+5. A `packageManager` of npm, Yarn, pnpm, or Bun that differs from the manager of the only root lockfile kind → `PACKAGE_MANAGER_LOCKFILE_MISMATCH`.
+
+`README_SCRIPT_UNKNOWN`, `LOCKFILE_OUT_OF_SYNC`, and environment findings are not predicted. Differences between predicted and observed findings are reported, not hidden.
+
+### Procedure
+
+`node scripts/fieldtest.js run --sample docs/field-test/run5-sample.json --out docs/field-test/run5-results.json` runs `node src/cli.js check <url> --format json` once per repository, static inspection only, with the unauthenticated GitHub preflight. No `verify` run is made. Reports are written to the ignored `reports/field/run5/` folder; the committed results keep each repository's status, exit code, commit, duration, and every `failed` and `warning` finding.
+
+### Judging rules
+
+Every `failed` and `warning` finding receives exactly one judgment, made by reading the repository at the checked commit:
+
+- **real** — the finding is true and matters to someone setting up this repository root.
+- **policy** — the finding is true, but describes a choice a reasonable maintainer may make on purpose. Whether such a finding should fail a build is a product decision, not an accuracy question.
+- **false** — the finding's claim, read as a statement about setting up this repository root, is wrong.
+
+Code-specific rules:
+
+- `TEST_SCRIPT_MISSING` / `TEST_SCRIPT_PLACEHOLDER` / `MONOREPO_ROOT_TEST_SCRIPT_MISSING`: real if the repository contains test files or its README or CI asks contributors to run tests; policy if the repository has no tests at all; false if a working root test command exists.
+- `README_SCRIPT_UNKNOWN` / `README_START_COMMAND_UNKNOWN`: real if the README tells someone working in this repository root to run the command; false if the command, read in context, is for a different project (a consumer's project, generated template output, an example, or a sub-package folder).
+- `LOCKFILE_OUT_OF_SYNC` / `LOCKFILE_INVALID`: real if the root `package.json` and the lockfile disagree in a way that makes `npm ci` refuse to install; false otherwise.
+- `LOCKFILE_MISSING`: policy if the package is published on npm under its `package.json` name (libraries often leave lockfiles out on purpose); real otherwise.
+- `PACKAGE_MANAGER_LOCKFILE_MISMATCH` / `MULTIPLE_LOCKFILES`: real if the declared or committed package managers genuinely conflict for a fresh install; false otherwise.
+- `ENV_EXAMPLE_MISSING` / `ENV_KEY_MISSING`: real if at least one listed key is needed to run the application or its tests and has no default; policy if every listed key is an optional setting; false if a listed key is not read by the repository's own code.
+- Any other warning: real if the stated condition is true and affects setting up this root; policy if it is true but intentional; false if the stated condition is wrong.
+
+Each judgment records a one-line reason. Reported metrics: **precision** = real ÷ total and **correctness** = (real + policy) ÷ total, separately for blocking (`failed`) and warning findings, with Wilson 95% intervals, plus the share of exit-`1` repositories justified by at least one real blocking finding.
+
+Limitations of this design: one reviewer (Claude, an AI assistant working in this session) makes every judgment, and it is not blind to CloneProof's output. The recorded reasons and committed results let anyone re-judge the same findings.
+
+### Run 5 results
+
+The pre-registration was committed as `df0ee43` before the run. CloneProof's `src/` at that commit is identical to `main` at `32bf359`. All 50 checks ran on the Windows host on 2026-10-30 with `target.preflightReason: checked`. All 49 reported commits matched the head commits recorded at sampling time; the 50th clone failed, so it reported none. After the run, the script was renamed from `scripts/field-test.js` to `scripts/fieldtest.js` because `node --test` treats `*-test.js` files as tests; its logic did not change. Median duration was 2.7 s and the longest was 22 s. Raw results are in [`field-test/run5-results.json`](field-test/run5-results.json), and every judgment with its reason is in [`field-test/run5-judgments.json`](field-test/run5-judgments.json). Reproduce the tables with `node scripts/fieldtest.js summary --results docs/field-test/run5-results.json --judgments docs/field-test/run5-judgments.json`.
+
+| Report status | Repositories | Exit code |
+|---|---:|---|
+| `passed` | 17 | 0 |
+| `passed_with_warnings` | 19 | 0 |
+| `failed` | 13 | 1 |
+| `incomplete` | 1 | 2 |
+
+| Findings | Total | Real | Policy | False | Precision (real) | Correctness (real + policy) |
+|---|---:|---:|---:|---:|---|---|
+| Blocking (failed) | 14 | 4 | 10 | 0 | 4 / 14 = **28.6%** (95% CI 11.7%–54.6%) | 14 / 14 = **100.0%** (95% CI 78.5%–100.0%) |
+| Warning | 26 | 8 | 5 | 13 | 8 / 26 = **30.8%** (95% CI 16.5%–50.0%) | 13 / 26 = **50.0%** (95% CI 32.1%–67.9%) |
+
+Repositories with exit `1`: 13 of 50. Justified by at least one real blocking finding: 3 / 13 = **23.1%** (95% CI 8.2%–50.3%).
+
+| Code | Status | Total | Real | Policy | False |
+|---|---|---:|---:|---:|---:|
+| `GITHUB_CLONE_FAILED` | failed | 1 | 1 | 0 | 0 |
+| `README_SCRIPT_UNKNOWN` | failed | 1 | 1 | 0 | 0 |
+| `TEST_SCRIPT_MISSING` | failed | 12 | 2 | 10 | 0 |
+| `BROWSER_TESTS_DETECTED` | warning | 8 | 3 | 0 | 5 |
+| `ENV_EXAMPLE_MISSING` | warning | 8 | 0 | 1 | 7 |
+| `LOCKFILE_MISSING` | warning | 4 | 3 | 1 | 0 |
+| `MONOREPO_ROOT_TEST_SCRIPT_MISSING` | warning | 4 | 2 | 2 | 0 |
+| `PRIVATE_REGISTRY` | warning | 1 | 0 | 0 | 1 |
+| `RUNTIME_VERSION_MISMATCH` | warning | 1 | 0 | 1 | 0 |
+
+**What this shows.**
+
+- **Every blocking finding was factually true (14 / 14), but most were policy rather than actionable.** Ten of the twelve `TEST_SCRIPT_MISSING` failures are repositories with no tests at all: templates, documentation sites, small apps, and one grammar extension. The finding is correct, but failing the build of a repository that deliberately has no tests is what a maintainer would experience as noise. Whether "no tests" should be blocking is a product decision.
+- **Two warning checks produce most of the false findings.**
+  - `ENV_EXAMPLE_MISSING` (7 of 8 false): it does not recognize committed `.env`, `.env.default`, `.env.development`, `.env.mock`, or `.env.test` files as documentation, and it reports framework- and tool-provided keys (Vite and WXT `import.meta.env.DEV` and browser flags, create-react-app's `PUBLIC_URL`, webpack DefinePlugin values) as user settings.
+  - `BROWSER_TESTS_DETECTED` (5 of 8 false): it fires on browser packages in `devDependencies` even when the `npm test` command runs Vitest in node or jsdom and the browser suites are separate.
+- `PRIVATE_REGISTRY` called `registry.npmmirror.com`, a public mirror, non-public.
+- `README_SCRIPT_UNKNOWN`, `LOCKFILE_MISSING` for applications, and the root-test findings for repositories that do have tests were accurate and useful.
+
+**Judgment interpretation made while judging.** The pre-registered `ENV_EXAMPLE_MISSING` rule did not say how to judge a finding whose keys were a mix of optional, documented, and tool-injected. The precedence used is recorded in `run5-judgments.json`: real if any key is required, otherwise false if any listed key is documented in a committed `.env*` file or injected by a framework or build tool, otherwise policy. Under the stricter alternative (false only when every listed key is wrong), `ENV_EXAMPLE_MISSING` becomes 0 real, 5 policy, and 3 false. Warning correctness becomes 17 / 26 = 65.4%, and warning precision is unchanged at 30.8%.
+
+**Differences from the pre-registered expectations.**
+
+- `glacier-studio/CoCo-Source-Code-Plan` and `vtex-apps/checkout-ui-custom` were predicted to fail with `TEST_SCRIPT_MISSING` but received the advisory `MONOREPO_ROOT_TEST_SCRIPT_MISSING`. The scanner treats a `private` root with nested `package.json` files as a workspace root, even without a workspace declaration. For vtex (separate `node/` and `react/` builder packages) that is defensible. For glacier (one vendored nested package) it is not, and it downgraded a blocking finding to a warning.
+- `fedstack-org/aoi` was predicted to warn about the monorepo root test script but ended `incomplete`: Git cannot check out a path containing `:` on Windows. On a Linux runner the clone succeeds. The report repeats Git's error but does not explain that the path is invalid on Windows.
+- `tidepool-org/uploader` got an unpredicted `README_SCRIPT_UNKNOWN` (the README runs `npm run test-e2e`, which does not exist). It was judged real.
+- Every other predicted finding was observed, and no other blocking finding appeared.
+
+**Not changed by this run.** No fix has been applied yet. The candidate fixes, in order of measured impact, are:
+
+1. Accept committed non-secret `.env.*` files as environment documentation, and exclude framework- and tool-provided keys.
+2. Fire `BROWSER_TESTS_DETECTED` only when the configuration selected by the test command enables a browser.
+3. Decide whether a repository with no test files should get a distinct non-blocking finding instead of `TEST_SCRIPT_MISSING`.
+4. Classify known public npm mirrors separately from private registries.
+5. Require a workspace declaration or marker before downgrading a missing root test script.
+
+Any fix should be followed by a rerun of the same sample with the same judgments.
 
 ## Known limitations
 

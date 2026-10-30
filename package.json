@@ -2,11 +2,31 @@
   "name": "cloneproof",
   "version": "0.1.0",
   "description": "Evidence-based setup verification for Node.js repositories.",
+  "keywords": [
+    "nodejs",
+    "npm",
+    "reproducibility",
+    "onboarding",
+    "setup",
+    "static-analysis",
+    "docker",
+    "github-action",
+    "cli"
+  ],
+  "homepage": "https://github.com/psuvraneel-cyber/Clone-Proof#readme",
+  "bugs": {
+    "url": "https://github.com/psuvraneel-cyber/Clone-Proof/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psuvraneel-cyber/Clone-Proof.git"
+  },
   "type": "commonjs",
   "main": "src/cli.js",
   "files": [
     "src/",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "bin": {

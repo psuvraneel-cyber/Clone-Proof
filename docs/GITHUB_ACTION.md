@@ -2,6 +2,18 @@
 
 CloneProof provides a native JavaScript GitHub Action (`node24`) to run read-only static repository checks and controlled Docker container verifications directly within your GitHub Actions workflows without manual npm installations or custom scripts.
 
+## Choosing a version
+
+Reference a release, never a branch:
+
+| Reference | When to use it |
+|---|---|
+| `psuvraneel-cyber/Clone-Proof@v0.1.0` | Default. Release tags are created once and never moved. |
+| `psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.1.0` | Supply-chain-sensitive workflows. Copy the full 40-character SHA of the release commit from the release page. |
+| `psuvraneel-cyber/Clone-Proof@main` | Not recommended. It changes with every merge and can change behavior without notice. |
+
+While CloneProof is `0.x`, there is no moving major tag such as `v0` or `v1`, because a `0.x` minor release may change behavior. Every upgrade is an explicit edit; read the [changelog](../CHANGELOG.md) first. Releases are listed at <https://github.com/psuvraneel-cyber/Clone-Proof/releases>.
+
 ## Usage
 
 ### 1. Static check workflow (Recommended for Pull Requests)
@@ -23,7 +35,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run CloneProof Static Check
-        uses: psuvraneel-cyber/Clone-Proof@main
+        uses: psuvraneel-cyber/Clone-Proof@v0.1.0
         with:
           target-path: '.'
           mode: 'check'
@@ -50,7 +62,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run CloneProof Docker Verification
-        uses: psuvraneel-cyber/Clone-Proof@main
+        uses: psuvraneel-cyber/Clone-Proof@v0.1.0
         with:
           target-path: '.'
           mode: 'verify'
@@ -220,7 +232,7 @@ To save the complete JSON report as a downloadable workflow artifact, add the of
 ```yaml
       - name: Run CloneProof
         id: cloneproof
-        uses: psuvraneel-cyber/Clone-Proof@main
+        uses: psuvraneel-cyber/Clone-Proof@v0.1.0
         with:
           target-path: '.'
 

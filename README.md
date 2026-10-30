@@ -33,8 +33,8 @@ CloneProof doesn't claim a repo is "safe" or universally reproducible. It report
 **Requirements:** Node.js ≥ 22.19.0 and npm. Docker is only needed for `verify`.
 
 ```bash
-# Install from GitHub
-npm install -g https://github.com/psuvraneel-cyber/Clone-Proof/archive/refs/heads/main.tar.gz
+# Install the v0.1.0 release tarball (built and attested by CI)
+npm install -g https://github.com/psuvraneel-cyber/Clone-Proof/releases/download/v0.1.0/cloneproof-0.1.0.tgz
 
 # Check a project folder (read-only, no network, no code execution)
 cloneproof check ./my-project
@@ -46,8 +46,20 @@ cloneproof check https://github.com/tj/commander.js
 Or run it once without installing:
 
 ```bash
-npx github:psuvraneel-cyber/Clone-Proof check ./my-project
+npx github:psuvraneel-cyber/Clone-Proof#v0.1.0 check ./my-project
 ```
+
+> ⚠️ Don't run `npm install -g cloneproof`. That npm name belongs to a **different project**, so install from the URL above.
+
+To check the download before installing, fetch the tarball and `SHA256SUMS` from the [v0.1.0 release](https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.1.0), then:
+
+```bash
+sha256sum -c SHA256SUMS
+gh attestation verify cloneproof-0.1.0.tgz --repo psuvraneel-cyber/Clone-Proof
+npm install -g ./cloneproof-0.1.0.tgz
+```
+
+The tarball contains only `src/`, `README.md`, `CHANGELOG.md`, `LICENSE`, and `package.json`, and has no dependencies. Changes between versions are in the [changelog](CHANGELOG.md).
 
 ### GitHub Actions
 
@@ -55,17 +67,19 @@ Run CloneProof automatically in CI using the native GitHub Action (`node24`):
 
 ```yaml
 - name: Run CloneProof Static Check
-  uses: psuvraneel-cyber/Clone-Proof@main
+  uses: psuvraneel-cyber/Clone-Proof@v0.1.0
   with:
     target-path: '.'
     mode: 'check' # default: read-only static scan
 ```
 
+Pin a release tag such as `@v0.1.0`, or the release's full commit SHA for supply-chain-sensitive workflows (`uses: psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.1.0`). Don't use `@main`: it changes with every merge. While the version is `0.x` there is no moving major tag, so upgrades are always explicit; see [Releases](https://github.com/psuvraneel-cyber/Clone-Proof/releases) and the [changelog](CHANGELOG.md).
+
 To run controlled container verification on trusted branches:
 
 ```yaml
 - name: Run CloneProof Docker Verification
-  uses: psuvraneel-cyber/Clone-Proof@main
+  uses: psuvraneel-cyber/Clone-Proof@v0.1.0
   with:
     target-path: '.'
     mode: 'verify' # runs static check + hardened Docker verification
@@ -81,8 +95,6 @@ The Action integrates natively with GitHub Actions features:
 - **Reproducibility receipt:** Every run writes a versioned JSON receipt (default `RUNNER_TEMP/cloneproof/receipt.json`) recording the source commit, CloneProof version, mode, runner, Docker image and network policy, outcome, and cleanup, with a SHA-256 integrity digest. Outputs `receipt-path` and `receipt-status` expose it.
 
 See [docs/GITHUB_ACTION.md](docs/GITHUB_ACTION.md) for complete input, output, annotation, Docker verification, and job summary documentation.
-
-> ⚠️ `npm install -g cloneproof` (without the GitHub URL) installs an **unrelated** package with the same name.
 
 Want proof that install and tests really work?
 
@@ -271,15 +283,17 @@ Full commands, target commits and per-finding verdicts are in [docs/FIELD_TEST.m
 
 | Measure | Result |
 |---|---:|
-| Public repositories (Run 3) | **13 correct + 2 environment-limited** out of 15 |
-| Warning precision (Run 3) | 5 real / 6 = **83.3%** |
+| Random sample, pre-registered (Run 5, 50 repos) | 13 failed (exit 1), 36 passed, 1 incomplete |
+| Blocking findings, Run 5 | **14 / 14 factually correct**; 4 / 14 actionable, 10 were "this repo has no tests" |
+| Warnings, Run 5 | 8 / 26 real (**30.8%**); 13 / 26 false, mostly `ENV_EXAMPLE_MISSING` and `BROWSER_TESTS_DETECTED` |
+| Hand-picked repositories (Run 3) | **13 correct + 2 environment-limited** out of 15; warning precision 5 / 6 |
 | Planted-bug mutations (offline) | **13 / 13** detected |
 | Planted bugs in real repositories | **39 / 39** detected across 3 repos |
-| Automated tests | **232** (offline, `npm test`) |
-| CI | Ubuntu · macOS · Windows · Docker end-to-end |
+| Automated tests | **419** (offline, `npm test`) |
+| CI | Ubuntu · macOS · Windows · Docker end-to-end · GitHub Action end-to-end |
 | Output determinism | Byte-identical JSON across repeated runs on 10 public repos |
 
-The two environment-limited cases are expected by design: native modules whose install scripts are skipped, and browser tests that the controlled image can't run. CloneProof explains both in the report.
+Run 5 is the honest noise measurement. Blocking findings were never wrong, but most fired on repositories that have no tests at all. Two warning checks (`ENV_EXAMPLE_MISSING`, `BROWSER_TESTS_DETECTED`) are noisy in the wild and are the next fixes. In Run 3, the two environment-limited cases are expected by design: native modules whose install scripts are skipped, and browser tests that the controlled image can't run.
 
 ---
 
@@ -300,7 +314,7 @@ The two environment-limited cases are expected by design: native modules whose i
 git clone https://github.com/psuvraneel-cyber/Clone-Proof.git
 cd Clone-Proof
 npm ci
-npm test               # 232 offline tests
+npm test               # 419 offline tests
 npm run test:leaks     # same suite with an isolated temp folder; fails on any leftover file
 npm run build          # syntax check
 ```
@@ -314,7 +328,7 @@ docker run --rm --network none cloneproof
 
 No secrets are needed; `.env.example` is a placeholder template only.
 
-**Project docs:** [Architecture](docs/ARCHITECTURE.md) · [Security model](docs/SECURITY.md) · [Design decisions](docs/DECISIONS.md) · [Field tests](docs/FIELD_TEST.md) · [Demo script](docs/DEMO.md)
+**Project docs:** [Architecture](docs/ARCHITECTURE.md) · [Security model](docs/SECURITY.md) · [Design decisions](docs/DECISIONS.md) · [Field tests](docs/FIELD_TEST.md) · [Finding codes](docs/FINDINGS.md) · [GitHub Action](docs/GITHUB_ACTION.md) · [Releasing](docs/RELEASING.md) · [Changelog](CHANGELOG.md) · [Demo script](docs/DEMO.md)
 
 ---
 
@@ -325,7 +339,7 @@ No secrets are needed; `.env.example` is a placeholder template only.
 - Stronger isolation (gVisor or a dedicated VM)
 - A size watchdog during clones
 - Safe symlink recreation inside the container
-- A larger, randomly sampled field test with pre-registered expectations
+- Reduce the noise measured in field test Run 5: committed `.env.*` files and framework built-ins for environment checks, browser detection based on the selected test configuration, and a non-blocking result for repositories with no tests
 
 ---
 

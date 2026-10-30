@@ -205,3 +205,10 @@
 - **Error semantics:** Receipts are secondary evidence. Failures are reported separately and never change the report, status, outputs other than the receipt outputs, or exit codes. An unsafe explicit `receipt-path` is an input error and fails before the CLI runs.
 - **Schema location:** The runtime schema ships at `src/receipt/receipt-v1.schema.json` because npm packaging includes only `src/`; `docs/schemas/receipt-v1.schema.json` is the documented copy, and a test keeps them byte-identical. Validation uses an in-repository validator for the JSON Schema keywords the schema uses, which rejects unsupported keywords so no constraint is silently ignored. This keeps zero runtime dependencies.
 - **Privacy:** Receipts are built from an allow-list. Report free text and raw output never enter a receipt, every string is pattern-checked or recorded as `null`, and only named GitHub/runner variables are read.
+
+## 2026-10-30 — Release from immutable, CI-built version tags
+
+- **Decision:** Publish releases only from `vX.Y.Z` tags on `main`. `.github/workflows/release.yml` checks that the tag matches `package.json` and that `CHANGELOG.md` has a dated section for it, runs the test suite, builds the npm tarball on Linux, attests its provenance with `actions/attest-build-provenance`, and creates the GitHub release with the tarball and `SHA256SUMS`.
+- **Why:** Users could only reference `@main`, which changes with every merge. Security-conscious teams pin a tag or a commit SHA. Building in CI also avoids Windows CRLF line endings breaking the `src/cli.js` shebang in a locally packed tarball.
+- **No moving major tag during 0.x:** A `0.x` minor release may change findings or exit behavior, so a moving `v0` tag would silently deliver behavior changes. Users pin exact versions until `1.0.0`.
+- **Guards:** `test/release.test.js` keeps documented Action references, the changelog, and the release workflow consistent with the package version, and requires every third-party action in every workflow to be pinned to a full commit SHA.
