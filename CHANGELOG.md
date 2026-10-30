@@ -12,6 +12,8 @@ and `2` (blocked or incomplete).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-30
+
 ### Changed
 
 - **Exit behavior:** a repository with no tests no longer fails `check`. When
@@ -94,6 +96,7 @@ First tagged release.
   Docker is not a complete sandbox, and `--allow-network` should be used only
   for trusted repositories.
 
-[Unreleased]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.1.0

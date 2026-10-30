@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---|---|
-| 0.1.x | Yes |
+| 0.2.x | Yes |
+| 0.1.x | No; upgrade to 0.2 |
 | Earlier untagged `main` snapshots | No; upgrade to the latest release |
 
 ## Reporting a vulnerability
