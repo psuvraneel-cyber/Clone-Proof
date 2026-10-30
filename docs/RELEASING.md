@@ -2,9 +2,21 @@
 
 Releases are immutable Git tags named `vX.Y.Z`. Pushing a tag runs
 [`.github/workflows/release.yml`](../.github/workflows/release.yml), which builds
-the npm tarball on Linux, attests its build provenance, and publishes a GitHub
-release with the tarball and `SHA256SUMS` attached. Nothing is published by
-hand.
+the npm tarball on Linux, attests its build provenance, publishes a GitHub
+release with the tarball and `SHA256SUMS` attached, and publishes the same
+tarball to npm as [`clone-proof`](https://www.npmjs.com/package/clone-proof)
+with npm provenance. Nothing is published by hand.
+
+The npm package is `clone-proof` because the name `cloneproof` belongs to a
+different project. The command it installs is still `cloneproof`.
+
+## npm credentials
+
+The **Publish to npm** step reads the `NPM_TOKEN` Actions secret: a granular
+npm access token, from an account with two-factor authentication, that can
+publish `clone-proof`. Once the package exists you can instead configure npm
+trusted publishing for this repository and `release.yml`, then delete the
+token.
 
 ## Versioning
 
@@ -44,8 +56,12 @@ hand.
    ```
 
 6. The workflow refuses tags that are not on `main` or that don't match
-   `package.json`, runs the test suite, builds `cloneproof-X.Y.Z.tgz`, attests
-   it, and creates the GitHub release with the changelog section as its notes.
+   `package.json`, runs the test suite, builds `clone-proof-X.Y.Z.tgz`, attests
+   it, creates the GitHub release with the changelog section as its notes, and
+   publishes the tarball to npm. If the npm step fails after the GitHub release
+   exists, fix the cause and rerun the failed job; never move the tag.
+7. From an empty folder, check that `npx clone-proof@X.Y.Z --version` prints
+   the new version.
 
 Build release tarballs only in CI. A tarball packed on a Windows checkout with
 `core.autocrlf=true` can contain CRLF line endings, which break the
@@ -55,7 +71,7 @@ Build release tarballs only in CI. A tarball packed on a Windows checkout with
 
 ```bash
 sha256sum -c SHA256SUMS            # macOS: shasum -a 256 -c SHA256SUMS
-gh attestation verify cloneproof-X.Y.Z.tgz --repo psuvraneel-cyber/Clone-Proof
+gh attestation verify clone-proof-X.Y.Z.tgz --repo psuvraneel-cyber/Clone-Proof
 ```
 
 The attestation shows that the tarball was built by this repository's Release
