@@ -12,6 +12,18 @@ and `2` (blocked or incomplete).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-31
+
+### Changed
+
+- CloneProof is published to npm as **`clone-proof`**: run
+  `npx clone-proof check <path-or-url>` or `npm install -g clone-proof`. The
+  installed command is still `cloneproof`, and reports and receipts still name
+  the tool `cloneproof`. The npm name `cloneproof` belongs to a different
+  project. The Release workflow publishes the same CI-built, attested tarball
+  to npm with provenance; the GitHub release asset is now named
+  `clone-proof-X.Y.Z.tgz`.
+
 ## [0.2.1] - 2026-10-31
 
 ### Fixed
@@ -111,7 +123,8 @@ First tagged release.
   Docker is not a complete sandbox, and `--allow-network` should be used only
   for trusted repositories.
 
-[Unreleased]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.1.0...v0.1.1
