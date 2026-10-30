@@ -255,6 +255,11 @@ function colorEnabled(options) {
     return false;
   }
 
+  // An explicit --color overrides NO_COLOR and forces color into pipes and files.
+  if (options && options.color === true) {
+    return true;
+  }
+
   if (process.env.NO_COLOR !== undefined) {
     return false;
   }

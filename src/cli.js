@@ -42,7 +42,7 @@ function printHelp() {
     'Static check never executes repository code. Docker verification requires explicit --docker --execute consent.',
     'Docker verification network access is disabled unless --allow-network is also provided.',
     'A repository without tests gets a NO_TESTS_FOUND warning; --require-tests makes it a failure.',
-    'Text output uses color only on a TTY; use --color or --no-color. NO_COLOR always disables ANSI color.',
+    'Text output uses color only on a TTY. --color forces it on, --no-color turns it off, and NO_COLOR disables it unless --color is passed.',
     'GitHub input accepts only public https://github.com/OWNER/REPOSITORY URLs.',
     ''
   ].join('\n'));

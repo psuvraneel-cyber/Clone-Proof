@@ -31,6 +31,38 @@ test('check accepts explicit color preferences', () => {
   assert.equal(parseArguments(['node', cliPath, 'check', 'repository', '--no-color']).color, false);
 });
 
+test('check --color forces ANSI color into non-TTY output, even with NO_COLOR', () => {
+  const env = { ...process.env };
+  delete env.NO_COLOR;
+
+  for (const extraEnv of [{}, { NO_COLOR: '1' }]) {
+    const result = spawnSync(process.execPath, [cliPath, 'check', projectRoot, '--color'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: { ...env, ...extraEnv }
+    });
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /\u001b\[/);
+  }
+});
+
+test('check without --color keeps piped output free of ANSI color', () => {
+  const env = { ...process.env };
+  delete env.NO_COLOR;
+
+  for (const args of [[], ['--no-color']]) {
+    const result = spawnSync(process.execPath, [cliPath, 'check', projectRoot, ...args], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env
+    });
+
+    assert.equal(result.status, 0);
+    assert.doesNotMatch(result.stdout, /\u001b\[/);
+  }
+});
+
 test('version prints the package version and exits successfully', () => {
   const result = spawnSync(process.execPath, [cliPath, '--version'], {
     cwd: projectRoot,

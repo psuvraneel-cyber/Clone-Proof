@@ -12,6 +12,13 @@ and `2` (blocked or incomplete).
 
 ## [Unreleased]
 
+### Fixed
+
+- `--color` now forces ANSI color in text output even when stdout is not a TTY
+  (for example `cloneproof check . --color > out.txt`), and overrides
+  `NO_COLOR`, following the no-color.org convention. `--no-color` still always
+  wins, and with neither flag color follows the TTY and `NO_COLOR`.
+
 ## [0.2.4] - 2026-10-31
 
 ### Changed

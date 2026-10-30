@@ -248,21 +248,15 @@ test('renderText never emits terminal controls from report metadata', () => {
   assert.match(output, /safe\\tvalue/);
 });
 
-test('renderText suppresses ANSI color when output is captured or color is disabled', () => {
-  const report = {
-    target: { name: 'demo' },
-    status: 'passed',
-    summary: { total: 0, passed: 0, failed: 0, warnings: 0, skipped: 0 },
-    findings: []
-  };
-
-  assert.doesNotMatch(renderText(report, { color: true, isTTY: false }), /\u001b\[/);
-  assert.doesNotMatch(renderText(report, { color: false, isTTY: true }), /\u001b\[/);
-
+function withNoColor(value, callback) {
   const previous = process.env.NO_COLOR;
   try {
-    process.env.NO_COLOR = '';
-    assert.doesNotMatch(renderText(report, { color: true, isTTY: true }), /\u001b\[/);
+    if (value === undefined) {
+      delete process.env.NO_COLOR;
+    } else {
+      process.env.NO_COLOR = value;
+    }
+    return callback();
   } finally {
     if (previous === undefined) {
       delete process.env.NO_COLOR;
@@ -270,6 +264,50 @@ test('renderText suppresses ANSI color when output is captured or color is disab
       process.env.NO_COLOR = previous;
     }
   }
+}
+
+test('renderText color follows the TTY when no preference is given', () => {
+  const report = {
+    target: { name: 'demo' },
+    status: 'passed',
+    summary: { total: 0, passed: 0, failed: 0, warnings: 0, skipped: 0 },
+    findings: []
+  };
+
+  withNoColor(undefined, () => {
+    assert.match(renderText(report, { isTTY: true }), /\u001b\[/);
+    assert.doesNotMatch(renderText(report, { isTTY: false }), /\u001b\[/);
+  });
+});
+
+test('renderText honors --color and --no-color over the TTY', () => {
+  const report = {
+    target: { name: 'demo' },
+    status: 'passed',
+    summary: { total: 0, passed: 0, failed: 0, warnings: 0, skipped: 0 },
+    findings: []
+  };
+
+  withNoColor(undefined, () => {
+    assert.match(renderText(report, { color: true, isTTY: false }), /\u001b\[/);
+    assert.doesNotMatch(renderText(report, { color: false, isTTY: true }), /\u001b\[/);
+  });
+});
+
+test('renderText lets NO_COLOR disable color unless --color is passed', () => {
+  const report = {
+    target: { name: 'demo' },
+    status: 'passed',
+    summary: { total: 0, passed: 0, failed: 0, warnings: 0, skipped: 0 },
+    findings: []
+  };
+
+  withNoColor('', () => {
+    assert.doesNotMatch(renderText(report, { isTTY: true }), /\u001b\[/);
+    assert.match(renderText(report, { color: true, isTTY: true }), /\u001b\[/);
+    assert.match(renderText(report, { color: true, isTTY: false }), /\u001b\[/);
+    assert.doesNotMatch(renderText(report, { color: false, isTTY: true }), /\u001b\[/);
+  });
 });
 
 test('renderHtml escapes untrusted report values', () => {
