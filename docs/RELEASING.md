@@ -54,7 +54,7 @@ Build release tarballs only in CI. A tarball packed on a Windows checkout with
 ## Verifying a release
 
 ```bash
-sha256sum -c SHA256SUMS
+sha256sum -c SHA256SUMS            # macOS: shasum -a 256 -c SHA256SUMS
 gh attestation verify cloneproof-X.Y.Z.tgz --repo psuvraneel-cyber/Clone-Proof
 ```
 

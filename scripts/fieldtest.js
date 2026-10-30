@@ -4,7 +4,7 @@
 //
 //   node scripts/fieldtest.js sample  --seed N --count N --out FILE
 //   node scripts/fieldtest.js run     --sample FILE --out FILE [--reports DIR]
-//   node scripts/fieldtest.js summary --results FILE --judgments FILE
+//   node scripts/fieldtest.js summary --results FILE --judgments FILE [--sample FILE]
 //
 // `sample` draws repositories from GitHub search with a seeded PRNG and records
 // facts and pre-registered expectations through the authenticated `gh` CLI. It
@@ -86,6 +86,16 @@ function decodeContent(entry) {
   return Buffer.from(entry.content || '', 'base64').toString('utf8');
 }
 
+// Mirrors the scanner: only a JSON object is a usable package manifest.
+function parseManifest(text) {
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function testScriptKind(script) {
   if (typeof script !== 'string' || !script.trim()) return 'missing';
   if (/no test specified/i.test(script)) return 'placeholder';
@@ -119,12 +129,7 @@ function collectFacts(repository) {
   const files = new Set(listing.filter((entry) => entry.type === 'file').map((entry) => entry.name));
   if (!files.has('package.json')) return { rejected: 'no-root-package-json' };
   const packageEntry = ghApi([`repos/${owner}/${name}/contents/package.json`]);
-  let packageData = null;
-  try {
-    packageData = JSON.parse(decodeContent(packageEntry));
-  } catch {
-    packageData = null;
-  }
+  const packageData = parseManifest(decodeContent(packageEntry));
   const scripts = packageData && packageData.scripts && typeof packageData.scripts === 'object' ? packageData.scripts : {};
   const head = ghApi([`repos/${owner}/${name}/commits/${encodeURIComponent(repository.default_branch)}`]);
   const facts = {
@@ -262,11 +267,53 @@ function wilson(successes, total) {
   return [Math.max(0, centre - margin), Math.min(1, centre + margin)];
 }
 
-function rate(successes, total) {
+// Findings are clustered within repositories, the sampled units, so the
+// finding-level interval resamples repositories (seeded percentile bootstrap).
+function clusterBootstrap(clusters, { iterations = 10000, seed = 20261030 } = {}) {
+  const groups = clusters.filter((cluster) => cluster.total > 0);
+  if (groups.length === 0) return null;
+  const random = mulberry32(seed);
+  const ratios = [];
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    let successes = 0;
+    let total = 0;
+    for (let draw = 0; draw < groups.length; draw += 1) {
+      const group = groups[Math.floor(random() * groups.length)];
+      successes += group.successes;
+      total += group.total;
+    }
+    ratios.push(successes / total);
+  }
+  ratios.sort((left, right) => left - right);
+  return [ratios[Math.floor(0.025 * iterations)], ratios[Math.ceil(0.975 * iterations) - 1]];
+}
+
+function percent(value) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function rate(successes, total, interval, label) {
   if (total === 0) return 'n/a (0 findings)';
-  const [low, high] = wilson(successes, total);
-  const percent = (value) => `${(value * 100).toFixed(1)}%`;
-  return `${successes} / ${total} = **${percent(successes / total)}** (95% CI ${percent(low)}–${percent(high)})`;
+  const [low, high] = interval;
+  return `${successes} / ${total} = **${percent(successes / total)}** (95% ${label} ${percent(low)}–${percent(high)})`;
+}
+
+function findingRate(subset, predicate) {
+  const byRepository = new Map();
+  for (const row of subset) {
+    const cluster = byRepository.get(row.repository) || { successes: 0, total: 0 };
+    cluster.total += 1;
+    if (predicate(row)) cluster.successes += 1;
+    byRepository.set(row.repository, cluster);
+  }
+  const successes = subset.filter(predicate).length;
+  const clusters = [...byRepository.values()];
+  // With one finding per repository the findings are independent units and
+  // Wilson applies; a percentile bootstrap would collapse to zero width at 0% or 100%.
+  if (clusters.every((cluster) => cluster.total === 1)) {
+    return rate(successes, subset.length, wilson(successes, subset.length), 'Wilson CI');
+  }
+  return rate(successes, subset.length, clusterBootstrap(clusters), 'cluster-bootstrap CI');
 }
 
 function summary(options) {
@@ -287,10 +334,22 @@ function summary(options) {
     const subset = rows.filter((row) => row.status === status);
     const real = subset.filter((row) => row.judgment === 'real').length;
     const correct = subset.filter((row) => row.judgment !== 'false').length;
-    lines.push(`| ${status === BLOCKING_STATUS ? 'Blocking (failed)' : 'Warning'} | ${subset.length} | ${real} | ${correct - real} | ${subset.length - correct} | ${rate(real, subset.length)} | ${rate(correct, subset.length)} |`);
+    lines.push(`| ${status === BLOCKING_STATUS ? 'Blocking (failed)' : 'Warning'} | ${subset.length} | ${real} | ${correct - real} | ${subset.length - correct} | ${findingRate(subset, (row) => row.judgment === 'real')} | ${findingRate(subset, (row) => row.judgment !== 'false')} |`);
   }
   const exitOne = results.filter((result) => result.exitCode === 1);
   const justified = exitOne.filter((result) => rows.some((row) => row.repository === result.repository && row.status === BLOCKING_STATUS && row.judgment === 'real'));
+  const languageLines = [];
+  if (options.sample) {
+    const languages = new Map(JSON.parse(fs.readFileSync(options.sample, 'utf8')).sample.map((facts) => [facts.repository, facts.language]));
+    for (const language of [...new Set(languages.values())].sort()) {
+      const repositories = results.filter((result) => languages.get(result.repository) === language).length;
+      const cells = [BLOCKING_STATUS, 'warning'].map((status) => {
+        const subset = rows.filter((row) => row.status === status && languages.get(row.repository) === language);
+        return `${subset.filter((row) => row.judgment === 'real').length} / ${subset.length}`;
+      });
+      languageLines.push(`| ${language} | ${repositories} | ${cells.join(' | ')} |`);
+    }
+  }
   const codes = [...new Set(rows.map((row) => `${row.status} ${row.code}`))].sort();
   const perCode = codes.map((entry) => {
     const [status, code] = entry.split(' ');
@@ -303,8 +362,14 @@ function summary(options) {
     '|---|---:|---:|---:|---:|---|---|',
     ...lines,
     '',
-    `Repositories with exit 1: ${exitOne.length} of ${results.length}; justified by at least one real blocking finding: ${rate(justified.length, exitOne.length)}.`,
+    `Repositories with exit 1: ${exitOne.length} of ${results.length}; justified by at least one real blocking finding: ${rate(justified.length, exitOne.length, wilson(justified.length, exitOne.length) || [0, 0], 'Wilson CI')}.`,
     '',
+    ...(languageLines.length ? [
+      '| Language | Repositories | Real / blocking | Real / warnings |',
+      '|---|---:|---:|---:|',
+      ...languageLines,
+      ''
+    ] : []),
     '| Code | Status | Total | Real | Policy | False |',
     '|---|---|---:|---:|---:|---:|',
     ...perCode,
@@ -326,4 +391,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { expectedFindings, mulberry32, testScriptKind, wilson };
+module.exports = { clusterBootstrap, expectedFindings, mulberry32, parseManifest, testScriptKind, wilson };

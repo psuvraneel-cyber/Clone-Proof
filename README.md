@@ -54,7 +54,7 @@ npx github:psuvraneel-cyber/Clone-Proof#v0.1.0 check ./my-project
 To check the download before installing, fetch the tarball and `SHA256SUMS` from the [v0.1.0 release](https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.1.0), then:
 
 ```bash
-sha256sum -c SHA256SUMS
+sha256sum -c SHA256SUMS            # macOS: shasum -a 256 -c SHA256SUMS
 gh attestation verify cloneproof-0.1.0.tgz --repo psuvraneel-cyber/Clone-Proof
 npm install -g ./cloneproof-0.1.0.tgz
 ```
@@ -289,7 +289,7 @@ Full commands, target commits and per-finding verdicts are in [docs/FIELD_TEST.m
 | Hand-picked repositories (Run 3) | **13 correct + 2 environment-limited** out of 15; warning precision 5 / 6 |
 | Planted-bug mutations (offline) | **13 / 13** detected |
 | Planted bugs in real repositories | **39 / 39** detected across 3 repos |
-| Automated tests | **419** (offline, `npm test`) |
+| Automated tests | **421** (offline, `npm test`) |
 | CI | Ubuntu · macOS · Windows · Docker end-to-end · GitHub Action end-to-end |
 | Output determinism | Byte-identical JSON across repeated runs on 10 public repos |
 
@@ -314,7 +314,7 @@ Run 5 is the honest noise measurement. Blocking findings were never wrong, but m
 git clone https://github.com/psuvraneel-cyber/Clone-Proof.git
 cd Clone-Proof
 npm ci
-npm test               # 419 offline tests
+npm test               # 421 offline tests
 npm run test:leaks     # same suite with an isolated temp folder; fails on any leftover file
 npm run build          # syntax check
 ```
