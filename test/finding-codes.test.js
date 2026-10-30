@@ -316,7 +316,7 @@ const NON_FINDING_UPPER_SNAKE_CASE = new Set([
   'NODE_DEBUG', 'NODE_ENV', 'NODE_OPTIONS', 'NODE_PATH', 'NO_COLOR', 'NO_PROXY',
   'TERM_PROGRAM',
   // Framework-provided environment keys that are not user settings.
-  'ASSETS_PREFIX', 'BASE_URL', 'MANIFEST_VERSION', 'NEXT_RUNTIME', 'PUBLIC_URL',
+  'ASSETS_PREFIX', 'BASE_URL', 'MANIFEST_VERSION', 'NEXT_RUNTIME', 'PUBLIC_URL', 'ROLLUP_WATCH',
   // Internal staging errors are translated into report findings by verify.
   'STAGING_LIMIT_EXCEEDED', 'STAGING_SOURCE_CHANGED',
   // `setup` result codes are not report findings.

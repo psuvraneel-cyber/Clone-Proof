@@ -835,6 +835,62 @@ Exactly the 9 false `README_SCRIPT_UNKNOWN` findings are gone, and no other find
 
 The Run 5 sample was also rerun with the fix. All 50 results are identical to the no-tests policy rerun, including `tidepool-org/uploader`'s real `README_SCRIPT_UNKNOWN`. Scanner bugs 2–6 are not fixed yet.
 
+### Reruns with the remaining Run 6 fixes (2026-10-31)
+
+Scanner bugs 2–5 above, plus Run 5's public-mirror false positive (Run 5 fix 4), were fixed on the `claude/false-finding-fixes` branch, with regressions in `test/scan-noise.test.js` and `test/test-suite-detection.test.js`. Both samples were rerun with an authenticated preflight. A first Run 6 attempt was discarded: DNS on the host stopped resolving `github.com` partway through, so 71 clones failed for a reason unrelated to CloneProof. The recorded run is a clean repeat.
+
+- Results: [`field-test/run6-fixes-results.json`](field-test/run6-fixes-results.json) and [`field-test/run5-fixes-results.json`](field-test/run5-fixes-results.json).
+- Judgments: [`field-test/run6-fixes-judgments.json`](field-test/run6-fixes-judgments.json). Unchanged findings keep their Run 6 judgment, and findings whose code or listed keys changed were re-judged by the same rules and interpretations. Run 5 findings are all unchanged except one removal, so `run5-policy-judgments.json` still applies.
+- Moved repositories: four Run 6 repositories had moved to new commits since sampling (`react/react`, `microsoft/tslib`, `webpack/webpack-cli`, `zloirock/core-js`); their findings did not change.
+
+| | Run 6 (v0.2.0) | v0.2.1 | With these fixes |
+|---|---:|---:|---:|
+| Report status `passed` / `passed_with_warnings` / `failed` / `blocked` | 31 / 56 / 6 / 7 | 32 / 60 / 1 / 7 | 37 / 53 / 3 / 7 |
+| Repositories failing (exit 1), justified by a real blocking finding | 1 / 6 | 1 / 1 | **3 / 3** |
+| Blocking findings: real / policy / false | 1 / 0 / 9 | 1 / 0 / 0 | **3 / 0 / 0** |
+| Warnings: real / policy / false | 10 / 46 / 17 | 10 / 46 / 17 | **10 / 50 / 3** |
+| Warning correctness (real + policy) | 76.7% | 76.7% | **60 / 63 = 95.2%** (95% cluster-bootstrap CI 89.2%–100.0%) |
+
+| Code | Status | Total | Real | Policy | False |
+|---|---|---:|---:|---:|---:|
+| `LOCKFILE_OUT_OF_SYNC` | failed | 1 | 1 | 0 | 0 |
+| `TEST_SCRIPT_MISSING` | failed | 2 | 2 | 0 | 0 |
+| `BROWSER_TESTS_DETECTED` | warning | 6 | 6 | 0 | 0 |
+| `ENV_EXAMPLE_MISSING` | warning | 23 | 0 | 20 | 3 |
+| `ENV_KEY_MISSING` | warning | 1 | 0 | 1 | 0 |
+| `LOCKFILE_MISSING` | warning | 29 | 0 | 29 | 0 |
+| `MONOREPO_ROOT_TEST_SCRIPT_MISSING` | warning | 3 | 3 | 0 | 0 |
+| `MULTIPLE_LOCKFILES` | warning | 1 | 1 | 0 | 0 |
+
+**What changed in Run 6.**
+
+- **Environment findings: 14 false → 3.**
+  - **Gone:** keys set by the operating system, the shell, Git, CI services, or Rollup; keys the repository's own non-test code assigns; keys mentioned only in comments or `.d.ts` files; and the mis-parsed `Wimp`.
+  - **Repositories that now pass outright:** lint-staged, postcss, rollup-plugin-typescript2, and shelljs.
+  - **The 3 false findings left** come from injection that static reading cannot see: `vuejs/vue`'s build-time feature flags (defined in `scripts/feature-flags.js` and replaced by the build), CI variables that coveralls detects (`SURF_*`, `REVISION`), and `TEST_AVA`, which AVA's test helper passes to child processes.
+- **`ENGINES_NODE_UNSATISFIED`.** The `semantic-release` warning is gone. The cause was not the major-only `.nvmrc`, as first recorded, but the space in `>= 24.10.0`: that range alternative was skipped as unparsable.
+- **Test-script policy.**
+  - `typicode/husky` (shell tests) and `sass/dart-sass` (Dart tests) changed from `NO_TESTS_FOUND` to the blocking `TEST_SCRIPT_MISSING`. Both are judged real by the pre-registered rule: tests exist, and `npm test` cannot run them.
+  - Detection reads test files only. A husky or sass dependency, `.husky/` hook scripts, and fixture, test-data, or vendored folders never count; `test/test-suite-detection.test.js` covers both positive and negative cases.
+  - Note for maintainers of primarily non-JavaScript projects such as dart-sass: the root `package.json` there serves JavaScript tooling, so a failing `npm test` check may feel like noise, even though the rule holds.
+- **Policy findings.** Policy warnings rose from 46 to 50 because four environment findings that had been judged false now list only optional settings. Two optional-switch findings disappeared because the repository's own code sets those keys (`RTL_SKIP_AUTO_CLEANUP`, `AUTOPREFIXER_GRID`).
+
+**Run 5.** One finding changed: the false `PRIVATE_REGISTRY` on `registry.npmmirror.com` (`glacier-studio/CoCo-Source-Code-Plan`) is gone.
+
+| Run 5 | Blocking: real / policy / false | Warnings: real / policy / false | Warning correctness |
+|---|---:|---:|---:|
+| No-tests policy rerun | 4 / 0 / 0 | 8 / 32 / 1 | 97.6% |
+| With these fixes | 4 / 0 / 0 | 8 / 32 / 0 | 40 / 40 = 100% |
+
+None of the 10 Run 5 repositories without tests started failing. With every warning correct, the cluster bootstrap returns a zero-width interval, so the Run 5 warning interval is not informative.
+
+**Still open.**
+
+- Feature-flag and child-process injection (the 3 remaining false environment findings).
+- Workspace detection without a workspace declaration (bug 6; `microsoft/tslib`).
+- Raising the clone limits for very large repositories.
+- Git hook commands are not read: a `.husky/pre-commit` that runs `npm test` in a repository without a test script would fail every commit, and CloneProof does not report it.
+
 ## Known limitations
 
 1. **Sensitive-file omission applies to local folders only.** Local staging still omits `.env*`, npm configuration, credentials, and certificate/key files and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Fresh public GitHub clones copy committed versions because they are already public; command-line flags still force `npm ci --ignore-scripts`.

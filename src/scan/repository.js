@@ -57,9 +57,15 @@ const LOCKFILES = [
   { name: 'bun.lockb', packageManager: 'bun' }
 ];
 const KNOWN_PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
+// The public npm registry and public mirrors of it, which need no credentials.
 const PUBLIC_REGISTRY_HOSTNAMES = new Set([
   'registry.npmjs.org',
-  'registry.yarnpkg.com'
+  'registry.yarnpkg.com',
+  'registry.npmmirror.com',
+  'registry.npm.taobao.org',
+  'mirrors.cloud.tencent.com',
+  'mirrors.huaweicloud.com',
+  'repo.huaweicloud.com'
 ]);
 const PUBLIC_GIT_HOSTNAMES = new Set([
   'github.com',
@@ -189,9 +195,39 @@ const ENVIRONMENT_ANALYSIS_EXCLUDED_SEGMENTS = new Set([
   'e2e'
 ]);
 
+// Keys that the operating system, the shell, Git, or a CI service sets. Nobody
+// configures them for a repository, so they are not documentation gaps (field
+// test Run 6). Windows variable names are case-insensitive.
+const WINDOWS_ENV_KEYS = new Set((
+  'APPDATA COMPUTERNAME COMSPEC HOMEDRIVE HOMEPATH LOCALAPPDATA NUMBER_OF_PROCESSORS OS PATHEXT '
+  + 'PROCESSOR_ARCHITECTURE PROGRAMDATA PROGRAMFILES PROGRAMFILES(X86) PROGRAMW6432 SYSTEMDRIVE SYSTEMROOT '
+  + 'USERDOMAIN USERNAME USERPROFILE WINDIR'
+).split(' '));
+const SYSTEM_ENV_KEYS = new Set((
+  // POSIX shells, desktops, and shell completion; Wimp$ScrapDir is RISC OS's temporary folder.
+  'COMP_CWORD COMP_LINE COMP_POINT DISPLAY EDITOR HOSTNAME LANGUAGE LC_ALL LC_CTYPE LINES LOGNAME OLDPWD '
+  + 'PAGER SHLVL SSH_AUTH_SOCK VISUAL WAYLAND_DISPLAY Wimp$ScrapDir XDG_CACHE_HOME XDG_CONFIG_HOME '
+  + 'XDG_DATA_HOME XDG_RUNTIME_DIR XDG_STATE_HOME '
+  // Git, while it runs hooks and commands, and Jenkins's Git plugin.
+  + 'GIT_AUTHOR_DATE GIT_AUTHOR_EMAIL GIT_AUTHOR_NAME GIT_BRANCH GIT_COMMIT GIT_COMMITTER_DATE '
+  + 'GIT_COMMITTER_EMAIL GIT_COMMITTER_NAME GIT_DIR GIT_EDITOR GIT_EXEC_PATH GIT_INDEX_FILE '
+  + 'GIT_LITERAL_PATHSPECS GIT_PARAMS GIT_PREFIX GIT_WORK_TREE '
+  // CI services that tools detect.
+  + 'APPVEYOR BRANCH_NAME BUILDKITE BUILD_BUILDID BUILD_BUILDNUMBER BUILD_ID BUILD_NUMBER BUILD_SOURCEBRANCH '
+  + 'BUILD_SOURCEBRANCHNAME BUILD_SOURCEVERSION BUILD_URL CF_BRANCH CF_BUILD_ID CF_BUILD_URL '
+  + 'CF_COMMIT_AUTHOR CF_COMMIT_MESSAGE CF_PULL_REQUEST_ID CF_REVISION CHANGE_AUTHOR CHANGE_AUTHOR_EMAIL '
+  + 'CHANGE_BRANCH CHANGE_ID CIRCLECI CODESHIP DRONE GITLAB_CI HEROKU_TEST_RUN_ID JENKINS_URL NETLIFY '
+  + 'SEMAPHORE SYSTEM_PULLREQUEST_PULLREQUESTID SYSTEM_PULLREQUEST_PULLREQUESTNUMBER TF_BUILD TRAVIS VERCEL '
+  + 'WERCKER ghprbActualCommit ghprbPullId'
+).split(' '));
+const SYSTEM_ENV_PREFIXES = 'CF_PAGES SEMAPHORE_ WERCKER_'.split(' ');
+
 function isConventionalEnvironmentKey(key) {
   return CONVENTIONAL_ENV_KEYS.has(key)
-    || CONVENTIONAL_ENV_PREFIXES.some((prefix) => key.startsWith(prefix));
+    || SYSTEM_ENV_KEYS.has(key)
+    || WINDOWS_ENV_KEYS.has(key.toUpperCase())
+    || CONVENTIONAL_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))
+    || SYSTEM_ENV_PREFIXES.some((prefix) => key.startsWith(prefix));
 }
 
 function isEnvironmentAnalysisExcludedPath(relativePath) {
@@ -290,6 +326,23 @@ function isTestSuiteFile(relativePath, text) {
   return /(^|\/)tests?\//.test(normalized) && typeof text === 'string' && TEST_API_REFERENCE.test(text);
 }
 
+// Test suites written for another runner: shell scripts under test/ or a root
+// test.sh, and test files by other languages' conventions (Dart and Go
+// *_test, Python test_*, Ruby *_spec, Bats). They are tests, even though
+// npm test does not run them. Only files count: a dependency such as husky or
+// sass, or Git hook scripts in .husky/, is not a test suite. Fixture, vendored,
+// and test-data folders hold inputs, not tests.
+function isOtherTestSuitePath(relativePath) {
+  const normalized = String(relativePath).toLowerCase();
+  const baseName = path.posix.basename(normalized);
+  if (/(^|\/)(?:fixtures?|__fixtures__|testdata|vendor|node_modules|\.husky)\//.test(normalized)) return false;
+  if (/^tests?\.sh$/.test(normalized)) return true;
+  if (/(^|\/)tests?\/.*\.(?:sh|bats)$/.test(normalized)) return true;
+  return /_test\.(?:dart|go|py)$/.test(baseName)
+    || /^test_.*\.py$/.test(baseName)
+    || /_spec\.rb$/.test(baseName);
+}
+
 function isRootPath(relativePath) {
   return !relativePath.includes('/');
 }
@@ -385,7 +438,8 @@ const FRAMEWORK_ENV_BUILTINS = Object.freeze([
   { dependency: 'wxt', source: 'importMeta', keys: ['BROWSER', 'CHROME', 'FIREFOX', 'SAFARI', 'EDGE', 'OPERA', 'MANIFEST_VERSION', 'ENTRYPOINT', 'COMMAND'] },
   { dependency: 'astro', source: 'importMeta', keys: ['SITE', 'ASSETS_PREFIX'] },
   { dependency: 'react-scripts', source: 'process', keys: ['PUBLIC_URL'] },
-  { dependency: 'next', source: 'process', keys: ['NEXT_RUNTIME'] }
+  { dependency: 'next', source: 'process', keys: ['NEXT_RUNTIME'] },
+  { dependency: 'rollup', source: 'process', keys: ['ROLLUP_WATCH'] }
 ]);
 
 function frameworkEnvironmentBuiltins(packageData) {
@@ -399,22 +453,73 @@ function frameworkEnvironmentBuiltins(packageData) {
 }
 
 // Keys injected at build time through a define map, such as webpack DefinePlugin
-// ('process.env.APP_VERSION': ...) or Vite define ('import.meta.env.X': ...).
+// ('process.env.APP_VERSION': ...) or Vite define ('import.meta.env.X': ...), and
+// keys the repository's own non-test code assigns (process.env.WEBPACK_SERVE =
+// 'true'), which a tool sets for itself or its child processes. Assignments in
+// tests do not count: test setup often sets keys the application requires.
 function toolDefinedEnvironmentKeys(files) {
   const defined = new Map();
-  const expression = /(['"`])(?:process\.env|import\.meta\.env)\.([A-Za-z_][A-Za-z0-9_]*)\1\s*:/g;
+  const expressions = [
+    { expression: /(['"`])(?:process\.env|import\.meta\.env)\.([A-Za-z_$][A-Za-z0-9_$]*)\1\s*:/g, group: 2 },
+    { expression: /\bprocess\.env\.([A-Za-z_$][A-Za-z0-9_$]*)\s*=(?![=>])/g, group: 1, nonTest: true },
+    { expression: /\bprocess\.env\s*\[\s*(['"`])([A-Za-z_$][A-Za-z0-9_$]*)\1\s*\]\s*=(?![=>])/g, group: 2, nonTest: true }
+  ];
   for (const relativePath of [...files.keys()].filter(isReadableSourcePath).sort(compareStrings)) {
-    const text = decodeText(files.get(relativePath));
-    expression.lastIndex = 0;
-    let match = expression.exec(text);
-    while (match) {
-      if (!defined.has(match[2])) {
-        defined.set(match[2], { path: relativePath, line: lineNumberAt(text, match.index) });
+    const text = maskComments(decodeText(files.get(relativePath)));
+    const testFile = isTestPath(relativePath);
+    for (const { expression, group, nonTest } of expressions) {
+      if (nonTest && testFile) continue;
+      expression.lastIndex = 0;
+      let match = expression.exec(text);
+      while (match) {
+        if (!defined.has(match[group])) {
+          defined.set(match[group], { path: relativePath, line: lineNumberAt(text, match.index) });
+        }
+        match = expression.exec(text);
       }
-      match = expression.exec(text);
     }
   }
   return defined;
+}
+
+// Replaces JavaScript comments with spaces, keeping offsets and line breaks, so
+// an environment key mentioned in a comment is not read as a reference. Quote
+// tracking resets at line ends for ' and ", which cannot span lines, so a quote
+// inside a regular-expression literal cannot hide later code.
+function maskComments(text) {
+  const characters = text.split('');
+  let quote = null;
+  let escaped = false;
+  for (let index = 0; index < characters.length; index += 1) {
+    const character = characters[index];
+    const next = characters[index + 1];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === quote) quote = null;
+      else if (character === '\n' && quote !== '`') quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'" || character === '`') {
+      quote = character;
+      continue;
+    }
+    if (character !== '/' || characters[index - 1] === '\\') continue;
+    if (next === '/') {
+      while (index < characters.length && characters[index] !== '\n') {
+        characters[index] = ' ';
+        index += 1;
+      }
+    } else if (next === '*') {
+      const end = text.indexOf('*/', index + 2);
+      const stop = end === -1 ? characters.length : end + 2;
+      for (; index < stop; index += 1) {
+        if (characters[index] !== '\n' && characters[index] !== '\r') characters[index] = ' ';
+      }
+      index -= 1;
+    }
+  }
+  return characters.join('');
 }
 
 function parseEnvTemplate(text) {
@@ -559,13 +664,14 @@ function destructuringEntryHasDefault(value, keyEnd) {
   return false;
 }
 
-function extractEnvironmentReferences(text, relativePath) {
+function extractEnvironmentReferences(sourceText, relativePath) {
+  const text = maskComments(sourceText);
   const matches = [];
   const directPatterns = [
-    { expression: /\bprocess\.env(?:\?\.|\.)([A-Za-z_][A-Za-z0-9_]*)/g, group: 1, source: 'process' },
-    { expression: /\bprocess\.env\s*\[\s*(['"`])([A-Za-z_][A-Za-z0-9_]*)\1\s*\]/g, group: 2, source: 'process' },
-    { expression: /\bimport\.meta\.env(?:\?\.|\.)([A-Za-z_][A-Za-z0-9_]*)/g, group: 1, source: 'importMeta' },
-    { expression: /\bimport\.meta\.env\s*\[\s*(['"`])([A-Za-z_][A-Za-z0-9_]*)\1\s*\]/g, group: 2, source: 'importMeta' }
+    { expression: /\bprocess\.env(?:\?\.|\.)([A-Za-z_$][A-Za-z0-9_$]*)/g, group: 1, source: 'process' },
+    { expression: /\bprocess\.env\s*\[\s*(['"`])([A-Za-z_$][A-Za-z0-9_$]*)\1\s*\]/g, group: 2, source: 'process' },
+    { expression: /\bimport\.meta\.env(?:\?\.|\.)([A-Za-z_$][A-Za-z0-9_$]*)/g, group: 1, source: 'importMeta' },
+    { expression: /\bimport\.meta\.env\s*\[\s*(['"`])([A-Za-z_$][A-Za-z0-9_$]*)\1\s*\]/g, group: 2, source: 'importMeta' }
   ];
 
   for (const pattern of directPatterns) {
@@ -1661,7 +1767,8 @@ function satisfiesRangeToken(pinned, token) {
 
 function satisfiesEngineRange(pinned, range) {
   if (typeof range !== 'string' || !range.trim()) return null;
-  const alternatives = range.split('||').map((part) => part.trim());
+  // npm allows a space after an operator (">= 24.10.0").
+  const alternatives = range.split('||').map((part) => part.trim().replace(/(^|\s)(<=|>=|<|>|=|~|\^)\s+(?=v?\d)/g, '$1$2'));
   const results = [];
   for (const alternative of alternatives) {
     const tokens = alternative.split(/\s+/).filter(Boolean);
@@ -3342,7 +3449,8 @@ function scanRepository(rootPath, options) {
   if (unrunnableTestFinding && scanOptions.requireTests !== true && scanned.complete) {
     const testSuiteFile = [...scanned.files.keys()]
       .sort(compareStrings)
-      .find((relativePath) => isTestSuiteFile(relativePath, decodeText(scanned.files.get(relativePath))));
+      .find((relativePath) => isTestSuiteFile(relativePath, decodeText(scanned.files.get(relativePath))))
+      || [...scanned.discovered.keys()].sort(compareStrings).find(isOtherTestSuitePath);
     const readmeAsksForTests = unrunnableTestFinding.evidence.some((item) => item.path !== 'package.json');
     if (!testSuiteFile && !readmeAsksForTests) {
       const placeholder = unrunnableTestFinding === placeholderTestFinding;
@@ -3366,8 +3474,9 @@ function scanRepository(rootPath, options) {
   if (scanned.rootState === 'ok' && applicationSourceFiles.length > 0) {
     coverage.mark(CHECK_GROUPS.ENV_DOCUMENTATION);
   }
+  // Type declarations (.d.ts) never read the environment at run time.
   const environmentSourceFiles = applicationSourceFiles.filter((relativePath) => (
-    !isEnvironmentAnalysisExcludedPath(relativePath)
+    !isEnvironmentAnalysisExcludedPath(relativePath) && !/\.d\.[cm]?ts$/i.test(relativePath)
   ));
   const scannedSourceFiles = environmentSourceFiles.filter((relativePath) => scanned.files.has(relativePath));
   const unscannedSourceFiles = environmentSourceFiles.filter((relativePath) => !scanned.files.has(relativePath));

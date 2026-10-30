@@ -230,3 +230,123 @@ test('flags of other commands in the test script do not filter Vitest projects',
 
   assert.equal(finding(scanRepository(root), 'BROWSER_TESTS_DETECTED').evidence.at(-1).path, 'vitest.workspace.ts');
 }));
+
+// Field test Run 6: environment keys nobody configures, comments, type
+// declarations, non-JavaScript test suites, npm range spacing, and public
+// registry mirrors.
+
+test('keys set by the OS, shell, Git, CI, or the tool itself are not undocumented settings', () => withRepository((root) => {
+  writePackage(root, {});
+  writeFile(root, 'src/system.js', [
+    'const home = process.env.HOMEPATH || process.env.homepath;',
+    'const programs = process.env.PROGRAMFILES;',
+    'const previous = process.env.OLDPWD;',
+    'const scratch = process.env.Wimp$ScrapDir;',
+    'const completing = process.env.COMP_CWORD;',
+    'const gitDir = process.env.GIT_DIR;',
+    'const onTravis = process.env.TRAVIS;',
+    'const pages = process.env.CF_PAGES_BRANCH;',
+    'if (!process.env.WEBPACK_SERVE) process.env.WEBPACK_SERVE = "true";',
+    'process.env["TOOL_CHILD"] = "1";',
+    'const child = process.env.TOOL_CHILD;'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'ENV_EXAMPLE_MISSING'), undefined);
+  assert.equal(finding(report, 'ENV_KEY_MISSING'), undefined);
+}));
+
+test('environment keys with $ are read whole, and comments and .d.ts files are ignored', () => withRepository((root) => {
+  writePackage(root, {});
+  writeFile(root, 'src/config.js', [
+    '// Set process.env.COMMENTED_LINE to change nothing.',
+    '/* process.env.COMMENTED_BLOCK */',
+    'const url = "http://example.invalid/" + process.env.API_TOKEN$V2;',
+    'const pattern = /\\/\\//; const after = process.env.AFTER_REGEX;'
+  ].join('\n'));
+  writeFile(root, 'src/types.d.ts', '/** Reads `process.env.TYPED_ONLY`. */\nexport declare const x: string;\n');
+
+  const report = scanRepository(root);
+  const missing = finding(report, 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /API_TOKEN\$V2, AFTER_REGEX|AFTER_REGEX, API_TOKEN\$V2/);
+  assert.doesNotMatch(missing.message, /COMMENTED_LINE|COMMENTED_BLOCK|TYPED_ONLY|\bAPI_TOKEN\b(?!\$)/);
+}));
+
+test('ROLLUP_WATCH is set by Rollup only when Rollup is a dependency', () => {
+  for (const [devDependencies, expected] of [[{ rollup: '^4.0.0' }, false], [{}, true]]) {
+    withRepository((root) => {
+      writePackage(root, { devDependencies });
+      writeFile(root, 'src/index.js', 'export const watch = process.env.ROLLUP_WATCH === "true";\n');
+      assert.equal(Boolean(finding(scanRepository(root), 'ENV_EXAMPLE_MISSING')), expected, JSON.stringify(devDependencies));
+    });
+  }
+});
+
+test('shell and other-language test suites are tests, so a missing test script still fails', () => {
+  for (const [file, contents] of [
+    ['test/1_default.sh', '#!/bin/sh\n'],
+    ['test.sh', '#!/bin/sh\n'],
+    ['test/sass_test.dart', 'void main() {}\n'],
+    ['tests/test_tool.py', 'def test_x(): pass\n']
+  ]) {
+    withRepository((root) => {
+      writePackage(root, { scripts: {} });
+      writeFile(root, 'index.js', 'module.exports = 1;\n');
+      writeFile(root, file, contents);
+      const report = scanRepository(root);
+      assert.equal(finding(report, 'NO_TESTS_FOUND'), undefined, file);
+      assert.equal(finding(report, 'TEST_SCRIPT_MISSING').status, 'failed', file);
+    });
+  }
+});
+
+test('a shell script that is not under test/ does not count as a test suite', () => withRepository((root) => {
+  writePackage(root, { scripts: {} });
+  writeFile(root, 'index.js', 'module.exports = 1;\n');
+  writeFile(root, 'scripts/release.sh', '#!/bin/sh\n');
+
+  assert.equal(finding(scanRepository(root), 'NO_TESTS_FOUND').status, 'warning');
+}));
+
+test('engines.node ranges with a space after the operator are understood', () => {
+  for (const [nvmrc, engines, expected] of [
+    ['24', '^22.14.0 || >= 24.10.0', undefined],
+    ['24.11.0', '>= 24.10.0', undefined],
+    ['24.9.0', '>= 24.10.0', 'warning']
+  ]) {
+    withRepository((root) => {
+      writePackage(root, { engines: { node: engines } });
+      writeFile(root, '.nvmrc', `${nvmrc}\n`);
+      const unsatisfied = finding(scanRepository(root), 'ENGINES_NODE_UNSATISFIED');
+      assert.equal(unsatisfied && unsatisfied.status, expected, `${nvmrc} vs ${engines}`);
+    });
+  }
+});
+
+test('public npm mirrors are not reported as private registries', () => {
+  for (const [registry, expected] of [
+    ['https://registry.npmmirror.com/', undefined],
+    ['https://npm.internal.example.invalid/', 'warning']
+  ]) {
+    withRepository((root) => {
+      writePackage(root, {});
+      writeFile(root, '.npmrc', `registry=${registry}\n`);
+      const privateRegistry = finding(scanRepository(root), 'PRIVATE_REGISTRY');
+      assert.equal(privateRegistry && privateRegistry.status, expected, registry);
+    });
+  }
+});
+
+test('keys assigned only in tests still need documentation', () => withRepository((root) => {
+  writePackage(root, {});
+  writeFile(root, 'src/db.js', 'export const url = process.env.DATABASE_URL;\n');
+  writeFile(root, 'test/setup.js', 'process.env.DATABASE_URL = "postgres://localhost/test";\n');
+
+  const missing = finding(scanRepository(root), 'ENV_EXAMPLE_MISSING');
+
+  assert.equal(missing.status, 'warning');
+  assert.match(missing.message, /DATABASE_URL/);
+}));

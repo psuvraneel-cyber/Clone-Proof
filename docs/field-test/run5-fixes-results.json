@@ -1,0 +1,1222 @@
+{
+  "results": [
+    {
+      "repository": "mfuu/vue3-virtual-sortable",
+      "exitCode": 0,
+      "durationMs": 2266,
+      "status": "passed_with_warnings",
+      "commit": "60cc9f4cc057d1f5499de3249a31d9f43df36c8b",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING",
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "NO_TESTS_FOUND",
+          "status": "warning",
+          "message": "package.json does not define a test script, and no test files or README test instructions were found, so there is no test suite to run.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "wardellbagby/lyricistant",
+      "exitCode": 1,
+      "durationMs": 4498,
+      "status": "failed",
+      "commit": "12508c9d21b99810795ca3c997cb531a14154503",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "TEST_SCRIPT_MISSING",
+          "status": "failed",
+          "message": "package.json does not define a non-empty scripts.test entry.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references APPLE_ID, APPLE_ID_PASSWORD, CSC_KEY_PASSWORD, CSC_LINK, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key CSC_LINK.",
+              "line": 19,
+              "path": "apps/electron/notarize-mac-app.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key APPLE_ID.",
+              "line": 29,
+              "path": "apps/electron/notarize-mac-app.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key APPLE_ID_PASSWORD.",
+              "line": 30,
+              "path": "apps/electron/notarize-mac-app.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key CSC_LINK.",
+              "line": 45,
+              "path": "apps/electron/notarize-mac-app.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key CSC_KEY_PASSWORD.",
+              "line": 46,
+              "path": "apps/electron/notarize-mac-app.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "knowankit/trello-clone",
+      "exitCode": 0,
+      "durationMs": 2927,
+      "status": "passed_with_warnings",
+      "commit": "19e9d64a42116bae3deb242df091c4f2418c8d8f",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "NO_TESTS_FOUND",
+          "status": "warning",
+          "message": "package.json does not define a test script, and no test files or README test instructions were found, so there is no test suite to run.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "tidepool-org/uploader",
+      "exitCode": 1,
+      "durationMs": 6468,
+      "status": "failed",
+      "commit": "4c44f03d670a52976867067890e9b0e6bedafd81",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "README_SCRIPT_UNKNOWN",
+          "status": "failed",
+          "message": "README references npm run test-e2e, but package.json does not define that script.",
+          "evidence": [
+            {
+              "detail": "README references npm run test-e2e.",
+              "line": 240,
+              "path": "README.md"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references E2E_BUILD, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key E2E_BUILD.",
+              "line": 40,
+              "path": "webpack.config.main.prod.babel.mjs"
+            },
+            {
+              "detail": "Source references undocumented environment key E2E_BUILD.",
+              "line": 182,
+              "path": "webpack.config.renderer.prod.babel.mjs"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references GH_TOKEN, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key GH_TOKEN.",
+              "line": 4,
+              "path": ".circleci/create-release-draft.js"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references HTTPS_CONFIG, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key HTTPS_CONFIG.",
+              "line": 32,
+              "path": "config.server.js"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references HTTPS_PORT, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key HTTPS_PORT.",
+              "line": 29,
+              "path": "config.server.js"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references OPEN_ANALYZER, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key OPEN_ANALYZER.",
+              "line": 56,
+              "path": "webpack.config.main.prod.babel.mjs"
+            },
+            {
+              "detail": "Source references undocumented environment key OPEN_ANALYZER.",
+              "line": 57,
+              "path": "webpack.config.main.prod.babel.mjs"
+            },
+            {
+              "detail": "Source references undocumented environment key OPEN_ANALYZER.",
+              "line": 244,
+              "path": "webpack.config.renderer.prod.babel.mjs"
+            },
+            {
+              "detail": "Source references undocumented environment key OPEN_ANALYZER.",
+              "line": 245,
+              "path": "webpack.config.renderer.prod.babel.mjs"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references PLAIN_HMR, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key PLAIN_HMR.",
+              "line": 54,
+              "path": "webpack.config.renderer.dev.babel.mjs"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references PORT, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key PORT.",
+              "line": 27,
+              "path": "config.server.js"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references REALM_HOST, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key REALM_HOST.",
+              "line": 99,
+              "path": "server.js"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references ROLLBAR_POST_TOKEN, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key ROLLBAR_POST_TOKEN.",
+              "line": 28,
+              "path": "webpack.config.renderer.prod.babel.mjs"
+            },
+            {
+              "detail": "Source references undocumented environment key ROLLBAR_POST_TOKEN.",
+              "line": 39,
+              "path": "webpack.config.web.dev.babel.mjs"
+            },
+            {
+              "detail": "Source references undocumented environment key ROLLBAR_POST_TOKEN.",
+              "line": 72,
+              "path": "webpack.config.main.prod.babel.mjs"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references START_HOT, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key START_HOT.",
+              "line": 252,
+              "path": "webpack.config.renderer.dev.babel.mjs"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references VERSION_SHA, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key VERSION_SHA.",
+              "line": 20,
+              "path": "webpack.config.main.prod.babel.mjs"
+            },
+            {
+              "detail": "Source references undocumented environment key VERSION_SHA.",
+              "line": 20,
+              "path": "webpack.config.renderer.dev.babel.mjs"
+            },
+            {
+              "detail": "Source references undocumented environment key VERSION_SHA.",
+              "line": 23,
+              "path": "webpack.config.renderer.prod.babel.mjs"
+            },
+            {
+              "detail": "Source references undocumented environment key VERSION_SHA.",
+              "line": 34,
+              "path": "webpack.config.web.dev.babel.mjs"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references WEBPACK_DEVTOOL, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key WEBPACK_DEVTOOL.",
+              "line": 96,
+              "path": "webpack.config.web.dev.babel.mjs"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references WEBPACK_PUBLIC_PATH, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key WEBPACK_PUBLIC_PATH.",
+              "line": 43,
+              "path": "webpack.config.web.dev.babel.mjs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "os-climate/physrisk-ui",
+      "exitCode": 0,
+      "durationMs": 5361,
+      "status": "passed",
+      "commit": "d285d03b0cfd3e835a5987a271c3f463ccdc684c",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "snowcoders/sortier",
+      "exitCode": 0,
+      "durationMs": 2903,
+      "status": "passed",
+      "commit": "9ab4d0bec05edbe499189932e8dd1d6d0dbe3034",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "XFox111/TabsAsideExtension",
+      "exitCode": 0,
+      "durationMs": 2533,
+      "status": "passed_with_warnings",
+      "commit": "0829b24c81b1e324d3d34cf4779602e9c933da54",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "NO_TESTS_FOUND",
+          "status": "warning",
+          "message": "package.json does not define a test script, and no test files or README test instructions were found, so there is no test suite to run.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references WXT_GA4_API_SECRET, WXT_GA4_MEASUREMENT_ID, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key WXT_GA4_API_SECRET.",
+              "line": 8,
+              "path": "features/analytics/utils/analytics.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key WXT_GA4_MEASUREMENT_ID.",
+              "line": 9,
+              "path": "features/analytics/utils/analytics.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "eemeli/yaml",
+      "exitCode": 0,
+      "durationMs": 2588,
+      "status": "passed_with_warnings",
+      "commit": "528ef30d6ded4bd9f2c3521b670eb2b29d503c5c",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references LOG_STREAM, LOG_TOKENS, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key LOG_STREAM.",
+              "line": 35,
+              "path": "src/compose/composer.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key LOG_TOKENS.",
+              "line": 27,
+              "path": "src/parse/parser.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "biud436/InitialEditor",
+      "exitCode": 0,
+      "durationMs": 4243,
+      "status": "passed",
+      "commit": "8d84e1ea21d2ad0cee2578f3b4b80e643a8153ff",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "uphold/uphold-sdk-javascript",
+      "exitCode": 0,
+      "durationMs": 2605,
+      "status": "passed",
+      "commit": "a282ae571bfa9f4cbdaa34a6f34a6aca3555bd12",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "XiaoLuoTian189/LanQiao",
+      "exitCode": 0,
+      "durationMs": 2433,
+      "status": "passed_with_warnings",
+      "commit": "3dd0b6b60fee845345e544000b9417e57127350a",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "NO_TESTS_FOUND",
+          "status": "warning",
+          "message": "package.json does not define a test script, and no test files or README test instructions were found, so there is no test suite to run.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "Unibeautify/vscode",
+      "exitCode": 0,
+      "durationMs": 2682,
+      "status": "passed",
+      "commit": "faa42041a32ffc0bf46a84273a59cd3b30c86aae",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "stackblitz/starters",
+      "exitCode": 0,
+      "durationMs": 4642,
+      "status": "passed_with_warnings",
+      "commit": "bfcd719483e72b204a0e2d205ec1fb57c1bcfa8b",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "BROWSER_TESTS_DETECTED",
+          "status": "warning",
+          "message": "Root devDependencies include @vitest/browser-playwright, playwright, and the npm test workflow runs vitest (browser mode).",
+          "evidence": [
+            {
+              "detail": "devDependencies includes @vitest/browser-playwright.",
+              "line": 16,
+              "path": "package.json"
+            },
+            {
+              "detail": "devDependencies includes playwright.",
+              "line": 19,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test participates in the npm test workflow.",
+              "line": 11,
+              "path": "package.json"
+            },
+            {
+              "detail": "Vitest browser mode is enabled (browser.enabled: true).",
+              "line": 11,
+              "path": "vitest.config.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "jembi/openhim-core-js",
+      "exitCode": 0,
+      "durationMs": 2872,
+      "status": "passed_with_warnings",
+      "commit": "b62a2e4dbdc644128aa47da7fb73d9c6277dbb27",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "RUNTIME_VERSION_MISMATCH",
+          "status": "warning",
+          "message": "Node.js declarations contain multiple major versions (14, 20).",
+          "evidence": [
+            {
+              "detail": "Node base image declaration. Found 20.",
+              "path": "Dockerfile"
+            },
+            {
+              "detail": "Node base image declaration. Found 14.21.3.",
+              "path": "Dockerfile"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "TomPlum/learn-japanese",
+      "exitCode": 0,
+      "durationMs": 6347,
+      "status": "passed_with_warnings",
+      "commit": "ec06e2ac96df82fedee5fe39311cd207a40be448",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references REACT_APP_API_HOST_URI, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key REACT_APP_API_HOST_URI.",
+              "line": 1,
+              "path": "src/mocks/util.ts"
+            }
+          ]
+        },
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references REACT_APP_ENVIRONMENT, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key REACT_APP_ENVIRONMENT.",
+              "line": 7,
+              "path": "src/index.tsx"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "peterKaleta/react-token-autocomplete",
+      "exitCode": 0,
+      "durationMs": 2270,
+      "status": "passed",
+      "commit": "72b0c5aa66c8fe97542827fdb09e59f5cabeca7c",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "eemeli/make-plural",
+      "exitCode": 0,
+      "durationMs": 2334,
+      "status": "passed",
+      "commit": "819a748c47be9cd65b5dfdd836af371aa52e6328",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "artus9033/chartjs-plugin-dragdata",
+      "exitCode": 0,
+      "durationMs": 2891,
+      "status": "passed_with_warnings",
+      "commit": "dc96befa732c2530b1c721cb4cb1eb9fad970579",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "BROWSER_TESTS_DETECTED",
+          "status": "warning",
+          "message": "Root devDependencies include @playwright/test, playwright, and the npm test workflow runs playwright.",
+          "evidence": [
+            {
+              "detail": "devDependencies includes @playwright/test.",
+              "line": 72,
+              "path": "package.json"
+            },
+            {
+              "detail": "devDependencies includes playwright.",
+              "line": 120,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test participates in the npm test workflow.",
+              "line": 30,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:e2e participates in the npm test workflow.",
+              "line": 33,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:e2e:base participates in the npm test workflow.",
+              "line": 34,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:e2e:posttest participates in the npm test workflow.",
+              "line": 38,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:integration participates in the npm test workflow.",
+              "line": 32,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:unit participates in the npm test workflow.",
+              "line": 31,
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "Pithaya/spicetify-apps",
+      "exitCode": 0,
+      "durationMs": 3191,
+      "status": "passed_with_warnings",
+      "commit": "9a7da4e7c34dd3000e103a4f842e782feb5c29c9",
+      "preflightReason": "checked",
+      "expected": [
+        "MONOREPO_ROOT_TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+          "status": "warning",
+          "message": "The workspace root package.json does not define a non-empty scripts.test entry; tests may be defined by nested packages.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "vuejs/repl",
+      "exitCode": 0,
+      "durationMs": 2454,
+      "status": "passed_with_warnings",
+      "commit": "9b5bc873415bbc6fcba6080b9402d140175d5b03",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "NO_TESTS_FOUND",
+          "status": "warning",
+          "message": "package.json does not define a test script, and no test files or README test instructions were found, so there is no test suite to run.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "FluffyBubu/cypress-sandbox",
+      "exitCode": 1,
+      "durationMs": 3535,
+      "status": "failed",
+      "commit": "1bdacb9fc876962178397b784edcc715718bb1d2",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "TEST_SCRIPT_MISSING",
+          "status": "failed",
+          "message": "package.json does not define a non-empty scripts.test entry.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "meikidd/iso-639-1",
+      "exitCode": 0,
+      "durationMs": 2407,
+      "status": "passed",
+      "commit": "403255b1a0d62fb85a8ffdcdec094e0806fe8698",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "DanWahlin/Observable-Store",
+      "exitCode": 0,
+      "durationMs": 2555,
+      "status": "passed_with_warnings",
+      "commit": "a2066a183cc04b30b1196275adc6eb3e5a8e294d",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "vechain/connex",
+      "exitCode": 0,
+      "durationMs": 2652,
+      "status": "passed",
+      "commit": "2c919325738963cd61c095f325aab450b00d77e3",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "ruanqizhen/python_book",
+      "exitCode": 0,
+      "durationMs": 3537,
+      "status": "passed_with_warnings",
+      "commit": "bfca0141ec76ba9fab2d0d0494c740e1bdc3ba72",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "NO_TESTS_FOUND",
+          "status": "warning",
+          "message": "package.json does not define a test script, and no test files or README test instructions were found, so there is no test suite to run.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "hmara-info/language-settings-manager",
+      "exitCode": 0,
+      "durationMs": 3652,
+      "status": "passed",
+      "commit": "c7ae8399045b658b0aa3a60482a8b52955dafcd5",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "braiekhazem/react-kanban-kit",
+      "exitCode": 0,
+      "durationMs": 2756,
+      "status": "passed",
+      "commit": "8a6aeaeb2c16a23999c20f0d10aefdbb7d201f1b",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "MIDA-group/CytoBrowser",
+      "exitCode": 0,
+      "durationMs": 2576,
+      "status": "passed_with_warnings",
+      "commit": "8bacc6497ff541c211acad8542142604a6c4b41a",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "NO_TESTS_FOUND",
+          "status": "warning",
+          "message": "package.json does not define a test script, and no test files or README test instructions were found, so there is no test suite to run.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "taiga-family/ng-morph",
+      "exitCode": 0,
+      "durationMs": 2908,
+      "status": "passed",
+      "commit": "6611356a76a9a9ae96fc798917c7cfc642e7164f",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "gabrielbs/react-placeholder-loading",
+      "exitCode": 0,
+      "durationMs": 2562,
+      "status": "passed",
+      "commit": "e03e7ab53616ba33d559c5be3908637911160133",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "nextcloud/cdav-library",
+      "exitCode": 0,
+      "durationMs": 2544,
+      "status": "passed",
+      "commit": "8f2dbccf9d768ffd1a99d5fe3e70ebce1d577edc",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "tobysmith568/read-receipt",
+      "exitCode": 0,
+      "durationMs": 2706,
+      "status": "passed",
+      "commit": "389c4a51981158f77ffe3c83dbf06b2e3472ae16",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "ChristopherChudzicki/math3d-next",
+      "exitCode": 0,
+      "durationMs": 5770,
+      "status": "passed",
+      "commit": "464506c8387d96074dcdc26369ef81ca25d19e2c",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "josin/kusto-syntax-highlighting",
+      "exitCode": 0,
+      "durationMs": 2621,
+      "status": "passed_with_warnings",
+      "commit": "83c54cfe67ed01b84d245f89a1ac6284be07bf2f",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "NO_TESTS_FOUND",
+          "status": "warning",
+          "message": "package.json does not define a test script, and no test files or README test instructions were found, so there is no test suite to run.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "glacier-studio/CoCo-Source-Code-Plan",
+      "exitCode": 0,
+      "durationMs": 8654,
+      "status": "passed_with_warnings",
+      "commit": "91c9b89ea9754c8d7e006c258ba5cbeb8d859272",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+          "status": "warning",
+          "message": "The workspace root package.json does not define a non-empty scripts.test entry; tests may be defined by nested packages.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "digitalmediabremen/hej",
+      "exitCode": 0,
+      "durationMs": 3903,
+      "status": "passed_with_warnings",
+      "commit": "474e6734f8817488f922f376cf4a0a153fb3726a",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "projectwallace/css-code-quality",
+      "exitCode": 0,
+      "durationMs": 2210,
+      "status": "passed",
+      "commit": "eb29e3045cdd8ba3fcee93fb84bced4019a83014",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "FiloSottile/typage",
+      "exitCode": 0,
+      "durationMs": 2455,
+      "status": "passed",
+      "commit": "38b8b10cb22409de0eaa8a617a01f16dc2e3f9f4",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "vtex-apps/checkout-ui-custom",
+      "exitCode": 0,
+      "durationMs": 2671,
+      "status": "passed_with_warnings",
+      "commit": "287e0a027e7272314abb05ff3c6a0730e3af60ab",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+          "status": "warning",
+          "message": "The workspace root package.json does not define a non-empty scripts.test entry; tests may be defined by nested packages.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "sourcefuse/loopback4-soft-delete",
+      "exitCode": 0,
+      "durationMs": 2396,
+      "status": "passed",
+      "commit": "eeb07e3477677b20b57fb311cecc1f4501408313",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "org-nexus-projects/ufabc-next",
+      "exitCode": 0,
+      "durationMs": 3262,
+      "status": "passed",
+      "commit": "ae1a2d682f5e73ee489b62dc0367b30cdbc0666c",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "UMAprotocol/protocol",
+      "exitCode": 0,
+      "durationMs": 4333,
+      "status": "passed",
+      "commit": "c8c3f67367afd1c767712a3dbe3c8cad01b9a4d8",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "MomenSherif/react-oauth",
+      "exitCode": 0,
+      "durationMs": 2822,
+      "status": "passed_with_warnings",
+      "commit": "cbe0d2b5fe1adf3be22f6a01f55674fd864770da",
+      "preflightReason": "checked",
+      "expected": [
+        "MONOREPO_ROOT_TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+          "status": "warning",
+          "message": "The workspace root package.json does not define a non-empty scripts.test entry; tests may be defined by nested packages.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "fraunhoferfokus/peer-dial",
+      "exitCode": 0,
+      "durationMs": 2279,
+      "status": "passed_with_warnings",
+      "commit": "dea62c29884c193947ce52cfe7323f161460b84e",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "NO_TESTS_FOUND",
+          "status": "warning",
+          "message": "package.json does not define a test script, and no test files or README test instructions were found, so there is no test suite to run.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "fedstack-org/aoi",
+      "exitCode": 2,
+      "durationMs": 2373,
+      "status": "incomplete",
+      "commit": null,
+      "preflightReason": "checked",
+      "expected": [
+        "MONOREPO_ROOT_TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "GITHUB_CLONE_FAILED",
+          "status": "failed",
+          "message": "GitHub clone failed: exited with code 128: Cloning into '<temporary-checkout>\\checkout'...\nerror: invalid path 'apps/frontend/src/pages/org/[orgId]/app/tag/[:tag].vue'\nfatal: unable to checkout working tree\nwarning: Clone succeeded, but checkout failed.\nYou can inspect what was checked out with 'git status'\nand retry with 'git restore --source=HEAD :/'",
+          "evidence": [
+            {
+              "detail": "GitHub source input.",
+              "path": "fedstack-org/aoi"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "IRCraziestTaxi/typeorm-linq-repository",
+      "exitCode": 0,
+      "durationMs": 2595,
+      "status": "passed",
+      "commit": "701cfaa16f52a13b0d0bebf6410f8a1f56d5330a",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "pixijs/pixi-react",
+      "exitCode": 0,
+      "durationMs": 2795,
+      "status": "passed_with_warnings",
+      "commit": "30cf1f86a590a1d8bb183a36b1887fa30e908d4e",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "BROWSER_TESTS_DETECTED",
+          "status": "warning",
+          "message": "Root devDependencies include @vitest/browser, playwright, and the npm test workflow runs vitest (browser mode).",
+          "evidence": [
+            {
+              "detail": "devDependencies includes @vitest/browser.",
+              "line": 85,
+              "path": "package.json"
+            },
+            {
+              "detail": "devDependencies includes playwright.",
+              "line": 90,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test participates in the npm test workflow.",
+              "line": 53,
+              "path": "package.json"
+            },
+            {
+              "detail": "Vitest browser mode is enabled (browser.enabled: true).",
+              "line": 16,
+              "path": "vitest.workspace.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "meowtec/imgo",
+      "exitCode": 0,
+      "durationMs": 9120,
+      "status": "passed",
+      "commit": "9fe7450970ddb2417ed8665ae51dfb8e07e79746",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "2factorauth/twofactorauth",
+      "exitCode": 0,
+      "durationMs": 8948,
+      "status": "passed_with_warnings",
+      "commit": "9b39477ccf259f022f694b4f14ed79c529b1039d",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "NextJSTemplates/startup-nextjs",
+      "exitCode": 0,
+      "durationMs": 2727,
+      "status": "passed_with_warnings",
+      "commit": "e730b6a99c77b96c835f11347231faa4f4e9f767",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "NO_TESTS_FOUND",
+          "status": "warning",
+          "message": "package.json does not define a test script, and no test files or README test instructions were found, so there is no test suite to run.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
