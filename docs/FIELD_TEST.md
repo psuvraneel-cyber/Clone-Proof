@@ -430,7 +430,7 @@ Limitations of this design: one reviewer (Claude, an AI assistant working in thi
 
 ### Run 5 results
 
-The pre-registration was committed as `df0ee43` before the run. CloneProof's `src/` at that commit is identical to `main` at `32bf359`. All 50 checks ran on the Windows host on 2026-10-30 with `target.preflightReason: checked`. All 49 reported commits matched the head commits recorded at sampling time; the 50th clone failed, so it reported none. After the run, the script was renamed from `scripts/field-test.js` to `scripts/fieldtest.js` because `node --test` treats `*-test.js` files as tests; its logic did not change. Median duration was 2.7 s and the longest was 22 s. Raw results are in [`field-test/run5-results.json`](field-test/run5-results.json), and every judgment with its reason is in [`field-test/run5-judgments.json`](field-test/run5-judgments.json). Reproduce the tables with `node scripts/fieldtest.js summary --results docs/field-test/run5-results.json --judgments docs/field-test/run5-judgments.json`.
+The pre-registration was committed as `df0ee43` before the run. CloneProof's `src/` at that commit is identical to `main` at `32bf359`. All 50 checks ran on the Windows host on 2026-10-30 with `target.preflightReason: checked`. All 49 reported commits matched the head commits recorded at sampling time; the 50th clone failed, so it reported none. After the run, the script was renamed from `scripts/field-test.js` to `scripts/fieldtest.js` because `node --test` treats `*-test.js` files as tests; its logic did not change. Median duration was 2.7 s and the longest was 22 s. Raw results are in [`field-test/run5-results.json`](field-test/run5-results.json), and every judgment with its reason is in [`field-test/run5-judgments.json`](field-test/run5-judgments.json). Reproduce the tables with `node scripts/fieldtest.js summary --results docs/field-test/run5-results.json --judgments docs/field-test/run5-judgments.json --sample docs/field-test/run5-sample.json`.
 
 | Report status | Repositories | Exit code |
 |---|---:|---|
@@ -441,10 +441,15 @@ The pre-registration was committed as `df0ee43` before the run. CloneProof's `sr
 
 | Findings | Total | Real | Policy | False | Precision (real) | Correctness (real + policy) |
 |---|---:|---:|---:|---:|---|---|
-| Blocking (failed) | 14 | 4 | 10 | 0 | 4 / 14 = **28.6%** (95% CI 11.7%–54.6%) | 14 / 14 = **100.0%** (95% CI 78.5%–100.0%) |
-| Warning | 26 | 8 | 5 | 13 | 8 / 26 = **30.8%** (95% CI 16.5%–50.0%) | 13 / 26 = **50.0%** (95% CI 32.1%–67.9%) |
+| Blocking (failed) | 14 | 4 | 10 | 0 | 4 / 14 = **28.6%** (95% Wilson CI 11.7%–54.6%) | 14 / 14 = **100.0%** (95% Wilson CI 78.5%–100.0%) |
+| Warning | 26 | 8 | 5 | 13 | 8 / 26 = **30.8%** (95% cluster-bootstrap CI 14.3%–50.0%) | 13 / 26 = **50.0%** (95% cluster-bootstrap CI 31.3%–69.2%) |
 
-Repositories with exit `1`: 13 of 50. Justified by at least one real blocking finding: 3 / 13 = **23.1%** (95% CI 8.2%–50.3%).
+Repositories with exit `1`: 13 of 50. Justified by at least one real blocking finding: 3 / 13 = **23.1%** (95% Wilson CI 8.2%–50.3%).
+
+| Language | Repositories | Real / blocking | Real / warnings |
+|---|---:|---:|---:|
+| JavaScript | 18 | 2 / 6 | 3 / 10 |
+| TypeScript | 32 | 2 / 8 | 5 / 16 |
 
 | Code | Status | Total | Real | Policy | False |
 |---|---|---:|---:|---:|---:|
@@ -457,6 +462,13 @@ Repositories with exit `1`: 13 of 50. Justified by at least one real blocking fi
 | `MONOREPO_ROOT_TEST_SCRIPT_MISSING` | warning | 4 | 2 | 2 | 0 |
 | `PRIVATE_REGISTRY` | warning | 1 | 0 | 0 | 1 |
 | `RUNTIME_VERSION_MISMATCH` | warning | 1 | 0 | 1 | 0 |
+
+**Statistical notes (added after review of PR #6).**
+
+- *Intervals.* Each blocking finding came from a different repository, so those findings are independent sampled units and the Wilson interval applies. Three repositories contributed two warnings each. The warning intervals therefore come from a seeded percentile bootstrap that resamples repositories, not findings. The repository-level exit-`1` rate uses Wilson. The first published version of this section used Wilson for the warnings too, which was slightly too narrow.
+- *Search ranking.* The largest search result count for any draw was 45, well under GitHub's 1,000-result cap, so every draw picked uniformly from that day's complete result set, and best-match ordering did not affect selection.
+- *Language weighting.* Each draw picked JavaScript or TypeScript with equal probability, so the pooled rates weight the two languages roughly equally rather than by their share of the population. The per-language split above lets readers reweight; the two languages give similar rates, but with 18 and 32 repositories that comparison is weak.
+- *Manifest check in the sampler.* The sampler treated any parseable `package.json` as valid, while the scanner accepts only JSON objects. This is now fixed in `scripts/fieldtest.js`. It did not affect Run 5: no sampled repository received `PACKAGE_JSON_INVALID`.
 
 **What this shows.**
 

@@ -18,8 +18,8 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 | Item | State |
 |---|---|
 | Code | `origin/main` = `f6d8493`. This branch is `main` plus the release, install, and Run 5 commits. |
-| Tests | 419 tests on this branch after merging `main`. Windows host: 415 passed, 0 failed, 4 skipped (symlink `EPERM`). At `32bf359` (323 tests), CI Ubuntu and macOS had 322 passed and 1 skipped (the Windows-only SIGINT cleanup test), and CI Windows had 323 passed. |
-| Leak guard | `npm run test:leaks` passed on the Windows host after merging `main`, with the same 419 / 415 / 4 counts. |
+| Tests | 421 tests on this branch after merging `main`. Windows host: 417 passed, 0 failed, 4 skipped (symlink `EPERM`). At `32bf359` (323 tests), CI Ubuntu and macOS had 322 passed and 1 skipped (the Windows-only SIGINT cleanup test), and CI Windows had 323 passed. |
+| Leak guard | `npm run test:leaks` passed on the Windows host after merging `main`, with 419 / 415 / 4 counts (two field-test tests were added afterwards). |
 | CI | Main run `41051366755` passed for `f6d8493`; main run `41043387519` passed all five push jobs for `32bf359`. The PR-only security guard is skipped on `push` by design. |
 | Finding codes | 86 codes documented in `docs/FINDINGS.md`; every one appears in `src/`. |
 | Field evidence | Run 3 (`54141a5`): 15 public repositories, 13 correct and 2 environment-limited failures; warning precision 5/6 = 83.3%; planted bugs 13/13 offline and 39/39 in real repositories. Run 4 (`ef8056d`): every recheck matched its pre-recorded expectation, and JSON was byte-identical across repeated runs on 10 repositories. Run 5 (pre-registered in `df0ee43`, `src/` identical to `32bf359`): 50 randomly sampled repositories. 14 / 14 blocking findings were factually correct, but only 4 were actionable; 10 were `TEST_SCRIPT_MISSING` on repositories with no tests. Warning precision was 8 / 26, with 13 false, mostly `ENV_EXAMPLE_MISSING` (7 / 8 false) and `BROWSER_TESTS_DETECTED` (5 / 8 false). |
@@ -152,7 +152,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Repository housekeeping
 
-- The primary checkout is on `feature/github-action` (`1fb14d7`, merged through PR #4); local `main` matches `origin/main` at `32bf359`.
+- The primary checkout is on `feature/github-action` (`1fb14d7`, merged through PR #4). Its local `main` is at `32bf359`, behind `origin/main` (`f6d8493`) by the PR #5 receipts merge; run `git switch main && git pull --ff-only` there.
 - Every remote branch (`docs-final`, `feature/github-action`, `pre-submit`, `precision-fixes`, `release-prep-fixes`, `review-fixes`, `target-guard-fixes`) and every local branch except the four `fix/field-test-*` branches is merged into `origin/main`. Those four have patch-equivalent commits on `main` (`git cherry` reports every commit as `-`), and their sibling worktrees are marked prunable because the folders no longer exist.
 - Two stashes remain, both from `precision-fixes`: `wip: preserve concurrent target-guard and docs changes` and `temporary precision work`. The `temporary issue 3-6 split` stash was dropped after its changes were salvaged (SHA `2f25b5ac99bfe900af231c4698c034991298619c`); an earlier closing note here that called it retained was outdated.
 - Claude Code session worktrees under `.claude/worktrees/` are local only and sit on older commits.
