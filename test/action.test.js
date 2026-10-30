@@ -1507,3 +1507,52 @@ test('Part 3.2 Test F: No regression for push, workflow_dispatch, unsupported ev
     assert.equal(report.verification, undefined);
   }
 }));
+
+test('Part 3.3: CI workflow restricts Docker verification jobs to trusted events and keeps PR security guard on pull requests', () => {
+  const ciWorkflowPath = path.join(projectRoot, '.github', 'workflows', 'ci.yml');
+  const content = fs.readFileSync(ciWorkflowPath, 'utf8');
+
+  // Verify docker-e2e has job-level trusted-event condition
+  const dockerE2eMatch = content.match(/docker-e2e:[\s\S]*?(?=\n\s\s[a-z0-9_-]+:|$)/);
+  assert.ok(dockerE2eMatch, 'docker-e2e job must be defined in ci.yml');
+  const dockerE2eSection = dockerE2eMatch[0];
+
+  assert.match(
+    dockerE2eSection,
+    /if:\s*github\.event_name\s*==\s*['"]push['"]\s*\|\|\s*github\.event_name\s*==\s*['"]workflow_dispatch['"]/,
+    'docker-e2e must be restricted to push and workflow_dispatch events'
+  );
+  assert.ok(
+    !dockerE2eSection.includes("github.event_name == 'pull_request'"),
+    'docker-e2e must not permit pull_request events'
+  );
+
+  // Verify action-e2e also restricts to trusted events
+  const actionE2eMatch = content.match(/action-e2e:[\s\S]*?(?=\n\s\s[a-z0-9_-]+:|$)/);
+  assert.ok(actionE2eMatch, 'action-e2e job must be defined in ci.yml');
+  const actionE2eSection = actionE2eMatch[0];
+  assert.match(
+    actionE2eSection,
+    /if:\s*github\.event_name\s*==\s*['"]push['"]\s*\|\|\s*github\.event_name\s*==\s*['"]workflow_dispatch['"]/,
+    'action-e2e must be restricted to push and workflow_dispatch events'
+  );
+
+  // Verify action-e2e-pull-request runs on pull_request
+  const prGuardMatch = content.match(/action-e2e-pull-request:[\s\S]*?(?=\n\s\s[a-z0-9_-]+:|$)/);
+  assert.ok(prGuardMatch, 'action-e2e-pull-request job must be defined in ci.yml');
+  const prGuardSection = prGuardMatch[0];
+  assert.match(
+    prGuardSection,
+    /if:\s*github\.event_name\s*==\s*['"]pull_request['"]/,
+    'action-e2e-pull-request must run on pull_request events'
+  );
+
+  // Verify ordinary cross-platform test job has no event restriction (runs on push, pull_request, workflow_dispatch)
+  const testJobMatch = content.match(/test:[\s\S]*?(?=\n\s\s[a-z0-9_-]+:|$)/);
+  assert.ok(testJobMatch, 'test job must be defined in ci.yml');
+  const testJobSection = testJobMatch[0];
+  assert.ok(
+    !/^\s+if:\s*github\.event_name/m.test(testJobSection),
+    'test matrix job must remain unrestricted by event name to preserve cross-platform testing on pull requests'
+  );
+});
