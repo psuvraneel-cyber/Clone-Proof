@@ -1,0 +1,2276 @@
+{
+  "results": [
+    {
+      "repository": "microsoft/TypeScript",
+      "exitCode": 2,
+      "durationMs": 62788,
+      "status": "blocked",
+      "commit": null,
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "eslint/eslint",
+      "exitCode": 0,
+      "durationMs": 8823,
+      "status": "passed_with_warnings",
+      "commit": "12cbff4125db3f6446f72fa0c48c46b92b120427",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references ESLINT_FLAGS, ESLINT_MOCHA_TIMEOUT, TIMING, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key ESLINT_MOCHA_TIMEOUT.",
+              "line": 89,
+              "path": "Makefile.js"
+            },
+            {
+              "detail": "Source references undocumented environment key ESLINT_FLAGS.",
+              "line": 1329,
+              "path": "lib/eslint/eslint-helpers.js"
+            },
+            {
+              "detail": "Source references undocumented environment key ESLINT_FLAGS.",
+              "line": 1333,
+              "path": "lib/eslint/eslint-helpers.js"
+            },
+            {
+              "detail": "Source references undocumented environment key TIMING.",
+              "line": 44,
+              "path": "lib/linter/timing.js"
+            },
+            {
+              "detail": "Source references undocumented environment key TIMING.",
+              "line": 56,
+              "path": "lib/linter/timing.js"
+            },
+            {
+              "detail": "Source references undocumented environment key TIMING.",
+              "line": 60,
+              "path": "lib/linter/timing.js"
+            },
+            {
+              "detail": "Source references undocumented environment key TIMING.",
+              "line": 64,
+              "path": "lib/linter/timing.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "react/react",
+      "exitCode": 0,
+      "durationMs": 18145,
+      "status": "passed",
+      "commit": "16453bcd12becf76340caa793d185cec1b80ebef",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "mochajs/mocha",
+      "exitCode": 0,
+      "durationMs": 6170,
+      "status": "passed",
+      "commit": "5b5afa7b12e3f76f4e0c6afa12e960c0b378358c",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "DefinitelyTyped/DefinitelyTyped",
+      "exitCode": 2,
+      "durationMs": 57901,
+      "status": "blocked",
+      "commit": null,
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": []
+    },
+    {
+      "repository": "jestjs/jest",
+      "exitCode": 0,
+      "durationMs": 14792,
+      "status": "passed",
+      "commit": "61050e9323e742539dc2360236671110e37329e6",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "prettier/prettier",
+      "exitCode": 0,
+      "durationMs": 16019,
+      "status": "passed_with_warnings",
+      "commit": "bed4edbb1cf2a9db4004215b0ce5707cdb02b5d9",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references PRETTIER_DEBUG, PRETTIER_EXPERIMENTAL_CLI, PRETTIER_PERF_REPEAT, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key PRETTIER_EXPERIMENTAL_CLI.",
+              "line": 40,
+              "path": "bin/prettier.cjs"
+            },
+            {
+              "detail": "Source references undocumented environment key PRETTIER_PERF_REPEAT.",
+              "line": 77,
+              "path": "src/cli/context.js"
+            },
+            {
+              "detail": "Source references undocumented environment key PRETTIER_DEBUG.",
+              "line": 50,
+              "path": "src/main/multiparser.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "webpack/webpack",
+      "exitCode": 2,
+      "durationMs": 20174,
+      "status": "blocked",
+      "commit": null,
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "babel/babel",
+      "exitCode": 2,
+      "durationMs": 27388,
+      "status": "blocked",
+      "commit": null,
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "babel/babel-loader",
+      "exitCode": 0,
+      "durationMs": 2698,
+      "status": "passed",
+      "commit": "04a08e1c667b56a79e698735e0c69cc4d838427a",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "import-js/eslint-plugin-import",
+      "exitCode": 0,
+      "durationMs": 3851,
+      "status": "passed_with_warnings",
+      "commit": "a60d71548b0d12b750f7a7040285774fed25975a",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references ESLINT_USE_FLAT_CONFIG, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key ESLINT_USE_FLAT_CONFIG.",
+              "line": 47,
+              "path": "src/core/listFilesToProcess.js"
+            },
+            {
+              "detail": "Source references undocumented environment key ESLINT_USE_FLAT_CONFIG.",
+              "line": 50,
+              "path": "src/core/listFilesToProcess.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "isaacs/rimraf",
+      "exitCode": 0,
+      "durationMs": 2675,
+      "status": "passed",
+      "commit": "051e6c72a703854a029344be188d14dbe1b326c7",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "chaijs/chai",
+      "exitCode": 0,
+      "durationMs": 2471,
+      "status": "passed_with_warnings",
+      "commit": "8cd999c735f025102a4294217309650f60d8cf96",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "BROWSER_TESTS_DETECTED",
+          "status": "warning",
+          "message": "Root devDependencies include @web/test-runner, and the npm test workflow runs web-test-runner.",
+          "evidence": [
+            {
+              "detail": "devDependencies includes @web/test-runner.",
+              "line": 60,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test participates in the npm test workflow.",
+              "line": 39,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test-chrome participates in the npm test workflow.",
+              "line": 41,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test-node participates in the npm test workflow.",
+              "line": 40,
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "lodash/lodash",
+      "exitCode": 0,
+      "durationMs": 2785,
+      "status": "passed",
+      "commit": "2b5e6f7399a7b48005140b5d5c6bc6c0e62919a8",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "typicode/husky",
+      "exitCode": 1,
+      "durationMs": 2194,
+      "status": "failed",
+      "commit": "3f0023dc10d7003d70f2e31aa56300eab80e76d6",
+      "preflightReason": "checked",
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "TEST_SCRIPT_MISSING",
+          "status": "failed",
+          "message": "package.json does not define a non-empty scripts.test entry.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references HUSKY, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key HUSKY.",
+              "line": 9,
+              "path": "index.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "rollup/rollup",
+      "exitCode": 2,
+      "durationMs": 23040,
+      "status": "blocked",
+      "commit": null,
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "chalk/chalk",
+      "exitCode": 0,
+      "durationMs": 2612,
+      "status": "passed_with_warnings",
+      "commit": "72110019e147683f60e13fa0ff5c14a0c27cd9fe",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "typescript-eslint/typescript-eslint",
+      "exitCode": 0,
+      "durationMs": 8698,
+      "status": "passed",
+      "commit": "bdf0a9c5fc58bbba7199106b7fb1346d4cfef822",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "microsoft/tslib",
+      "exitCode": 0,
+      "durationMs": 2152,
+      "status": "passed_with_warnings",
+      "commit": "f16778939f07f107f3caa52db371f0a853a96708",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING",
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+          "status": "warning",
+          "message": "The workspace root package.json does not define a non-empty scripts.test entry; tests may be defined by nested packages.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "TypeStrong/ts-node",
+      "exitCode": 0,
+      "durationMs": 2954,
+      "status": "passed_with_warnings",
+      "commit": "ddb05ef23be92a90c3ecac5a0220435c65ebbd2a",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references NODE_PENDING_DEPRECATION, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key NODE_PENDING_DEPRECATION.",
+              "line": 97,
+              "path": "dist-raw/node-options.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "prettier/eslint-config-prettier",
+      "exitCode": 0,
+      "durationMs": 2538,
+      "status": "passed_with_warnings",
+      "commit": "bd6e6171434c7b34dec3dd0f325aab792c126ec6",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references ESLINT_CONFIG_PRETTIER_NO_DEPRECATED, ESLINT_USE_FLAT_CONFIG, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key ESLINT_USE_FLAT_CONFIG.",
+              "line": 45,
+              "path": "bin/cli.js"
+            },
+            {
+              "detail": "Source references undocumented environment key ESLINT_CONFIG_PRETTIER_NO_DEPRECATED.",
+              "line": 3,
+              "path": "index.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "webpack/webpack-cli",
+      "exitCode": 0,
+      "durationMs": 3754,
+      "status": "passed",
+      "commit": "3a695da04276c933973269056dc6611097e26129",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "kulshekhar/ts-jest",
+      "exitCode": 0,
+      "durationMs": 2930,
+      "status": "passed_with_warnings",
+      "commit": "48153cec29546e858a10e431ec3759fc1ce5360a",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references TS_JEST_DEBUG, TS_JEST_HOOKS, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key TS_JEST_HOOKS.",
+              "line": 297,
+              "path": "src/legacy/ts-jest-transformer.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key TS_JEST_DEBUG.",
+              "line": 124,
+              "path": "src/utils/backports.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "jsx-eslint/eslint-plugin-react",
+      "exitCode": 0,
+      "durationMs": 2883,
+      "status": "passed_with_warnings",
+      "commit": "da5431790717d95dc7f5865eb907a79b4786d095",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "prettier/eslint-plugin-prettier",
+      "exitCode": 0,
+      "durationMs": 2258,
+      "status": "passed",
+      "commit": "e6dd27a4e4015748b2e87c646be2c1a530789343",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "axios/axios",
+      "exitCode": 0,
+      "durationMs": 2958,
+      "status": "passed_with_warnings",
+      "commit": "9d11464a75ee5c644c0308d742f58755c0482594",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "BROWSER_TESTS_DETECTED",
+          "status": "warning",
+          "message": "Root devDependencies include @vitest/browser, @vitest/browser-playwright, playwright, and the npm test workflow runs vitest (browser mode).",
+          "evidence": [
+            {
+              "detail": "devDependencies includes @vitest/browser.",
+              "line": 159,
+              "path": "package.json"
+            },
+            {
+              "detail": "devDependencies includes @vitest/browser-playwright.",
+              "line": 160,
+              "path": "package.json"
+            },
+            {
+              "detail": "devDependencies includes playwright.",
+              "line": 178,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test participates in the npm test workflow.",
+              "line": 122,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:vitest participates in the npm test workflow.",
+              "line": 123,
+              "path": "package.json"
+            },
+            {
+              "detail": "Vitest browser mode is enabled (browser.enabled: true).",
+              "line": 20,
+              "path": "vitest.config.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "vuejs/core",
+      "exitCode": 0,
+      "durationMs": 2995,
+      "status": "passed_with_warnings",
+      "commit": "24c9d0bffb2299635b8112a978d74a38723aaa10",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "BROWSER_TESTS_DETECTED",
+          "status": "warning",
+          "message": "Root devDependencies include @vitest/browser-playwright, playwright, puppeteer, and the npm test workflow runs vitest (browser mode).",
+          "evidence": [
+            {
+              "detail": "devDependencies includes @vitest/browser-playwright.",
+              "line": 76,
+              "path": "package.json"
+            },
+            {
+              "detail": "devDependencies includes playwright.",
+              "line": 96,
+              "path": "package.json"
+            },
+            {
+              "detail": "devDependencies includes puppeteer.",
+              "line": 100,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test participates in the npm test workflow.",
+              "line": 19,
+              "path": "package.json"
+            },
+            {
+              "detail": "Vitest browser mode is enabled (browser.enabled: true).",
+              "line": 110,
+              "path": "vitest.config.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "expressjs/express",
+      "exitCode": 0,
+      "durationMs": 2561,
+      "status": "passed_with_warnings",
+      "commit": "1c6f1b0fe4000977b9a7b4f34097e4d527dd9824",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "postcss/autoprefixer",
+      "exitCode": 0,
+      "durationMs": 3175,
+      "status": "passed_with_warnings",
+      "commit": "a7dbf4de8763432c32867de4cba64926587cfca6",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references AUTOPREFIXER_GRID, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key AUTOPREFIXER_GRID.",
+              "line": 586,
+              "path": "lib/processor.js"
+            },
+            {
+              "detail": "Source references undocumented environment key AUTOPREFIXER_GRID.",
+              "line": 587,
+              "path": "lib/processor.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "webpack/webpack-dev-server",
+      "exitCode": 0,
+      "durationMs": 2847,
+      "status": "passed_with_warnings",
+      "commit": "9a6472e52f88b659c8f41c86bfb2f857bb70bb27",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references WEBPACK_DEV_SERVER_BASE_PORT, WEBPACK_DEV_SERVER_PORT_RETRY, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key WEBPACK_DEV_SERVER_BASE_PORT.",
+              "line": 673,
+              "path": "lib/Server.js"
+            },
+            {
+              "detail": "Source references undocumented environment key WEBPACK_DEV_SERVER_BASE_PORT.",
+              "line": 674,
+              "path": "lib/Server.js"
+            },
+            {
+              "detail": "Source references undocumented environment key WEBPACK_DEV_SERVER_PORT_RETRY.",
+              "line": 680,
+              "path": "lib/Server.js"
+            },
+            {
+              "detail": "Source references undocumented environment key WEBPACK_DEV_SERVER_PORT_RETRY.",
+              "line": 681,
+              "path": "lib/Server.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "lint-staged/lint-staged",
+      "exitCode": 0,
+      "durationMs": 2604,
+      "status": "passed",
+      "commit": "48f9f4ea4b88eb605de3546e4599083de7a394b2",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "gulpjs/gulp",
+      "exitCode": 0,
+      "durationMs": 2216,
+      "status": "passed_with_warnings",
+      "commit": "61f22dc11bb14234b555253095fa1d224ce0eab1",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "webpack/sass-loader",
+      "exitCode": 0,
+      "durationMs": 4235,
+      "status": "passed_with_warnings",
+      "commit": "35cf965aa2c861d04360855f71858399f64a3729",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references SASS_PATH, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key SASS_PATH.",
+              "line": 337,
+              "path": "src/utils.js"
+            },
+            {
+              "detail": "Source references undocumented environment key SASS_PATH.",
+              "line": 338,
+              "path": "src/utils.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "tj/commander.js",
+      "exitCode": 0,
+      "durationMs": 2323,
+      "status": "passed",
+      "commit": "ba6d13ddb4243e5913367734f8c159089ffe7834",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "jprichardson/node-fs-extra",
+      "exitCode": 0,
+      "durationMs": 2180,
+      "status": "passed_with_warnings",
+      "commit": "1e223d3b1e26b7ebef7f402acf0e3b5533cc5833",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "sinonjs/sinon",
+      "exitCode": 0,
+      "durationMs": 2716,
+      "status": "passed_with_warnings",
+      "commit": "41c89bfc87da4b07b7a15d01752c4899b9255da8",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references BROWSER_NAME, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key BROWSER_NAME.",
+              "line": 3,
+              "path": "mochify.webdriver.cjs"
+            },
+            {
+              "detail": "Source references undocumented environment key BROWSER_NAME.",
+              "line": 18,
+              "path": "mochify.webdriver.cjs"
+            },
+            {
+              "detail": "Source references undocumented environment key BROWSER_NAME.",
+              "line": 21,
+              "path": "mochify.webdriver.cjs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "vuejs/vue",
+      "exitCode": 0,
+      "durationMs": 2707,
+      "status": "passed_with_warnings",
+      "commit": "9e88707940088cb1f4cd7dd210c9168a50dc347c",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references NEW_SLOT_SYNTAX, VBIND_PROP_SHORTHAND, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key VBIND_PROP_SHORTHAND.",
+              "line": 32,
+              "path": "src/compiler/parser/index.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key NEW_SLOT_SYNTAX.",
+              "line": 662,
+              "path": "src/compiler/parser/index.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key VBIND_PROP_SHORTHAND.",
+              "line": 785,
+              "path": "src/compiler/parser/index.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "zloirock/core-js",
+      "exitCode": 0,
+      "durationMs": 6004,
+      "status": "passed",
+      "commit": "5590306d70e8f4d0b160e6b99c963928627d8f98",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "jantimon/html-webpack-plugin",
+      "exitCode": 0,
+      "durationMs": 2543,
+      "status": "passed",
+      "commit": "9e342d2202e18cd37d5ccc1428c46ad049e24733",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "rollup/plugins",
+      "exitCode": 0,
+      "durationMs": 3931,
+      "status": "passed_with_warnings",
+      "commit": "b09437adcd7010c2a6cd20c778be0e4626f640f3",
+      "preflightReason": "checked",
+      "expected": [
+        "MONOREPO_ROOT_TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+          "status": "warning",
+          "message": "The workspace root package.json does not define a non-empty scripts.test entry; tests may be defined by nested packages.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "istanbuljs/nyc",
+      "exitCode": 0,
+      "durationMs": 3066,
+      "status": "passed_with_warnings",
+      "commit": "908620475199fa7b9ea0ea8b21d6d8ad6921e3ae",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references NYC_CONFIG_OVERRIDE, NYC_PROCESSINFO_EXTERNAL_ID, SPAWN_WRAP_SHIM_ROOT, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key SPAWN_WRAP_SHIM_ROOT.",
+              "line": 81,
+              "path": "bin/nyc.js"
+            },
+            {
+              "detail": "Source references undocumented environment key NYC_PROCESSINFO_EXTERNAL_ID.",
+              "line": 18,
+              "path": "lib/wrap.js"
+            },
+            {
+              "detail": "Source references undocumented environment key NYC_PROCESSINFO_EXTERNAL_ID.",
+              "line": 19,
+              "path": "lib/wrap.js"
+            },
+            {
+              "detail": "Source references undocumented environment key NYC_PROCESSINFO_EXTERNAL_ID.",
+              "line": 20,
+              "path": "lib/wrap.js"
+            },
+            {
+              "detail": "Source references undocumented environment key NYC_CONFIG_OVERRIDE.",
+              "line": 23,
+              "path": "lib/wrap.js"
+            },
+            {
+              "detail": "Source references undocumented environment key NYC_CONFIG_OVERRIDE.",
+              "line": 24,
+              "path": "lib/wrap.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "eslint-community/eslint-plugin-promise",
+      "exitCode": 0,
+      "durationMs": 2300,
+      "status": "passed",
+      "commit": "51c6308694dacaf338c42c4a3e5031583416b877",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "mysticatea/eslint-plugin-node",
+      "exitCode": 0,
+      "durationMs": 2237,
+      "status": "passed_with_warnings",
+      "commit": "8ef07af5711b74199745a619c6f522e1e32acfaf",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "request/request",
+      "exitCode": 0,
+      "durationMs": 2285,
+      "status": "passed_with_warnings",
+      "commit": "3c0cddc7c8eb60b470e9519da85896ed7ee0081e",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "jsx-eslint/eslint-plugin-jsx-a11y",
+      "exitCode": 0,
+      "durationMs": 2578,
+      "status": "passed_with_warnings",
+      "commit": "8f75961d965e47afb88854d324bd32fafde7acfe",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "moment/moment",
+      "exitCode": 0,
+      "durationMs": 4407,
+      "status": "passed",
+      "commit": "c2a703a4d84aa57ee2722ff8fb4a8016279fb3c4",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "nickmerwin/node-coveralls",
+      "exitCode": 0,
+      "durationMs": 2266,
+      "status": "passed_with_warnings",
+      "commit": "933dd331b76389c4022f447d3a4998b9cb7f29dd",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references COVERALLS_ENDPOINT, COVERALLS_FLAG_NAME, COVERALLS_GIT_BRANCH, COVERALLS_GIT_COMMIT, COVERALLS_PARALLEL, COVERALLS_REPO_TOKEN, COVERALLS_RUN_AT, COVERALLS_SERVICE_JOB_ID, COVERALLS_SERVICE_JOB_NUMBER, COVERALLS_SERVICE_NAME, COVERALLS_SERVICE_NUMBER, NODE_COVERALLS_DEBUG, REVISION, SURF_REF, SURF_SHA1, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key COVERALLS_GIT_COMMIT.",
+              "line": 13,
+              "path": "lib/getOptions.js"
+            },
+            {
+              "detail": "Source references undocumented environment key COVERALLS_GIT_BRANCH.",
+              "line": 14,
+              "path": "lib/getOptions.js"
+            },
+            {
+              "detail": "Source references undocumented environment key SURF_SHA1.",
+              "line": 103,
+              "path": "lib/getOptions.js"
+            },
+            {
+              "detail": "Source references undocumented environment key SURF_SHA1.",
+              "line": 105,
+              "path": "lib/getOptions.js"
+            },
+            {
+              "detail": "Source references undocumented environment key SURF_REF.",
+              "line": 106,
+              "path": "lib/getOptions.js"
+            },
+            {
+              "detail": "Source references undocumented environment key REVISION.",
+              "line": 124,
+              "path": "lib/getOptions.js"
+            },
+            {
+              "detail": "Source references undocumented environment key COVERALLS_RUN_AT.",
+              "line": 146,
+              "path": "lib/getOptions.js"
+            },
+            {
+              "detail": "Source references undocumented environment key COVERALLS_SERVICE_NUMBER.",
+              "line": 148,
+              "path": "lib/getOptions.js"
+            },
+            {
+              "detail": "Source references undocumented environment key COVERALLS_SERVICE_NUMBER.",
+              "line": 149,
+              "path": "lib/getOptions.js"
+            },
+            {
+              "detail": "Source references undocumented environment key COVERALLS_SERVICE_JOB_NUMBER.",
+              "line": 152,
+              "path": "lib/getOptions.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "mysticatea/npm-run-all",
+      "exitCode": 0,
+      "durationMs": 2104,
+      "status": "passed_with_warnings",
+      "commit": "bf91f94ce597aa61da37d2e4208ce8c48bc86673",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "karma-runner/karma",
+      "exitCode": 0,
+      "durationMs": 2979,
+      "status": "passed_with_warnings",
+      "commit": "84f85e7016efc2266fa6b3465f494a3fa151c85c",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "BROWSER_TESTS_DETECTED",
+          "status": "warning",
+          "message": "Root devDependencies include karma, puppeteer, and the npm test workflow runs karma.",
+          "evidence": [
+            {
+              "detail": "devDependencies includes karma.",
+              "line": 478,
+              "path": "package.json"
+            },
+            {
+              "detail": "devDependencies includes puppeteer.",
+              "line": 492,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test participates in the npm test workflow.",
+              "line": 517,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:client participates in the npm test workflow.",
+              "line": 516,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:e2e participates in the npm test workflow.",
+              "line": 515,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:unit participates in the npm test workflow.",
+              "line": 514,
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "standard/eslint-config-standard",
+      "exitCode": 0,
+      "durationMs": 2454,
+      "status": "passed",
+      "commit": "3dacfca5b476827161c523d8b8c5d27eee8fdfbc",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "webpack/postcss-loader",
+      "exitCode": 0,
+      "durationMs": 2528,
+      "status": "passed",
+      "commit": "ed3e1f7592a5fea2eb0da2475a3675ceb9371a47",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "standard/eslint-plugin-standard",
+      "exitCode": 0,
+      "durationMs": 2186,
+      "status": "passed_with_warnings",
+      "commit": "ca587fc3506b1f9c0ffd4cd71474428be92b9d47",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "isaacs/node-glob",
+      "exitCode": 0,
+      "durationMs": 2874,
+      "status": "passed",
+      "commit": "d1bfd61f8edaac5a2ab7fa936c6ce4b8da71e7b1",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "SBoudrias/Inquirer.js",
+      "exitCode": 2,
+      "durationMs": 657,
+      "status": "blocked",
+      "commit": null,
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "vuejs/eslint-plugin-vue",
+      "exitCode": 0,
+      "durationMs": 3810,
+      "status": "passed_with_warnings",
+      "commit": "9bde0bff1bf3cf13e20e33bfbb543f974eca05fb",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "debug-js/debug",
+      "exitCode": 0,
+      "durationMs": 2158,
+      "status": "passed_with_warnings",
+      "commit": "666dbc50680933bde9e7fde3a6c3241102e8f60b",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "BROWSER_TESTS_DETECTED",
+          "status": "warning",
+          "message": "Root devDependencies include karma, and the npm test workflow runs karma.",
+          "evidence": [
+            {
+              "detail": "devDependencies includes karma.",
+              "line": 40,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.lint participates in the npm test workflow.",
+              "line": 27,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test participates in the npm test workflow.",
+              "line": 28,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:browser participates in the npm test workflow.",
+              "line": 30,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test:node participates in the npm test workflow.",
+              "line": 29,
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "TypeStrong/ts-loader",
+      "exitCode": 0,
+      "durationMs": 5247,
+      "status": "passed",
+      "commit": "93d692541bd0d03add04ae43699f4dfea5b1a1b2",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "react/create-react-app",
+      "exitCode": 0,
+      "durationMs": 4322,
+      "status": "passed",
+      "commit": "6254386531d263688ccfa542d0e628fbc0de0b28",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "sass/dart-sass",
+      "exitCode": 1,
+      "durationMs": 2802,
+      "status": "failed",
+      "commit": "1f895ca5bff617fd45ac77d7a66e9c43d7ece159",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING",
+        "TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "TEST_SCRIPT_MISSING",
+          "status": "failed",
+          "message": "package.json does not define a non-empty scripts.test entry.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "airbnb/javascript",
+      "exitCode": 0,
+      "durationMs": 2127,
+      "status": "passed_with_warnings",
+      "commit": "8ed19247bef145e3cc41b24a02dd1fe6d9b5e681",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "testing-library/react-testing-library",
+      "exitCode": 0,
+      "durationMs": 2238,
+      "status": "passed_with_warnings",
+      "commit": "20ce75f2907ca0e5c5a8ae595c0e9a4e368c7800",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "npm/node-semver",
+      "exitCode": 0,
+      "durationMs": 2296,
+      "status": "passed_with_warnings",
+      "commit": "7257c14239476205b4b0bf7e47b07b3e7a517be6",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "yargs/yargs",
+      "exitCode": 0,
+      "durationMs": 2623,
+      "status": "passed",
+      "commit": "8021675da05763e13d9744aef953be65c0fd878f",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "motdotla/dotenv",
+      "exitCode": 0,
+      "durationMs": 2436,
+      "status": "passed_with_warnings",
+      "commit": "3d11a6e4e5b9d8d31763570abde778c221231520",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references DOTENV_CONFIG_QUIET, DOTENV_QUIET, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key DOTENV_QUIET.",
+              "line": 4,
+              "path": "config.js"
+            },
+            {
+              "detail": "Source references undocumented environment key DOTENV_QUIET.",
+              "line": 5,
+              "path": "config.js"
+            },
+            {
+              "detail": "Source references undocumented environment key DOTENV_CONFIG_QUIET.",
+              "line": 6,
+              "path": "config.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "ReactiveX/rxjs",
+      "exitCode": 0,
+      "durationMs": 4029,
+      "status": "passed_with_warnings",
+      "commit": "54796b38a57e6309f9861e174737479bb3f63f61",
+      "preflightReason": "checked",
+      "expected": [
+        "MONOREPO_ROOT_TEST_SCRIPT_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+          "status": "warning",
+          "message": "The workspace root package.json does not define a non-empty scripts.test entry; tests may be defined by nested packages.",
+          "evidence": [
+            {
+              "detail": "scripts.test is missing or empty.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "vuejs/vue-cli",
+      "exitCode": 0,
+      "durationMs": 7088,
+      "status": "passed",
+      "commit": "7eb93c169c7520935252e2473387f923ef80d856",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "uuidjs/uuid",
+      "exitCode": 0,
+      "durationMs": 2203,
+      "status": "passed",
+      "commit": "8eed10acf6b1a43778bb70ea3ed3f40e8a7a6d7b",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "storybookjs/storybook",
+      "exitCode": 0,
+      "durationMs": 46342,
+      "status": "passed_with_warnings",
+      "commit": "43a13889a499ee209a52dc5f874c0ad84b3eeec3",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_KEY_MISSING",
+          "status": "warning",
+          "message": "Source references FIX_ON_COMMIT, but no scanned .env.example, .env.sample, or committed root .env file defines it.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key FIX_ON_COMMIT.",
+              "line": 3,
+              "path": ".lintstagedrc.mjs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "karma-runner/karma-chrome-launcher",
+      "exitCode": 0,
+      "durationMs": 2462,
+      "status": "passed_with_warnings",
+      "commit": "276f829b0be715f27198cddfa488744a7d55de4d",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "BROWSER_TESTS_DETECTED",
+          "status": "warning",
+          "message": "Root devDependencies include karma, and the npm test workflow runs karma.",
+          "evidence": [
+            {
+              "detail": "devDependencies includes karma.",
+              "line": 34,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.integration-test participates in the npm test workflow.",
+              "line": 8,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.test participates in the npm test workflow.",
+              "line": 10,
+              "path": "package.json"
+            },
+            {
+              "detail": "scripts.unit-test participates in the npm test workflow.",
+              "line": 9,
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "gruntjs/grunt",
+      "exitCode": 0,
+      "durationMs": 2544,
+      "status": "passed_with_warnings",
+      "commit": "50a8a686522b0cf1938df344b9684e843f9eae9c",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references SOURCE_DATE_EPOCH, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key SOURCE_DATE_EPOCH.",
+              "line": 14,
+              "path": "lib/grunt/template.js"
+            },
+            {
+              "detail": "Source references undocumented environment key SOURCE_DATE_EPOCH.",
+              "line": 15,
+              "path": "lib/grunt/template.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "less/less.js",
+      "exitCode": 1,
+      "durationMs": 2966,
+      "status": "failed",
+      "commit": "713331655e437401dfea6cd233893a69762734e1",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "MULTIPLE_LOCKFILES",
+          "status": "warning",
+          "message": "More than one recognized lockfile was found at the repository root.",
+          "evidence": [
+            {
+              "detail": "Recognized root lockfile.",
+              "path": "package-lock.json"
+            },
+            {
+              "detail": "Recognized root lockfile.",
+              "path": "pnpm-lock.yaml"
+            }
+          ]
+        },
+        {
+          "code": "LOCKFILE_OUT_OF_SYNC",
+          "status": "failed",
+          "message": "Dependency differences: @typescript-eslint/eslint-plugin, @typescript-eslint/parser, eslint. Details: @typescript-eslint/eslint-plugin missing from lockfile; @typescript-eslint/parser missing from lockfile; eslint missing from lockfile.",
+          "evidence": [
+            {
+              "detail": "Dependency @typescript-eslint/eslint-plugin is declared in package.json.",
+              "line": 33,
+              "path": "package.json"
+            },
+            {
+              "detail": "Dependency @typescript-eslint/eslint-plugin differs from package.json.",
+              "path": "package-lock.json"
+            },
+            {
+              "detail": "Dependency @typescript-eslint/parser is declared in package.json.",
+              "line": 34,
+              "path": "package.json"
+            },
+            {
+              "detail": "Dependency @typescript-eslint/parser differs from package.json.",
+              "path": "package-lock.json"
+            },
+            {
+              "detail": "Dependency eslint is declared in package.json.",
+              "line": 36,
+              "path": "package.json"
+            },
+            {
+              "detail": "Dependency eslint differs from package.json.",
+              "path": "package-lock.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "postcss/postcss",
+      "exitCode": 0,
+      "durationMs": 2325,
+      "status": "passed",
+      "commit": "2455ac8212fe66bc3248aa01186a52c27c87da5a",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "remy/nodemon",
+      "exitCode": 0,
+      "durationMs": 2534,
+      "status": "passed_with_warnings",
+      "commit": "6812a74722156261cb0b608ebdbf8f4c54e36786",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references TEST, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key TEST.",
+              "line": 76,
+              "path": "lib/monitor/watch.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "ezolenko/rollup-plugin-typescript2",
+      "exitCode": 0,
+      "durationMs": 2418,
+      "status": "passed",
+      "commit": "4cff90bbe88a6747d5a0eb52d300cb8bed505277",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "tape-testing/tape",
+      "exitCode": 0,
+      "durationMs": 2673,
+      "status": "passed_with_warnings",
+      "commit": "223d58ebbde2c4a8505ea1ecd149408b87e8423a",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references NODE_TAPE_NO_ONLY_TEST, NODE_TAPE_OBJECT_PRINT_DEPTH, NODE_TAPE_STRICT_TIMEOUT, TODO_IS_OK, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key TODO_IS_OK.",
+              "line": 94,
+              "path": "index.js"
+            },
+            {
+              "detail": "Source references undocumented environment key NODE_TAPE_NO_ONLY_TEST.",
+              "line": 162,
+              "path": "index.js"
+            },
+            {
+              "detail": "Source references undocumented environment key NODE_TAPE_STRICT_TIMEOUT.",
+              "line": 103,
+              "path": "lib/test.js"
+            },
+            {
+              "detail": "Source references undocumented environment key NODE_TAPE_OBJECT_PRINT_DEPTH.",
+              "line": 113,
+              "path": "lib/test.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "testing-library/jest-dom",
+      "exitCode": 0,
+      "durationMs": 2311,
+      "status": "passed_with_warnings",
+      "commit": "3782c78b3dc9824675afe0cb8f1722f8c96f494d",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "caolan/async",
+      "exitCode": 0,
+      "durationMs": 3659,
+      "status": "passed",
+      "commit": "3921e54bd0704157dbea238fdfcc0c3619abde1a",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "ant-design/ant-design",
+      "exitCode": 0,
+      "durationMs": 8520,
+      "status": "passed_with_warnings",
+      "commit": "aab929818837f3ee029a0b500248ad4a5b7d3c9c",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        },
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references LIB_DIR, MOCK_USE_ID, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key LIB_DIR.",
+              "line": 77,
+              "path": ".jest.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key MOCK_USE_ID.",
+              "line": 261,
+              "path": "vitest.setup.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "vuejs/vue-loader",
+      "exitCode": 0,
+      "durationMs": 2321,
+      "status": "passed",
+      "commit": "698636508e08f5379a57eaf086b5ff533af8e051",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "TypeStrong/typedoc",
+      "exitCode": 0,
+      "durationMs": 3692,
+      "status": "passed_with_warnings",
+      "commit": "6d8c856bbb46b089371952981f113c3e318818fd",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references TYPEDOC_FORCE_WATCH, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key TYPEDOC_FORCE_WATCH.",
+              "line": 75,
+              "path": "src/lib/cli.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "semantic-release/semantic-release",
+      "exitCode": 0,
+      "durationMs": 2480,
+      "status": "passed",
+      "commit": "04c1923646eb801cf6f0f90455cf00b78b94fdb7",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "JedWatson/classnames",
+      "exitCode": 0,
+      "durationMs": 2075,
+      "status": "passed",
+      "commit": "abd6314010de053a09df5acc53e474ff65cea470",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "node-fetch/node-fetch",
+      "exitCode": 0,
+      "durationMs": 2155,
+      "status": "passed_with_warnings",
+      "commit": "8b3320d2a7c07bce4afc6b2bf6c3bbddda85b01f",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "isaacs/node-mkdirp",
+      "exitCode": 0,
+      "durationMs": 2207,
+      "status": "passed_with_warnings",
+      "commit": "fdf6005432c2506ce31f8cae237039dda2f8479d",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references __TESTING_MKDIRP_NODE_VERSION__, __TESTING_MKDIRP_PLATFORM__, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key __TESTING_MKDIRP_PLATFORM__.",
+              "line": 1,
+              "path": "src/path-arg.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key __TESTING_MKDIRP_NODE_VERSION__.",
+              "line": 4,
+              "path": "src/use-native.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "avajs/ava",
+      "exitCode": 0,
+      "durationMs": 3255,
+      "status": "passed_with_warnings",
+      "commit": "8640039a46c8f76d9dec2c6d108a19e022a34853",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references TEST_AVA, UPDATE_REPORTER_LOG, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key TEST_AVA.",
+              "line": 297,
+              "path": "lib/cli.js"
+            },
+            {
+              "detail": "Source references undocumented environment key TEST_AVA.",
+              "line": 455,
+              "path": "lib/cli.js"
+            },
+            {
+              "detail": "Source references undocumented environment key TEST_AVA.",
+              "line": 499,
+              "path": "lib/cli.js"
+            },
+            {
+              "detail": "Source references undocumented environment key TEST_AVA.",
+              "line": 23,
+              "path": "lib/watcher.js"
+            },
+            {
+              "detail": "Source references undocumented environment key UPDATE_REPORTER_LOG.",
+              "line": 24,
+              "path": "test-tap/helper/report.js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "sindresorhus/ora",
+      "exitCode": 0,
+      "durationMs": 2500,
+      "status": "passed_with_warnings",
+      "commit": "b204360b0df925289759858c93d3d3ca824914c3",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "minimistjs/minimist",
+      "exitCode": 0,
+      "durationMs": 2130,
+      "status": "passed_with_warnings",
+      "commit": "ecfdaea23e7931c0d529c52b743c711c3278a8ce",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "standard/standard",
+      "exitCode": 0,
+      "durationMs": 2484,
+      "status": "passed_with_warnings",
+      "commit": "753309b21bfd7c98e208e3fb45910ffd1bb95409",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "conventional-changelog/commitlint",
+      "exitCode": 0,
+      "durationMs": 2970,
+      "status": "passed",
+      "commit": "f9dc49ce707389ca17cf264be19058a439b75586",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "shelljs/shelljs",
+      "exitCode": 0,
+      "durationMs": 2395,
+      "status": "passed",
+      "commit": "060e8ac15aa32b1311db15c5e12cd64016637932",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "vuejs/router",
+      "exitCode": 0,
+      "durationMs": 3138,
+      "status": "passed",
+      "commit": "593d7ad9ff99e95c24be28e962717df0fb2be763",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "testing-library/user-event",
+      "exitCode": 0,
+      "durationMs": 2285,
+      "status": "passed_with_warnings",
+      "commit": "1951eb77cc190a68eb6dac6bd40b53648b18805f",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "survivejs/webpack-merge",
+      "exitCode": 0,
+      "durationMs": 2219,
+      "status": "passed",
+      "commit": "400ba410bf881673d3d0d165b8ab74a68c3e7681",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "jsdom/jsdom",
+      "exitCode": 2,
+      "durationMs": 3511,
+      "status": "blocked",
+      "commit": null,
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "vitejs/vite",
+      "exitCode": 0,
+      "durationMs": 7842,
+      "status": "passed_with_warnings",
+      "commit": "90bc034a97e7eccd0f3cbc69904fffa625a4c34d",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": [
+        {
+          "code": "ENV_EXAMPLE_MISSING",
+          "status": "warning",
+          "message": "Source references PWDEBUG, VITE_TEST_BUILD, VITE_TEST_BUNDLED_DEV, but no .env.example, .env.sample, or other committed root .env file documents them.",
+          "evidence": [
+            {
+              "detail": "Source references undocumented environment key VITE_TEST_BUILD.",
+              "line": 4,
+              "path": "vitest.config.e2e.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key VITE_TEST_BUNDLED_DEV.",
+              "line": 5,
+              "path": "vitest.config.e2e.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key PWDEBUG.",
+              "line": 15,
+              "path": "vitest.config.e2e.ts"
+            },
+            {
+              "detail": "Source references undocumented environment key VITE_TEST_BUILD.",
+              "line": 62,
+              "path": "vitest.config.e2e.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "browserify/browserify",
+      "exitCode": 0,
+      "durationMs": 3458,
+      "status": "passed_with_warnings",
+      "commit": "cd60f059d7a8432f2c3acea7d4dfcb81b97e7a3d",
+      "preflightReason": "checked",
+      "expected": [
+        "LOCKFILE_MISSING"
+      ],
+      "findings": [
+        {
+          "code": "LOCKFILE_MISSING",
+          "status": "warning",
+          "message": "Dependency versions cannot be reproduced from a checked-in root lockfile.",
+          "evidence": [
+            {
+              "detail": "The package manifest has no recognized root lockfile beside it.",
+              "path": "package.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "webpack/less-loader",
+      "exitCode": 0,
+      "durationMs": 2855,
+      "status": "passed",
+      "commit": "7a40320f52181807420b041bf4f6ca7f14fed274",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "tschaub/gh-pages",
+      "exitCode": 0,
+      "durationMs": 2620,
+      "status": "passed",
+      "commit": "48f62a750216e72c5e89058bb61dffdb8450949d",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "petkaantonov/bluebird",
+      "exitCode": 0,
+      "durationMs": 2560,
+      "status": "passed",
+      "commit": "c220cfe480868e2f5c5de4fe8bb3b04b97588d7f",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    },
+    {
+      "repository": "jest-community/eslint-plugin-jest",
+      "exitCode": 0,
+      "durationMs": 3637,
+      "status": "passed",
+      "commit": "af4ad59a1e03423dd87bf737a8f3edc49dea4689",
+      "preflightReason": "checked",
+      "expected": [],
+      "findings": []
+    }
+  ]
+}
