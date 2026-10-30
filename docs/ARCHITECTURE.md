@@ -17,9 +17,12 @@ src/
   cli.js                 argument parsing, Docker setup, and exit codes
   input/                 public GitHub URL validation and bounded clone staging
   scan/                  bounded filesystem scan and deterministic rules
+  receipt/               reproducibility receipts: creation, canonical JSON, digest, schema validation
   report/                report schema and terminal/JSON/HTML rendering
   verify/                explicit Docker execution boundary
 ```
+
+`receipt/` consumes a finalized report; it never imports the scanner, the Docker verifier, the GitHub clone code, or `child_process`. `create.js` projects the report and allow-listed metadata into receipt v1, `canonicalize.js` produces the canonical JSON bytes, `digest.js` computes and checks the SHA-256 integrity digest, `validate.js` applies `receipt-v1.schema.json` (through the small `json-schema.js` validator) plus cross-field rules, `git-metadata.js` reads `HEAD` and refs without starting a process, and `write.js` writes atomically. The CLI calls it after writing the report (`--receipt FILE`, plus `receipt verify`), and the Action calls it after reading and validating the report. See [RECEIPTS.md](RECEIPTS.md).
 
 The scanner returns data. Rules turn that data into evidence-backed findings. Report renderers do not perform checks. This makes the checks deterministic and keeps the execution boundary obvious.
 
@@ -86,5 +89,7 @@ The Action subsystem (`src/action/`) integrates CloneProof into GitHub Actions w
 - `action/summary.js`: Renders GitHub Actions Job Summaries appended to `GITHUB_STEP_SUMMARY`. Formats status badges, summary metrics, findings tables, Docker verification outcomes (in `verify` mode), check coverage, out-of-scope boundaries, and safe logical runner report locations (`RUNNER_TEMP/cloneproof/report.json` or workspace-relative path). Enforces strict Markdown/HTML metacharacter escaping (`escapeMarkdown`, `escapeTableCell`, `escapeInlineCode`) and caps summary output at 512 KiB of UTF-8 text with multi-byte-safe truncation.
 - `action/paths.js`: Shared path utilities ensuring consistent comparison and preventing circular dependencies.
 - CI Workflow Integration (`.github/workflows/ci.yml`): The CI workflow aligns standalone Docker verification jobs with the Action's security model. Jobs that directly execute CLI Docker verification (`docker-e2e`) or Action verification (`action-e2e`) enforce job-level conditions (`if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'`), completely skipping container verification on pull requests. Pull-request triggers execute cross-platform unit tests and a dedicated PR security guard job (`action-e2e-pull-request`), verifying that the Action detects `GITHUB_EVENT_NAME=pull_request`, rejects adversarial event overrides (`CLONEPROOF_EVENT_NAME=push`), and safely blocks container execution.
+
+After the report is read and validated, `action/index.js` creates the reproducibility receipt (`produceReceipt`), writes it atomically to `receipt-path` (default `RUNNER_TEMP/cloneproof/receipt.json`), re-reads and verifies it, and exports `receipt-path` and `receipt-status` before annotations and the Job Summary run. The receipt path is validated with the inputs, before the CLI starts.
 
 Presentation failures (such as annotation formatting errors or unwritable step summary destinations) are caught and logged to `stderr` as safe diagnostics. They never alter the validated scan report, report status, or CLI exit codes. The report schema version 2 remains untouched as the canonical source of truth.

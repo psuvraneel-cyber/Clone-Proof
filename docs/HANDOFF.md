@@ -2,6 +2,13 @@
 
 Updated 2026-10-20; the implementation baseline for this CI-fix pass is `fef9119`, with the documentation commit containing this handoff following it on local `main`. The fixes are prepared for the `review-fixes` branch but have not yet been pushed in this pass. GitHub Actions run `39434993722` failed on the prior `6f6df5d` revision because the package-content assertion was hard-coded, `node:test` output with `suites 0` was misclassified as zero tests, and the verifier image probe had no retry. The preceding pushed revision `a762ec1` passed main CI run `39289281815` on Ubuntu, macOS, Windows, and Docker E2E. This file records the current resumable state for the OmniRush session.
 
+## Part 4 — Reproducibility receipts (2026-10-30)
+
+- Branch `claude/cloneproof-reproducibility-receipts-107784`, based on `32bf359` (Parts 1–3 merged via PR #3 and #4). Local commit only; not pushed, so no CI run exists for this work yet.
+- New `src/receipt/` (create, canonicalize, digest, json-schema, validate, git-metadata, write, schema JSON). CLI: `--receipt FILE` on `check`/`verify` and `cloneproof receipt verify <file>`. Action: `receipt-path` input, `receipt-path`/`receipt-status` outputs, Job Summary section. Docs: `docs/RECEIPTS.md`, `docs/schemas/receipt-v1.schema.json`, `docs/examples/receipt-*.example.json`.
+- Local Windows results: `npm test` 406 tests, 402 passed, 0 failed, 4 skipped (3 pre-existing + 1 Windows file-symlink `EPERM` skip); `npm run test:leaks` same counts, exit 0; `npm run build` checked 22 files; pack dry-run matched tracked `src` + LICENSE/README/package.json (26 files); check/verify JSON reports byte-identical to `32bf359` output for the examples.
+- Not run locally: Docker E2E (Docker daemon unavailable on this host), Ubuntu/macOS CI, Action E2E. CI steps were extended to verify receipts in `docker-e2e` and `action-e2e`.
+
 ## Goal
 
 Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository setup verification. `check` never executes repository code: local targets are read-only scans and GitHub targets use one isolated shallow clone before scanning. `verify` runs only the supported npm workflow inside an explicitly authorized, bounded Docker profile.

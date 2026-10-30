@@ -21,6 +21,9 @@ inputs:
     description: 'Maximum Docker verification execution time in milliseconds.'
     required: false
     default: '300000'
+  receipt-path:
+    description: 'Destination path for the reproducibility receipt JSON. Must resolve inside GITHUB_WORKSPACE or RUNNER_TEMP and differ from report-path. Defaults to RUNNER_TEMP/cloneproof/receipt.json.'
+    required: false
 outputs:
   status:
     description: 'The overall verification status (passed, passed_with_warnings, failed, blocked, or incomplete).'
@@ -28,6 +31,10 @@ outputs:
     description: 'The path to the generated JSON report file.'
   verification-status:
     description: 'Docker verification outcome (not_run, passed, failed, blocked, or error).'
+  receipt-path:
+    description: 'Path to the generated reproducibility receipt, or an empty string when receipt-status is not created.'
+  receipt-status:
+    description: 'Receipt generation outcome: created or failed.'
 runs:
   using: 'node24'
   main: 'src/action/index.js'

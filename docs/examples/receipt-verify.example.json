@@ -1,0 +1,144 @@
+{
+  "coverage": {
+    "checked": [
+      "package-manifest",
+      "lockfile-presence-validity-sync",
+      "package-manager-consistency",
+      "test-script",
+      "readme-npm-commands",
+      "env-documentation",
+      "node-runtime-declarations",
+      "gitignored-core-files",
+      "install-scripts",
+      "browser-tests",
+      "nested-packages",
+      "project-classification",
+      "package-sources",
+      "service-indicators"
+    ],
+    "notChecked": [
+      "build-steps-generated-output",
+      "services-databases-caches",
+      "os-specific-scripts",
+      "private-registry-credentials",
+      "non-readme-documentation-commands",
+      "verify-browser-native-build-tests"
+    ]
+  },
+  "environment": {
+    "arch": "x64",
+    "github": {
+      "eventName": "push",
+      "ref": "refs/heads/main",
+      "repository": "octo-org/sample-repo",
+      "runAttempt": 1,
+      "runId": "1234567890",
+      "runnerOs": "Linux",
+      "workflow": "CI",
+      "workflowCommit": "0123456789abcdef0123456789abcdef01234567"
+    },
+    "nodeVersion": "v24.11.1",
+    "os": "linux",
+    "runner": "github-hosted"
+  },
+  "execution": {
+    "container": {
+      "image": "node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90",
+      "imageDigest": "sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90",
+      "networkPolicy": "none",
+      "timeoutMs": 300000
+    },
+    "invocation": "github-action",
+    "mode": "verify",
+    "repositoryCommandsEnvironment": "controlled-docker",
+    "repositoryCommandsExecuted": true,
+    "verificationAuthorized": true,
+    "verificationRequested": true
+  },
+  "generatedAt": "2026-10-30T00:00:00.000Z",
+  "integrity": {
+    "algorithm": "sha256",
+    "canonicalization": "cloneproof-canonical-json-v1",
+    "digest": "e74f0b4832f6d002fdbf50cbd1d8611f4572243a5cf9557af3065085cf6ad30b"
+  },
+  "receiptType": "cloneproof.reproducibility",
+  "receiptVersion": 1,
+  "result": {
+    "cleanup": "confirmed",
+    "findings": [
+      {
+        "code": "PACKAGE_JSON_PRESENT",
+        "status": "passed"
+      },
+      {
+        "code": "LOCKFILE_PRESENT",
+        "status": "passed"
+      },
+      {
+        "code": "TEST_SCRIPT_PRESENT",
+        "status": "passed"
+      },
+      {
+        "code": "TEST_FILES_FOUND",
+        "status": "passed"
+      },
+      {
+        "code": "README_CI_COMMAND",
+        "status": "passed"
+      },
+      {
+        "code": "README_TEST_COMMAND",
+        "status": "passed"
+      },
+      {
+        "code": "ENV_KEY_DOCUMENTED",
+        "status": "passed"
+      },
+      {
+        "code": "NVMRC_PRESENT",
+        "status": "passed"
+      },
+      {
+        "code": "ENGINES_NODE_PRESENT",
+        "status": "passed"
+      },
+      {
+        "code": "DOCKER_NODE_BASE_PRESENT",
+        "status": "passed"
+      },
+      {
+        "code": "DOCKER_VERIFICATION_PASSED",
+        "status": "passed"
+      }
+    ],
+    "status": "passed",
+    "summary": {
+      "failed": 0,
+      "passed": 11,
+      "skipped": 0,
+      "total": 11,
+      "warnings": 0
+    },
+    "verificationOutcome": "passed"
+  },
+  "source": {
+    "commit": "0123456789abcdef0123456789abcdef01234567",
+    "identitySource": "local-git-metadata",
+    "kind": "local",
+    "ref": "refs/heads/main",
+    "repository": "octo-org/sample-repo",
+    "revisionIdentity": "commit",
+    "subdirectory": ".",
+    "url": "https://github.com/octo-org/sample-repo"
+  },
+  "tool": {
+    "action": {
+      "ref": "main",
+      "repository": "psuvraneel-cyber/Clone-Proof"
+    },
+    "name": "cloneproof",
+    "receiptGeneratorVersion": 1,
+    "reportSchemaVersion": 2,
+    "version": "0.1.0"
+  }
+}

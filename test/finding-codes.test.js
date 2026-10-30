@@ -318,7 +318,10 @@ const NON_FINDING_UPPER_SNAKE_CASE = new Set([
   // Internal staging errors are translated into report findings by verify.
   'STAGING_LIMIT_EXCEEDED', 'STAGING_SOURCE_CHANGED',
   // `setup` result codes are not report findings.
-  'DOCKER_IMAGE_ALREADY_PRESENT', 'DOCKER_IMAGE_READY', 'DOCKER_PULL_FAILED', 'DOCKER_SETUP_FAILED'
+  'DOCKER_IMAGE_ALREADY_PRESENT', 'DOCKER_IMAGE_READY', 'DOCKER_PULL_FAILED', 'DOCKER_SETUP_FAILED',
+  // Reproducibility receipt errors are separate from report findings.
+  'RECEIPT_CANONICALIZATION_FAILED', 'RECEIPT_DIGEST_INPUT_INVALID', 'RECEIPT_GENERATION_FAILED',
+  'RECEIPT_INVALID', 'RECEIPT_WRITE_FAILED'
 ]);
 
 function sourceUpperSnakeCaseStrings() {
