@@ -10,7 +10,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 | Item | State |
 |---|---|
-| Code | `origin/main` = `32bf359`; every branch is merged into it or has patch-equivalent commits on it. The primary checkout's local `main` is still at `ec559d7`, 3 commits behind. |
+| Code | `origin/main` and local `main` = `32bf359`; every branch is merged into it or has patch-equivalent commits on it. |
 | Tests | 323 tests. Windows host: 320 passed, 0 failed, 3 skipped (symlink `EPERM`). CI Ubuntu and macOS: 322 passed, 1 skipped (the Windows-only SIGINT cleanup test). CI Windows: 323 passed. |
 | Leak guard | `npm run test:leaks` passed on the Windows host at `32bf359` with the same counts. |
 | CI | Main run `41043387519` passed all five jobs that run on `push`; the PR-only security guard is skipped on `push` by design. |
@@ -145,7 +145,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 ## Repository housekeeping
 
-- The primary checkout is on `feature/github-action` (`1fb14d7`, merged through PR #4). Its local `main` is at `ec559d7`, 3 commits behind `origin/main`.
+- The primary checkout is on `feature/github-action` (`1fb14d7`, merged through PR #4); local `main` matches `origin/main` at `32bf359`.
 - Every remote branch (`docs-final`, `feature/github-action`, `pre-submit`, `precision-fixes`, `release-prep-fixes`, `review-fixes`, `target-guard-fixes`) and every local branch except the four `fix/field-test-*` branches is merged into `origin/main`. Those four have patch-equivalent commits on `main` (`git cherry` reports every commit as `-`), and their sibling worktrees are marked prunable because the folders no longer exist.
 - Two stashes remain, both from `precision-fixes`: `wip: preserve concurrent target-guard and docs changes` and `temporary precision work`. The `temporary issue 3-6 split` stash was dropped after its changes were salvaged (SHA `2f25b5ac99bfe900af231c4698c034991298619c`); an earlier closing note here that called it retained was outdated.
 - Claude Code session worktrees under `.claude/worktrees/` are local only and sit on older commits.
@@ -153,7 +153,7 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 ## Next steps
 
 1. Confirm whether the Buildathon submission was completed (dashboard, OmniRush sessions, track, Submission ID in Unstop, optional demo video), then update `docs/BUILDATHON_CHECKLIST.md` to match.
-2. Bring the primary checkout's local `main` up to `origin/main`.
+2. Switch the primary checkout from the merged `feature/github-action` branch to `main`.
 3. Optional housekeeping: prune the four stale worktrees, delete merged branches, and decide whether the two `precision-fixes` stashes are still needed.
 4. Optional follow-ups: tag a release so Action users can pin a version instead of `@main`, add a CI job that builds CloneProof's own image, run a fresh field test against current code, and the README roadmap items.
 
