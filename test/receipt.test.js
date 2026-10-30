@@ -532,7 +532,16 @@ function assertNoLeaks(text, label) {
   }
   let username = '';
   try { username = os.userInfo().username; } catch { username = ''; }
-  if (username.length >= 5) assert.ok(!text.includes(username), `${label} leaked the local username`);
+  if (username.length >= 5) {
+    // Check values only: a username such as "runner" can equal a schema key name.
+    const values = [];
+    const collect = (value) => {
+      if (typeof value === 'string') values.push(value);
+      else if (value && typeof value === 'object') Object.values(value).forEach(collect);
+    };
+    collect(JSON.parse(text));
+    assert.ok(!values.some((value) => value.includes(username)), `${label} leaked the local username`);
+  }
 }
 
 test('no upstream report or environment pathway leaks secrets, paths, hostnames, or raw output', () => {
