@@ -32,7 +32,6 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
-          cache: npm
           registry-url: https://registry.npmjs.org
       - name: Require the tagged commit to be on main
         if: github.event_name == 'push'
