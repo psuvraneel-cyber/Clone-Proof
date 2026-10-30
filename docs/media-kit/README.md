@@ -103,14 +103,14 @@ checked" and "Finding counts" sections are left out.
 
 | File | Length | Use |
 |---|---|---|
-| [`video/launch-1920x1080.mp4`](video/launch-1920x1080.mp4) · [poster](video/launch-poster.jpg) | 21 s, with music | Launch video for the top-100 field test: the method, the false findings it exposed in CloneProof itself, and how to try it. For X, LinkedIn, YouTube, and the dev.to post. |
-| [`video/launch-1080x1080.mp4`](video/launch-1080x1080.mp4) | 21 s | The same video centered on a square frame, for LinkedIn and Instagram feeds. |
-| [`video/launch-1080x1920.mp4`](video/launch-1080x1920.mp4) | 21 s | The same video centered on a vertical frame, for Stories, Shorts, and Reels. |
+| [`video/launch-1920x1080.mp4`](video/launch-1920x1080.mp4) · [poster](video/launch-poster.jpg) | 20 s, with audio | Launch video: "It works on my machine", static evidence instead of assumptions, annotations on every pull request, and locked-down Docker verification. For X, LinkedIn, YouTube, and the dev.to post. |
+| [`video/launch-1080x1080.mp4`](video/launch-1080x1080.mp4) | 20 s | The same video centered on a square frame, for LinkedIn and Instagram feeds. |
+| [`video/launch-1080x1920.mp4`](video/launch-1080x1920.mp4) | 20 s | The same video centered on a vertical frame, for Stories, Shorts, and Reels. |
 | [`video/demo-loop.mp4`](video/demo-loop.mp4) · [gif](video/demo-loop.gif) | 12 s, loops, silent | `cloneproof check examples/broken-node` being typed and its result, for READMEs, X, and slides. The evidence lines are shortened from the real output. |
 
-Suggested caption for the launch video: "We ran CloneProof on the repos behind
-the top 100 npm packages. Of the 6 that failed, 5 were our own bug (fixed in
-v0.2.1). Try it: `npx cloneproof-check check <url>`"
+Suggested caption for the launch video: "'It works on my machine' isn't
+evidence. CloneProof checks whether a fresh clone of your Node.js repo installs
+and runs, without executing its code. Try it: `npx cloneproof-check check <url>`"
 
 ## Copy
 
