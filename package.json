@@ -1,6 +1,6 @@
 {
-  "name": "clone-proof",
-  "version": "0.2.3",
+  "name": "cloneproof-check",
+  "version": "0.2.4",
   "description": "Evidence-based setup verification for Node.js repositories.",
   "keywords": [
     "nodejs",

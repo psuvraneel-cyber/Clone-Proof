@@ -100,7 +100,7 @@ test('documented install commands reference the current release, never a branch'
   for (const doc of userDocs) {
     const text = readDoc(doc);
     assert.doesNotMatch(text, /Clone-Proof\/archive\/refs\/heads\//, `${doc} installs from a branch archive`);
-    for (const match of text.matchAll(/Clone-Proof\/releases\/(?:download|tag)\/v(\d+\.\d+\.\d+)(?:\/clone-proof-(\d+\.\d+\.\d+)\.tgz)?/g)) {
+    for (const match of text.matchAll(/Clone-Proof\/releases\/(?:download|tag)\/v(\d+\.\d+\.\d+)(?:\/cloneproof-check-(\d+\.\d+\.\d+)\.tgz)?/g)) {
       releaseUrls += 1;
       assert.equal(match[1], version, `${doc} links release v${match[1]}`);
       if (match[2]) assert.equal(match[2], version, `${doc} links tarball ${match[2]}`);
@@ -108,21 +108,23 @@ test('documented install commands reference the current release, never a branch'
     for (const match of text.matchAll(/github:psuvraneel-cyber\/Clone-Proof(#\S+)?/g)) {
       assert.equal(match[1], `#v${version}`, `${doc} runs npx from ${match[1] || 'the default branch'}`);
     }
-    for (const match of text.matchAll(/clone-?proof-(\d+\.\d+\.\d+)\.tgz/g)) {
-      assert.equal(match[0], `clone-proof-${version}.tgz`, `${doc} names tarball ${match[0]}`);
+    for (const match of text.matchAll(/clone-?proof(?:-check)?-(\d+\.\d+\.\d+)\.tgz/g)) {
+      assert.equal(match[0], `cloneproof-check-${version}.tgz`, `${doc} names tarball ${match[0]}`);
     }
   }
   assert.ok(releaseUrls > 0, 'expected a documented release download URL');
 });
 
-test('documented npm installs use the clone-proof package name', () => {
+test('documented npm installs use the cloneproof-check package name', () => {
   const { name, bin } = JSON.parse(readDoc('package.json'));
-  assert.equal(name, 'clone-proof');
+  assert.equal(name, 'cloneproof-check');
   assert.equal(bin.cloneproof, 'src/cli.js');
   for (const doc of userDocs) {
     const text = readDoc(doc);
     assert.doesNotMatch(text, /npm (?:install|i) (?:-g|--global) cloneproof(?:@|\s|$)/m, `${doc} installs the unrelated cloneproof package`);
     assert.doesNotMatch(text, /npx cloneproof(?:@|\s|$)/m, `${doc} runs the unrelated cloneproof package`);
+    // npm rejected clone-proof as too similar to cloneproof, so it was never published.
+    assert.doesNotMatch(text, /(?:npx|npm (?:install|i) (?:-g|--global)) clone-proof(?:@|\s|$)/m, `${doc} uses the unpublished clone-proof name`);
   }
 });
 
