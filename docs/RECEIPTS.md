@@ -82,7 +82,7 @@ The schema is JSON Schema draft 2020-12 at [`schemas/receipt-v1.schema.json`](sc
 | `source.subdirectory` | relative POSIX path \| null | Target folder relative to the checkout root (`.` for the root). |
 | `source.revisionIdentity` | `commit` \| `unavailable` | |
 | `source.identitySource` | `local-git-metadata` \| `cloneproof-github-clone` \| `none` | Where the commit came from. |
-| `tool.name` / `tool.version` | `cloneproof` / semver | From `package.json` (currently `0.1.1`). |
+| `tool.name` / `tool.version` | `cloneproof` / semver | From `package.json` (currently `0.2.0`). |
 | `tool.receiptGeneratorVersion` | `1` | |
 | `tool.reportSchemaVersion` | `2` | The report schema the receipt was built from. |
 | `tool.action` | `{ repository, ref }` \| null | Action only: `GITHUB_ACTION_REPOSITORY` / `GITHUB_ACTION_REF` when present and valid (null for `uses: ./`). |
