@@ -10,7 +10,7 @@ Drafts only; nothing here has been posted. Every number comes from `docs/field-t
 
 > I build CloneProof, a zero-dependency static checker for whether a fresh clone of a Node.js repo installs and runs. I ran it on the GitHub repos behind the 100 most-depended-on npm packages (ecosyste.ms ranking; archived repos skipped, shared monorepos de-duplicated). Method and judging rules were committed before any check ran. Nothing was installed or executed.
 >
-> Results: 10 of 100 repos had a real setup finding (6 run a real browser in `npm test`, 3 workspace roots can't run their tests from the root, 1 commits a stale npm lockfile next to its pnpm one). 9 of the 10 build-failing findings were false: my tool read README usage examples as repo instructions. 7 repos exceeded its clone limits.
+> Results: 10 of 100 repos had a real setup finding (6 run a real browser in `npm test`, 3 workspace roots can't run their tests from the root, 1 commits a stale npm lockfile next to its pnpm one). 9 of the 10 build-failing findings were false: my tool read README usage examples as repo instructions (fixed in v0.2.1). 7 repos exceeded its clone limits.
 >
 > Judgments were made by an AI assistant and aren't blind; every reason is in the repo. Corrections welcome.
 
@@ -28,7 +28,7 @@ Drafts only; nothing here has been posted. Every number comes from `docs/field-t
 >
 > What was wrong:
 >
-> - 9 of the 10 blocking findings were false. The tool treated README examples like "add `deploy` to your package.json, then `npm run deploy`" as instructions for the repo itself.
+> - 9 of the 10 blocking findings were false. The tool treated README examples like "add `deploy` to your package.json, then `npm run deploy`" as instructions for the repo itself. Fixed in v0.2.1.
 > - 14 environment warnings were variables set by Git, the OS, CI, or the tool itself.
 >
 > 29 libraries don't commit a lockfile; I count that as a deliberate choice, not breakage. 7 huge repos (TypeScript, DefinitelyTyped, webpack, Babel, Rollup, jsdom, Inquirer.js) exceeded the clone limits.

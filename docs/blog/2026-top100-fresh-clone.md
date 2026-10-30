@@ -13,7 +13,7 @@
 We ran [CloneProof](https://github.com/psuvraneel-cyber/Clone-Proof), a static "will a fresh clone of this repository install and run?" checker, on the GitHub repositories of the 100 npm packages with the most dependents. We wrote down the method and the judging rules publicly before running a single check.
 
 - **10 of 100 repositories had at least one real setup finding.** Six run a real browser as part of `npm test`, three are workspaces whose root `npm test` cannot run the tests, and one commits a stale npm lockfile next to the pnpm lockfile it actually uses.
-- **9 of the 10 build-failing findings were false**, all from one check: CloneProof mistook README usage examples ("add this script to *your* `package.json`, then run it") for instructions about the repository itself. Only 1 of the 6 repositories it would have failed in CI deserved it.
+- **9 of the 10 build-failing findings were false**, all from one check: CloneProof mistook README usage examples ("add this script to *your* `package.json`, then run it") for instructions about the repository itself. Only 1 of the 6 repositories it would have failed in CI deserved it. That bug is fixed in v0.2.1: on the same 100 repositories, only that 1 now fails.
 - **7 of 100 repositories could not be checked at all** because they exceed CloneProof's clone safety limits: TypeScript, DefinitelyTyped, webpack, Babel, Rollup, and jsdom hit the 10,000-file or 25 MiB per-file limits, and Inquirer.js has 4.6 GiB of history.
 
 The short version: these projects are in very good shape, and the most useful thing this study found was a set of bugs in CloneProof.
@@ -83,14 +83,14 @@ Of the 6 repositories that would have failed a CI gate, 5 failed only because of
 
 This is the part we learned the most from. **26 of 83 findings were false.**
 
-1. **README examples for users (9 blocking findings, 5 repositories).** `webpack-dev-server`, `lint-staged`, `nyc`, `coveralls`, and `gh-pages` all document how to add a script to *your* project and run it. For example, `gh-pages` shows a `"deploy": "gh-pages -d dist"` script and then `npm run deploy` ([readme.md:373-384](https://github.com/tschaub/gh-pages/blob/48f62a750216e72c5e89058bb61dffdb8450949d/readme.md#L373-L384)), and `nyc` shows a whole example `scripts` block ([README.md:337-345](https://github.com/istanbuljs/nyc/blob/908620475199fa7b9ea0ea8b21d6d8ad6921e3ae/README.md#L337-L345)). CloneProof read those as instructions for the repository itself and failed the build. In our earlier random sample of mostly applications, the same check was right; on libraries, whose READMEs are written for consumers, it was wrong every time. Fix: ignore script references whose script is defined in a README code block, and treat consumer-usage sections as such.
+1. **README examples for users (9 blocking findings, 5 repositories).** `webpack-dev-server`, `lint-staged`, `nyc`, `coveralls`, and `gh-pages` all document how to add a script to *your* project and run it. For example, `gh-pages` shows a `"deploy": "gh-pages -d dist"` script and then `npm run deploy` ([readme.md:373-384](https://github.com/tschaub/gh-pages/blob/48f62a750216e72c5e89058bb61dffdb8450949d/readme.md#L373-L384)), and `nyc` shows a whole example `scripts` block ([README.md:337-345](https://github.com/istanbuljs/nyc/blob/908620475199fa7b9ea0ea8b21d6d8ad6921e3ae/README.md#L337-L345)). CloneProof read those as instructions for the repository itself and failed the build. In our earlier random sample of mostly applications, the same check was right; on libraries, whose READMEs are written for consumers, it was wrong every time. **Fixed in v0.2.1:** a script defined in a README `"scripts"` example is now treated as the reader's project, and `npm run` inside a quoted configuration value is no longer read as a command.
 2. **Environment variables the user never sets (14 warnings).** CloneProof reported `GIT_DIR` (set by Git during hooks), `HOMEPATH` and `PROGRAMFILES` (set by Windows), `COMP_CWORD` (set by the shell), CI-service variables, and keys a tool sets for itself, such as `WEBPACK_SERVE` and `ROLLUP_WATCH`, as undocumented configuration. Two were plain bugs: `process.env.Wimp$ScrapDir` in shelljs ([src/tempdir.js:48](https://github.com/shelljs/shelljs/blob/060e8ac15aa32b1311db15c5e12cd64016637932/src/tempdir.js#L48)) was parsed as a key named `Wimp`, and PostCSS was flagged for a variable mentioned only in a doc comment ([lib/css-syntax-error.d.ts:226](https://github.com/postcss/postcss/blob/2455ac8212fe66bc3248aa01186a52c27c87da5a/lib/css-syntax-error.d.ts#L226)).
 3. **"No tests" when the tests are not JavaScript (2 warnings).** `husky` tests with shell scripts and `dart-sass` with Dart; CloneProof only looked for JavaScript test files.
 4. **A Node version mismatch that is not one (1 warning).** `semantic-release` pins `.nvmrc` to `24`, which nvm resolves to the latest 24.x. CloneProof compared `24.0.0` against `>= 24.10.0`.
 
 Under a stricter reading of the environment rule (a finding is false only when *every* key it lists is wrong), 6 environment warnings are false instead of 14, and warning correctness rises from 76.7% to 87.7%. The blocking result does not change.
 
-None of these are fixed in the version we measured (v0.2.0). They are now the top of the backlog, and the fix will be measured by re-running this exact sample with the same judgments.
+All of these were in the version we measured (v0.2.0). We fixed the README bug first, because it was the only one that failed builds, and re-ran the same 100 repositories with the same judgments. The 9 false blocking findings disappeared, nothing else changed, and the repositories failing a CI gate went from 6 to 1 (`less.js`, the real one). We also re-ran our earlier random sample of 50 repositories, and none of its results changed. The environment, test-detection, and `.nvmrc` fixes are next, and each will be measured the same way.
 
 ## Limitations
 
@@ -106,13 +106,13 @@ None of these are fixed in the version we measured (v0.2.0). They are now the to
 Check any public repository without installing anything:
 
 ```bash
-npx github:psuvraneel-cyber/Clone-Proof#v0.2.0 check https://github.com/OWNER/REPO
+npx github:psuvraneel-cyber/Clone-Proof#v0.2.1 check https://github.com/OWNER/REPO
 ```
 
 Or add it to CI with the GitHub Action ([CloneProof Check on the Marketplace](https://github.com/marketplace/actions/cloneproof-check)):
 
 ```yaml
-- uses: psuvraneel-cyber/Clone-Proof@v0.2.0
+- uses: psuvraneel-cyber/Clone-Proof@v0.2.1
 ```
 
 ## How to reproduce

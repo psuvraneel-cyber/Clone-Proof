@@ -57,13 +57,13 @@ CloneProof doesn't claim a repository is "safe" or universally reproducible. Eve
 **Try it once, no install:**
 
 ```bash
-npx github:psuvraneel-cyber/Clone-Proof#v0.2.0 check https://github.com/tj/commander.js
+npx github:psuvraneel-cyber/Clone-Proof#v0.2.1 check https://github.com/tj/commander.js
 ```
 
 **Install the release** (built and attested by CI):
 
 ```bash
-npm install -g https://github.com/psuvraneel-cyber/Clone-Proof/releases/download/v0.2.0/cloneproof-0.2.0.tgz
+npm install -g https://github.com/psuvraneel-cyber/Clone-Proof/releases/download/v0.2.1/cloneproof-0.2.1.tgz
 
 cloneproof check ./my-project                 # a local folder: read-only, no network, no code execution
 cloneproof check https://github.com/owner/repo  # a public GitHub repository
@@ -75,12 +75,12 @@ cloneproof check https://github.com/owner/repo  # a public GitHub repository
 <details>
 <summary><b>Verify the download before installing</b></summary>
 
-Fetch the tarball and `SHA256SUMS` from the [v0.2.0 release](https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.2.0), then:
+Fetch the tarball and `SHA256SUMS` from the [v0.2.1 release](https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.2.1), then:
 
 ```bash
 sha256sum -c SHA256SUMS            # macOS: shasum -a 256 -c SHA256SUMS
-gh attestation verify cloneproof-0.2.0.tgz --repo psuvraneel-cyber/Clone-Proof
-npm install -g ./cloneproof-0.2.0.tgz
+gh attestation verify cloneproof-0.2.1.tgz --repo psuvraneel-cyber/Clone-Proof
+npm install -g ./cloneproof-0.2.1.tgz
 ```
 
 The tarball contains only `src/`, `README.md`, `CHANGELOG.md`, `LICENSE`, and `package.json`, and has no dependencies.
@@ -93,7 +93,7 @@ Listed on the GitHub Marketplace as **[CloneProof Check](https://github.com/mark
 
 ```yaml
 - name: Run CloneProof Static Check
-  uses: psuvraneel-cyber/Clone-Proof@v0.2.0
+  uses: psuvraneel-cyber/Clone-Proof@v0.2.1
   with:
     target-path: '.'
     mode: 'check' # default: read-only static scan, safe on every pull request
@@ -103,7 +103,7 @@ Findings show up as annotations on the pull request diff, and a Job Summary list
 
 ```yaml
 - name: Run CloneProof Docker Verification
-  uses: psuvraneel-cyber/Clone-Proof@v0.2.0
+  uses: psuvraneel-cyber/Clone-Proof@v0.2.1
   with:
     target-path: '.'
     mode: 'verify' # static check + locked-down Docker verification
@@ -111,7 +111,7 @@ Findings show up as annotations on the pull request diff, and a Job Summary list
     timeout-ms: '300000' # default: 5 minutes (max 600000)
 ```
 
-Pin a release tag such as `@v0.2.0`, or the release's full commit SHA for supply-chain-sensitive workflows (`uses: psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.2.0`). Don't use `@main`: it changes with every merge. While the version is `0.x` there is no moving major tag, so upgrades are always explicit; see [Releases](https://github.com/psuvraneel-cyber/Clone-Proof/releases) and the [changelog](CHANGELOG.md). Inputs, outputs, annotations, and the Job Summary are documented in [docs/GITHUB_ACTION.md](docs/GITHUB_ACTION.md).
+Pin a release tag such as `@v0.2.1`, or the release's full commit SHA for supply-chain-sensitive workflows (`uses: psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.2.1`). Don't use `@main`: it changes with every merge. While the version is `0.x` there is no moving major tag, so upgrades are always explicit; see [Releases](https://github.com/psuvraneel-cyber/Clone-Proof/releases) and the [changelog](CHANGELOG.md). Inputs, outputs, annotations, and the Job Summary are documented in [docs/GITHUB_ACTION.md](docs/GITHUB_ACTION.md).
 
 ### Prove that install and tests really work
 
