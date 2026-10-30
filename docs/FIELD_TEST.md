@@ -819,6 +819,22 @@ Under the stricter alternative (an environment finding is false only when every 
 
 **Candidate fixes, in order of measured impact:** (1) ignore README script references whose script is defined in a README code block, or that sit in a consumer-usage section; (2) for libraries, exclude OS, shell, Git, and CI variables and keys the tool sets itself, and skip comments; (3) parse full identifier characters, including `$`, in `process.env` keys; (4) compare major-only `.nvmrc` values as ranges; (5) count shell and non-JavaScript test suites before reporting `NO_TESTS_FOUND`; (6) offer a documented way to raise the checkout limits for very large repositories. Any fix should be followed by a rerun of this sample with these judgments.
 
+### Run 6 rerun with the README fix (2026-10-30)
+
+Scanner bug 1 (README scripts defined for the reader's own project) was fixed in PR #16 and is released in v0.2.1. The same 100 repositories were rerun on the same day with `node scripts/fieldtest.js run` and an authenticated preflight. Results are in [`field-test/run6-fix-results.json`](field-test/run6-fix-results.json). No finding is new, so every finding keeps its judgment in `run6-judgments.json`, and `summary` with those judgments reproduces the table below. One repository, `microsoft/tslib`, had moved to a new commit since sampling; its findings are unchanged.
+
+| | Run 6 | Rerun with the README fix |
+|---|---:|---:|
+| Report status `passed` / `passed_with_warnings` / `failed` / `blocked` | 31 / 56 / 6 / 7 | 32 / 60 / 1 / 7 |
+| Repositories failing (exit 1) | 6 | **1** |
+| Exit-1 repositories justified by a real blocking finding | 1 / 6 | **1 / 1** |
+| Blocking findings: real / policy / false | 1 / 0 / 9 | **1 / 0 / 0** |
+| Warnings: real / policy / false | 10 / 46 / 17 | 10 / 46 / 17 |
+
+Exactly the 9 false `README_SCRIPT_UNKNOWN` findings are gone, and no other finding changed. webpack-dev-server, lint-staged, nyc, and coveralls moved from `failed` to `passed_with_warnings`, and gh-pages to `passed`. Their README examples are now listed under the informational `README_OTHER_PROJECT_COMMANDS`. The only repository that still fails is `less/less.js`, whose stale `package-lock.json` is a real problem.
+
+The Run 5 sample was also rerun with the fix. All 50 results are identical to the no-tests policy rerun, including `tidepool-org/uploader`'s real `README_SCRIPT_UNKNOWN`. Scanner bugs 2–6 are not fixed yet.
+
 ## Known limitations
 
 1. **Sensitive-file omission applies to local folders only.** Local staging still omits `.env*`, npm configuration, credentials, and certificate/key files and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Fresh public GitHub clones copy committed versions because they are already public; command-line flags still force `npm ci --ignore-scripts`.

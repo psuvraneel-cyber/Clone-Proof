@@ -10,8 +10,8 @@ Reference a release, never a branch:
 
 | Reference | When to use it |
 |---|---|
-| `psuvraneel-cyber/Clone-Proof@v0.2.0` | Default. Release tags are created once and never moved. |
-| `psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.2.0` | Supply-chain-sensitive workflows. Copy the full 40-character SHA of the release commit from the release page. |
+| `psuvraneel-cyber/Clone-Proof@v0.2.1` | Default. Release tags are created once and never moved. |
+| `psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.2.1` | Supply-chain-sensitive workflows. Copy the full 40-character SHA of the release commit from the release page. |
 | `psuvraneel-cyber/Clone-Proof@main` | Not recommended. It changes with every merge and can change behavior without notice. |
 
 While CloneProof is `0.x`, there is no moving major tag such as `v0` or `v1`, because a `0.x` minor release may change behavior. Every upgrade is an explicit edit; read the [changelog](../CHANGELOG.md) first. Releases are listed at <https://github.com/psuvraneel-cyber/Clone-Proof/releases>.
@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run CloneProof Static Check
-        uses: psuvraneel-cyber/Clone-Proof@v0.2.0
+        uses: psuvraneel-cyber/Clone-Proof@v0.2.1
         with:
           target-path: '.'
           mode: 'check'
@@ -64,7 +64,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run CloneProof Docker Verification
-        uses: psuvraneel-cyber/Clone-Proof@v0.2.0
+        uses: psuvraneel-cyber/Clone-Proof@v0.2.1
         with:
           target-path: '.'
           mode: 'verify'
@@ -235,7 +235,7 @@ To save the complete JSON report as a downloadable workflow artifact, add the of
 ```yaml
       - name: Run CloneProof
         id: cloneproof
-        uses: psuvraneel-cyber/Clone-Proof@v0.2.0
+        uses: psuvraneel-cyber/Clone-Proof@v0.2.1
         with:
           target-path: '.'
 

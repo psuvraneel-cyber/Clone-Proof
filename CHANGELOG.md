@@ -12,6 +12,8 @@ and `2` (blocked or incomplete).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-31
+
 ### Fixed
 
 - `README_SCRIPT_UNKNOWN` no longer fails library READMEs that show readers
@@ -21,7 +23,9 @@ and `2` (blocked or incomplete).
   `README_OTHER_PROJECT_COMMANDS` instead. `npm run` commands that appear as
   quoted values in README configuration examples (for example
   `"cover": "npm run cover:unit"`) are no longer treated as commands. In field
-  test Run 6, all 9 `README_SCRIPT_UNKNOWN` findings were of these kinds.
+  test Run 6, all 9 `README_SCRIPT_UNKNOWN` findings were of these kinds, and
+  the repositories failing `check` fell from 6 to 1 (see
+  [docs/FIELD_TEST.md](docs/FIELD_TEST.md)).
 
 ## [0.2.0] - 2026-10-30
 
@@ -107,7 +111,8 @@ First tagged release.
   Docker is not a complete sandbox, and `--allow-network` should be used only
   for trusted repositories.
 
-[Unreleased]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/psuvraneel-cyber/Clone-Proof/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.1.0
