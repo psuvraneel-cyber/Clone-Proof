@@ -1,10 +1,10 @@
 # CloneProof handoff
 
-Updated 2026-10-30. `origin/main` is at `32bf359` (the PR #4 merge) and every implementation series is merged: PR #1 `review-fixes`, PR #2 `release-prep-fixes`, and PRs #3–#4 `feature/github-action`. Main CI run `41043387519` passed for `32bf359` on Ubuntu, macOS, Windows, Docker E2E, and GitHub Action E2E. Branch `claude/project-handoff-review-7152e7` adds release pinning, the Release workflow, the changelog, clean-install docs, and field test Run 5. It is not pushed yet, and no tag or release exists. This file records the current resumable state; receipts from earlier passes are kept under [History](#history).
+Updated 2026-10-30. `origin/main` is at `f6d8493` (the PR #5 merge, Part 4 receipts) and every implementation series is merged: PR #1 `review-fixes`, PR #2 `release-prep-fixes`, PRs #3–#4 `feature/github-action`, and PR #5 receipts. Main CI run `41051366755` passed for `f6d8493`. Branch `claude/project-handoff-review-7152e7` merges that `main` and adds release pinning, the Release workflow, the changelog, clean-install docs, and field test Run 5. It is in review as a pull request; no tag or release exists. This file records the current resumable state; receipts from earlier passes are kept under [History](#history).
 
 ## Part 4 — Reproducibility receipts (2026-10-30)
 
-- Branch `claude/cloneproof-reproducibility-receipts-107784`, based on `32bf359` (Parts 1–3 merged via PR #3 and #4). Local commit only; not pushed, so no CI run exists for this work yet.
+- Branch `claude/cloneproof-reproducibility-receipts-107784`, based on `32bf359`, merged to `main` as PR #5 (`f6d8493`) on 2026-10-30; main CI `41051366755` passed. Part 4 changed no files under `src/scan/` or `src/report/`, so field test Run 5 (measured at `32bf359`) still describes the scanner on `main`.
 - New `src/receipt/` (create, canonicalize, digest, json-schema, validate, git-metadata, write, schema JSON). CLI: `--receipt FILE` on `check`/`verify` and `cloneproof receipt verify <file>`. Action: `receipt-path` input, `receipt-path`/`receipt-status` outputs, Job Summary section. Docs: `docs/RECEIPTS.md`, `docs/schemas/receipt-v1.schema.json`, `docs/examples/receipt-*.example.json`.
 - Local Windows results: `npm test` 406 tests, 402 passed, 0 failed, 4 skipped (3 pre-existing + 1 Windows file-symlink `EPERM` skip); `npm run test:leaks` same counts, exit 0; `npm run build` checked 22 files; pack dry-run matched tracked `src` + LICENSE/README/package.json (26 files); check/verify JSON reports byte-identical to `32bf359` output for the examples.
 - Not run locally: Docker E2E (Docker daemon unavailable on this host), Ubuntu/macOS CI, Action E2E. CI steps were extended to verify receipts in `docker-e2e` and `action-e2e`.
@@ -17,10 +17,10 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 
 | Item | State |
 |---|---|
-| Code | `origin/main` and local `main` = `32bf359`; every branch is merged into it or has patch-equivalent commits on it. |
-| Tests | 336 tests on this branch. Windows host: 333 passed, 0 failed, 3 skipped (symlink `EPERM`). At `32bf359` (323 tests), CI Ubuntu and macOS had 322 passed and 1 skipped (the Windows-only SIGINT cleanup test), and CI Windows had 323 passed. |
-| Leak guard | `npm run test:leaks` passed on the Windows host at `32bf359` with the same counts. |
-| CI | Main run `41043387519` passed all five jobs that run on `push`; the PR-only security guard is skipped on `push` by design. |
+| Code | `origin/main` = `f6d8493`. This branch is `main` plus the release, install, and Run 5 commits. |
+| Tests | 419 tests on this branch after merging `main`. Windows host: 415 passed, 0 failed, 4 skipped (symlink `EPERM`). At `32bf359` (323 tests), CI Ubuntu and macOS had 322 passed and 1 skipped (the Windows-only SIGINT cleanup test), and CI Windows had 323 passed. |
+| Leak guard | `npm run test:leaks` passed on the Windows host after merging `main`, with the same 419 / 415 / 4 counts. |
+| CI | Main run `41051366755` passed for `f6d8493`; main run `41043387519` passed all five push jobs for `32bf359`. The PR-only security guard is skipped on `push` by design. |
 | Finding codes | 86 codes documented in `docs/FINDINGS.md`; every one appears in `src/`. |
 | Field evidence | Run 3 (`54141a5`): 15 public repositories, 13 correct and 2 environment-limited failures; warning precision 5/6 = 83.3%; planted bugs 13/13 offline and 39/39 in real repositories. Run 4 (`ef8056d`): every recheck matched its pre-recorded expectation, and JSON was byte-identical across repeated runs on 10 repositories. Run 5 (pre-registered in `df0ee43`, `src/` identical to `32bf359`): 50 randomly sampled repositories. 14 / 14 blocking findings were factually correct, but only 4 were actionable; 10 were `TEST_SCRIPT_MISSING` on repositories with no tests. Warning precision was 8 / 26, with 13 false, mostly `ENV_EXAMPLE_MISSING` (7 / 8 false) and `BROWSER_TESTS_DETECTED` (5 / 8 false). |
 | Buildathon | Every official item in `docs/BUILDATHON_CHECKLIST.md` is unchecked, and its deadline (20 October 2026, 11:59 PM IST) has passed. Whether the submission happened is not recorded in the repository. |

@@ -289,7 +289,7 @@ Full commands, target commits and per-finding verdicts are in [docs/FIELD_TEST.m
 | Hand-picked repositories (Run 3) | **13 correct + 2 environment-limited** out of 15; warning precision 5 / 6 |
 | Planted-bug mutations (offline) | **13 / 13** detected |
 | Planted bugs in real repositories | **39 / 39** detected across 3 repos |
-| Automated tests | **336** (offline, `npm test`) |
+| Automated tests | **419** (offline, `npm test`) |
 | CI | Ubuntu · macOS · Windows · Docker end-to-end · GitHub Action end-to-end |
 | Output determinism | Byte-identical JSON across repeated runs on 10 public repos |
 
@@ -314,7 +314,7 @@ Run 5 is the honest noise measurement. Blocking findings were never wrong, but m
 git clone https://github.com/psuvraneel-cyber/Clone-Proof.git
 cd Clone-Proof
 npm ci
-npm test               # 336 offline tests
+npm test               # 419 offline tests
 npm run test:leaks     # same suite with an isolated temp folder; fails on any leftover file
 npm run build          # syntax check
 ```

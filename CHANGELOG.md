@@ -36,6 +36,10 @@ First tagged release.
 - A native GitHub Action (`node24`) with `check` and `verify` modes,
   workflow annotations, and a Job Summary. Docker verification from the Action
   runs only on Linux runners for `push` and `workflow_dispatch` events.
+- Versioned reproducibility receipts (`receiptVersion: 1`): `--receipt FILE`
+  on `check` and `verify`, `cloneproof receipt verify <file>`, and Action
+  `receipt-path` / `receipt-status` outputs. The SHA-256 digest detects
+  accidental changes; it is not a signature. See [docs/RECEIPTS.md](docs/RECEIPTS.md).
 - Release tarballs built by CI from version tags, published with
   `SHA256SUMS` and a build-provenance attestation; see
   [docs/RELEASING.md](docs/RELEASING.md).
