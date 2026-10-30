@@ -92,6 +92,7 @@ The Action integrates natively with GitHub Actions features:
 - **Pull request & workflow annotations:** High-priority findings appear inline in file diffs and workflow logs (`error`, `warning`, `notice` capped at 10 each, 30 max total).
 - **GitHub Actions Job Summary:** A structured Markdown summary showing status, metrics, findings table, Docker verification outcome (in `verify` mode), evaluated check groups, and safe logical report locations.
 - **Fail-safe isolation:** Child process secrets are scrubbed, untrusted child output cannot inject workflow commands, non-Linux runners and untrusted PR events fail closed without running repository code on the host, and presentation errors never alter scan results.
+- **Reproducibility receipt:** Every run writes a versioned JSON receipt (default `RUNNER_TEMP/cloneproof/receipt.json`) recording the source commit, CloneProof version, mode, runner, Docker image and network policy, outcome, and cleanup, with a SHA-256 integrity digest. Outputs `receipt-path` and `receipt-status` expose it.
 
 See [docs/GITHUB_ACTION.md](docs/GITHUB_ACTION.md) for complete input, output, annotation, Docker verification, and job summary documentation.
 
@@ -248,10 +249,11 @@ Target repositories are treated as **untrusted input**.
 ## Usage reference
 
 ```text
-cloneproof check  <path-or-github-url> [--format text|json|html] [--output FILE] [--color|--no-color]
+cloneproof check  <path-or-github-url> [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]
 cloneproof verify <path-or-github-url> --docker --execute [--allow-network] [--timeout-ms N]
-                                       [--format text|json|html] [--output FILE] [--color|--no-color]
+                                       [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]
 cloneproof setup
+cloneproof receipt verify <receipt-file>
 cloneproof --version
 ```
 
@@ -263,6 +265,9 @@ cloneproof --version
 | `--docker --execute` | Both required to run anything in `verify` |
 | `--allow-network` | Allow network in the container — trusted repos only |
 | `--timeout-ms N` | Verification time limit (default 5 min, max 10 min) |
+| `--receipt FILE` | Also write a reproducibility receipt (opt-in; must differ from `--output`) |
+
+**Reproducibility receipts.** `--receipt FILE` writes a separate, versioned JSON evidence record of the run: source commit (read from local Git metadata without running Git, or from CloneProof's GitHub clone), CloneProof version, mode, whether repository commands ran and where, Docker image digest and network policy, outcome, finding codes, coverage, and cleanup. It carries a SHA-256 digest over a canonical JSON form. `cloneproof receipt verify FILE` checks the schema and digest (exit `0` valid, `1` invalid or mismatched, `2` unreadable or unsupported). A receipt is **not** a signature or a security certification: anyone who can edit it can recompute the digest, so the digest only detects changes when you trust the expected value from elsewhere. Receipt failures are reported separately and never change the exit code. See [docs/RECEIPTS.md](docs/RECEIPTS.md).
 
 **GitHub URLs:** `https://github.com/OWNER/REPO` works, including variants with `www.`, a trailing `/`, `?tab=…` or `#readme`. `/tree/…` and `/blob/…` links are rejected with the correct URL suggested. A missing local path shaped like `owner/repo` gets a "Did you mean https://github.com/owner/repo?" hint.
 

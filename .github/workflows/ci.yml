@@ -121,10 +121,11 @@ jobs:
         shell: bash
         run: |
           set +e
-          node src/cli.js verify examples/healthy-node --docker --execute --format json --output healthy-report.json
+          node src/cli.js verify examples/healthy-node --docker --execute --format json --output healthy-report.json --receipt healthy-receipt.json
           verify_status=$?
           set -e
           test "$verify_status" -eq 0
+          node src/cli.js receipt verify healthy-receipt.json
           node <<'NODE'
           const fs = require('node:fs');
           const report = JSON.parse(fs.readFileSync('healthy-report.json', 'utf8'));
@@ -133,6 +134,21 @@ jobs:
           }
           if (report.verification.image !== process.env.VERIFY_IMAGE) {
             throw new Error(`Expected pinned verifier image ${process.env.VERIFY_IMAGE}, got ${report.verification.image}`);
+          }
+          const receipt = JSON.parse(fs.readFileSync('healthy-receipt.json', 'utf8'));
+          const checks = {
+            'source.commit': [receipt.source.commit, process.env.GITHUB_SHA],
+            'source.subdirectory': [receipt.source.subdirectory, 'examples/healthy-node'],
+            'execution.repositoryCommandsExecuted': [receipt.execution.repositoryCommandsExecuted, true],
+            'execution.repositoryCommandsEnvironment': [receipt.execution.repositoryCommandsEnvironment, 'controlled-docker'],
+            'execution.container.image': [receipt.execution.container.image, process.env.VERIFY_IMAGE],
+            'execution.container.networkPolicy': [receipt.execution.container.networkPolicy, 'none'],
+            'result.status': [receipt.result.status, report.status],
+            'result.verificationOutcome': [receipt.result.verificationOutcome, 'passed'],
+            'result.cleanup': [receipt.result.cleanup, 'confirmed']
+          };
+          for (const [field, [actual, expected]] of Object.entries(checks)) {
+            if (actual !== expected) throw new Error(`Expected receipt ${field} ${expected}, got ${actual}`);
           }
           NODE
       - name: Verify broken example
@@ -212,6 +228,35 @@ jobs:
             echo "Leftover Docker containers found: $leftover"
             exit 1
           fi
+
+      - name: "Test A: Assert reproducibility receipt"
+        shell: bash
+        env:
+          RECEIPT_PATH: ${{ steps.test_a.outputs.receipt-path }}
+          RECEIPT_STATUS: ${{ steps.test_a.outputs.receipt-status }}
+        run: |
+          test "$RECEIPT_STATUS" = "created"
+          test -f "$RECEIPT_PATH"
+          node src/cli.js receipt verify "$RECEIPT_PATH"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const receipt = JSON.parse(fs.readFileSync(process.env.RECEIPT_PATH, 'utf8'));
+          const checks = {
+            'execution.invocation': [receipt.execution.invocation, 'github-action'],
+            'source.commit': [receipt.source.commit, process.env.GITHUB_SHA],
+            'source.repository': [receipt.source.repository, process.env.GITHUB_REPOSITORY],
+            'environment.github.runId': [receipt.environment.github.runId, process.env.GITHUB_RUN_ID],
+            'execution.repositoryCommandsExecuted': [receipt.execution.repositoryCommandsExecuted, true],
+            'result.verificationOutcome': [receipt.result.verificationOutcome, 'passed']
+          };
+          for (const [field, [actual, expected]] of Object.entries(checks)) {
+            if (actual !== expected) throw new Error(`Expected receipt ${field} ${expected}, got ${actual}`);
+          }
+          const text = fs.readFileSync(process.env.RECEIPT_PATH, 'utf8');
+          for (const forbidden of [process.env.RUNNER_TEMP, process.env.GITHUB_WORKSPACE, require('node:os').hostname()]) {
+            if (forbidden && text.includes(forbidden)) throw new Error('Receipt contains a runner path or hostname');
+          }
+          NODE
 
       # Test B: Verification failure
       - name: "Test B: Run Action on failing fixture (verify mode)"
@@ -313,7 +358,9 @@ jobs:
           echo "Verification Status: ${{ steps.test_e.outputs.verification-status }}"
           test "${{ steps.test_e.outputs.status }}" = "passed"
           test "${{ steps.test_e.outputs.verification-status }}" = "not_run"
+          test "${{ steps.test_e.outputs.receipt-status }}" = "created"
           test -f runner-check-report.json
+          node src/cli.js receipt verify "${{ steps.test_e.outputs.receipt-path }}"
 
           node <<'NODE'
           const fs = require('node:fs');

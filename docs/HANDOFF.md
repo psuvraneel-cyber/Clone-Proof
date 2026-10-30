@@ -2,6 +2,13 @@
 
 Updated 2026-10-30. `origin/main` is at `32bf359` (the PR #4 merge) and every implementation series is merged: PR #1 `review-fixes`, PR #2 `release-prep-fixes`, and PRs #3–#4 `feature/github-action`. Main CI run `41043387519` passed for `32bf359` on Ubuntu, macOS, Windows, Docker E2E, and GitHub Action E2E. Branch `claude/project-handoff-review-7152e7` adds release pinning, the Release workflow, the changelog, clean-install docs, and field test Run 5. It is not pushed yet, and no tag or release exists. This file records the current resumable state; receipts from earlier passes are kept under [History](#history).
 
+## Part 4 — Reproducibility receipts (2026-10-30)
+
+- Branch `claude/cloneproof-reproducibility-receipts-107784`, based on `32bf359` (Parts 1–3 merged via PR #3 and #4). Local commit only; not pushed, so no CI run exists for this work yet.
+- New `src/receipt/` (create, canonicalize, digest, json-schema, validate, git-metadata, write, schema JSON). CLI: `--receipt FILE` on `check`/`verify` and `cloneproof receipt verify <file>`. Action: `receipt-path` input, `receipt-path`/`receipt-status` outputs, Job Summary section. Docs: `docs/RECEIPTS.md`, `docs/schemas/receipt-v1.schema.json`, `docs/examples/receipt-*.example.json`.
+- Local Windows results: `npm test` 406 tests, 402 passed, 0 failed, 4 skipped (3 pre-existing + 1 Windows file-symlink `EPERM` skip); `npm run test:leaks` same counts, exit 0; `npm run build` checked 22 files; pack dry-run matched tracked `src` + LICENSE/README/package.json (26 files); check/verify JSON reports byte-identical to `32bf359` output for the examples.
+- Not run locally: Docker E2E (Docker daemon unavailable on this host), Ubuntu/macOS CI, Action E2E. CI steps were extended to verify receipts in `docker-e2e` and `action-e2e`.
+
 ## Goal
 
 Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository setup verification. `check` never executes repository code: local targets are read-only scans and GitHub targets use one isolated shallow clone before scanning. `verify` runs only the supported npm workflow inside an explicitly authorized, bounded Docker profile. The native GitHub Action (`action.yml`, `src/action/`) runs the same CLI in workflows: `mode: check` by default, and `mode: verify` only on Linux runners for `push` and `workflow_dispatch` events.

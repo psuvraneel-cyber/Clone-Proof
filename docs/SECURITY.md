@@ -56,6 +56,14 @@ The verifier image is pinned by the recorded digest `sha256:4a4884e8a44826194dff
 
 JSON and HTML renderers consume the versioned CloneProof report. The HTML report is self-contained with inline styles, escapes repository-controlled text, includes no external resources, bounds displayed verification output to the last 60 lines and 4,000 characters per stream, and displays at most ten evidence items per finding. Cleanup notices expose only temporary folder basenames.
 
+## Reproducibility receipts
+
+- **Integrity, not authenticity.** The SHA-256 digest covers a canonical form of the receipt. Anyone who can edit a receipt can recompute the digest, so it detects modification only when the expected digest is trusted independently. It is not a digital signature, an attestation, or provenance, and a valid digest does not show that the recorded claims or the source code are correct. `receipt verify` also checks schema and consistency rules, so a re-digested receipt with contradictory claims (for example, `passed` without executed commands) is still rejected.
+- **No new execution.** Receipt code reads a finalized report and allow-listed metadata. It never imports the scanner, the Docker verifier, or `child_process`. Local commit identity comes from bounded reads of `HEAD`, `commondir`, a loose ref, and `packed-refs`; Git configuration, hooks, aliases, and filters are never consulted.
+- **Allow-listed content.** Free text from reports (messages, evidence, recommendations, stdout/stderr, paths) never enters a receipt. Every recorded string must match a strict pattern or becomes `null`, and only named `GITHUB_*`/`RUNNER_*` variables are read. Receipts contain no tokens, secrets, `.env` values, absolute or temporary paths, hostnames, usernames, IP addresses, or Docker configuration. GitHub URLs are rebuilt from a validated `owner/name`, so embedded credentials cannot appear.
+- **Untrusted input.** Unknown report fields cannot add receipt fields (the schema forbids additional properties). `receipt verify` reads at most 1 MiB from a regular file and reports bounded, fixed diagnostics.
+- **Paths and failure handling.** Action receipt paths must stay inside `GITHUB_WORKSPACE` or `RUNNER_TEMP`, must not be symlinks or directories, must not escape through a symlinked parent, and must differ from the report path. Writes are atomic. Path errors do not echo the input or environment values. A receipt failure never changes the report, status, or exit code.
+
 ## GitHub Action security model
 
 The native GitHub Action (`action.yml` and `src/action/`) preserves CloneProof's security architecture within the GitHub Actions runner environment:

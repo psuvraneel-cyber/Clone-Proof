@@ -157,6 +157,50 @@ function formatSafeReportPath(reportPath, workspaceRoot, runnerTemp) {
   return `RUNNER_TEMP/cloneproof/${base}`;
 }
 
+const RECEIPT_MODE_LABELS = Object.freeze({
+  check: 'Static check',
+  verify: 'Docker verification'
+});
+
+/**
+ * Renders the receipt section. Values come from the validated receipt, but
+ * each one is re-checked against a fixed format before display, and the
+ * digest is shown only for a receipt that was written and re-verified.
+ */
+function renderReceiptSection(receiptResult, workspaceRoot, runnerTemp) {
+  const lines = ['## Reproducibility Receipt\n'];
+  const receipt = receiptResult.receipt;
+  const created = receiptResult.status === 'created'
+    && receipt && typeof receipt === 'object'
+    && typeof receiptResult.digest === 'string' && /^[0-9a-f]{64}$/.test(receiptResult.digest)
+    && receipt.integrity && receipt.integrity.digest === receiptResult.digest;
+
+  if (!created) {
+    lines.push('**Receipt status:** FAILED\n');
+    lines.push('A reproducibility receipt could not be created for this run. The JSON report and the step result are unaffected.\n');
+    return lines;
+  }
+
+  const commit = receipt.source && /^[0-9a-f]{40}$/.test(receipt.source.commit) ? `\`${receipt.source.commit}\`` : 'Unavailable';
+  const mode = receipt.execution && RECEIPT_MODE_LABELS[receipt.execution.mode] ? RECEIPT_MODE_LABELS[receipt.execution.mode] : 'Unknown';
+  const outcome = receipt.result && /^[a-z_]{1,16}$/.test(receipt.result.verificationOutcome) ? receipt.result.verificationOutcome : 'unknown';
+  const location = formatSafeReportPath(receiptResult.path, workspaceRoot, runnerTemp);
+
+  lines.push('**Receipt status:** CREATED\n');
+  lines.push('| Property | Value |');
+  lines.push('|---|---|');
+  lines.push('| Receipt schema | v1 |');
+  lines.push('| Integrity algorithm | SHA-256 |');
+  lines.push(`| Integrity digest | \`${receiptResult.digest}\` |`);
+  lines.push(`| Source revision | ${commit} |`);
+  lines.push(`| Execution mode | ${mode} |`);
+  lines.push(`| Verification outcome | \`${escapeInlineCode(outcome)}\` |`);
+  lines.push(`| Receipt location | \`${escapeInlineCode(location)}\` |`);
+  lines.push('');
+  lines.push('*(The digest detects changes only when the expected value is trusted independently; it is not a signature or a security certification.)*\n');
+  return lines;
+}
+
 /**
  * Renders a validated CloneProof report into GitHub-flavoured Markdown.
  */
@@ -320,6 +364,14 @@ function renderJobSummary(report, options = {}) {
   }
 
   const rawMarkdown = lines.join('\n');
+
+  // G. Reproducibility Receipt. It is small and bounded, so the byte budget is
+  // reserved for it and any truncation applies to the report sections only.
+  if (options.receipt && typeof options.receipt === 'object') {
+    const receiptMarkdown = `\n${renderReceiptSection(options.receipt, workspaceRoot, runnerTemp).join('\n')}`;
+    return enforceSummaryByteLimit(rawMarkdown, MAX_SUMMARY_BYTES - Buffer.byteLength(receiptMarkdown, 'utf8')) + receiptMarkdown;
+  }
+
   return enforceSummaryByteLimit(rawMarkdown);
 }
 
@@ -357,5 +409,6 @@ module.exports = {
   escapeTableCell,
   formatSafeReportPath,
   renderJobSummary,
+  renderReceiptSection,
   writeJobSummary
 };
