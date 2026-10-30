@@ -2,13 +2,17 @@
 
 // Repeatable public-repository field test (Run 5 and later).
 //
-//   node scripts/fieldtest.js sample  --seed N --count N --out FILE
-//   node scripts/fieldtest.js run     --sample FILE --out FILE [--reports DIR]
-//   node scripts/fieldtest.js summary --results FILE --judgments FILE [--sample FILE]
+//   node scripts/fieldtest.js sample      --seed N --count N --out FILE
+//   node scripts/fieldtest.js ranking     --pages N --out FILE
+//   node scripts/fieldtest.js sample-list --ranking FILE --count N --out FILE
+//   node scripts/fieldtest.js run         --sample FILE --out FILE [--reports DIR]
+//   node scripts/fieldtest.js summary     --results FILE --judgments FILE [--sample FILE]
 //
 // `sample` draws repositories from GitHub search with a seeded PRNG and records
 // facts and pre-registered expectations through the authenticated `gh` CLI. It
-// never clones or runs repository code. `run` invokes `cloneproof check` on each
+// never clones or runs repository code. `ranking` saves the npm packages with the
+// most dependent packages (ecosyste.ms), and `sample-list` maps them, in order,
+// to unique GitHub repositories with the same facts. `run` invokes `cloneproof check` on each
 // sampled URL. `summary` combines results with per-finding judgments and prints
 // Markdown tables with Wilson 95% intervals.
 
@@ -218,6 +222,121 @@ async function sample(options) {
   process.stdout.write(`Accepted ${accepted.length} of ${draws.length} draws.\n`);
 }
 
+const RANKING_URL = 'https://packages.ecosyste.ms/api/v1/registries/npmjs.org/packages';
+
+// Fetches the npm packages with the most dependent packages, in ranking order,
+// and saves the raw rows used for selection so the sample can be audited.
+async function ranking(options) {
+  const pages = Number(options.pages || 5);
+  const perPage = 100;
+  if (!Number.isInteger(pages) || pages < 1) throw new Error('--pages must be a positive integer');
+  const output = { source: RANKING_URL, query: { sort: 'dependent_packages_count', order: 'desc', per_page: perPage }, pages: [] };
+  for (let page = 1; page <= pages; page += 1) {
+    const url = `${RANKING_URL}?sort=dependent_packages_count&order=desc&per_page=${perPage}&page=${page}`;
+    const response = await fetch(url, { headers: { accept: 'application/json' } });
+    if (!response.ok) throw new Error(`Ranking page ${page} returned HTTP ${response.status}`);
+    const rows = await response.json();
+    output.pages.push({
+      page,
+      fetchedAt: new Date().toISOString(),
+      packages: rows.map((row, index) => ({
+        rank: (page - 1) * perPage + index + 1,
+        name: row.name,
+        dependentPackages: row.dependent_packages_count,
+        repositoryUrl: row.repository_url || null
+      }))
+    });
+    await sleep(1000);
+  }
+  fs.mkdirSync(path.dirname(path.resolve(options.out)), { recursive: true });
+  fs.writeFileSync(options.out, `${JSON.stringify(output, null, 2)}\n`);
+  process.stdout.write(`Saved ${output.pages.reduce((total, page) => total + page.packages.length, 0)} ranked packages.\n`);
+}
+
+// Returns "owner/repo" for a github.com repository URL, or null for anything else.
+function normalizeGithubRepository(url) {
+  if (typeof url !== 'string') return null;
+  let value = url.trim().replace(/^git\+/, '').replace(/^git:\/\//, 'https://').replace(/^ssh:\/\/git@/, 'https://').replace(/^git@github\.com:/, 'https://github.com/');
+  value = value.replace(/^http:\/\//, 'https://').replace(/^https:\/\/www\./, 'https://');
+  const match = /^https:\/\/github\.com\/([^/#?\s]+)\/([^/#?\s]+)/i.exec(value);
+  if (!match) return null;
+  const owner = match[1];
+  const name = match[2].replace(/\.git$/i, '');
+  if (!owner || !name) return null;
+  return `${owner}/${name}`;
+}
+
+// Walks the ranking in order and keeps the first `count` usable repositories.
+// `inspect(ownerRepo)` returns { fullName } plus either `facts` or `rejected`;
+// results are cached by resolved name, so a repository is inspected once and
+// credited to its highest-ranked package.
+function selectTopRepositories(packages, count, inspect) {
+  const sample = [];
+  const skipped = [];
+  const byName = new Map();
+  const resolved = new Map();
+  for (const entry of packages) {
+    if (sample.length >= count) break;
+    const normalized = normalizeGithubRepository(entry.repositoryUrl);
+    if (!normalized) {
+      skipped.push({ rank: entry.rank, package: entry.name, repositoryUrl: entry.repositoryUrl, reason: entry.repositoryUrl ? 'not-github' : 'no-repository-url' });
+      continue;
+    }
+    const key = normalized.toLowerCase();
+    if (!resolved.has(key)) resolved.set(key, inspect(normalized));
+    const outcome = resolved.get(key);
+    const fullName = outcome.fullName || normalized;
+    const existing = byName.get(fullName.toLowerCase());
+    if (existing) {
+      existing.alsoProvides.push(entry.name);
+      continue;
+    }
+    if (outcome.rejected) {
+      const record = { rank: entry.rank, package: entry.name, repository: fullName, reason: outcome.rejected, alsoProvides: [] };
+      skipped.push(record);
+      byName.set(fullName.toLowerCase(), record);
+      continue;
+    }
+    const facts = { rank: entry.rank, package: entry.name, alsoProvides: [], dependentPackages: entry.dependentPackages, ...outcome.facts };
+    sample.push(facts);
+    byName.set(fullName.toLowerCase(), facts);
+  }
+  return { sample, skipped };
+}
+
+function inspectRepository(ownerRepo) {
+  let repository;
+  try {
+    repository = ghApi([`repos/${ownerRepo}`]);
+  } catch (error) {
+    return { rejected: error.notFound ? 'not-found' : 'api-error' };
+  }
+  if (repository.private) return { fullName: repository.full_name, rejected: 'private' };
+  if (repository.archived) return { fullName: repository.full_name, rejected: 'archived' };
+  try {
+    return { fullName: repository.full_name, ...collectFacts(repository) };
+  } catch (error) {
+    return { fullName: repository.full_name, rejected: error.notFound ? 'contents-not-found' : 'api-error' };
+  }
+}
+
+function sampleList(options) {
+  const input = JSON.parse(fs.readFileSync(options.ranking, 'utf8'));
+  const count = Number(options.count || 100);
+  const packages = input.pages.flatMap((page) => page.packages);
+  const { sample: accepted, skipped } = selectTopRepositories(packages, count, (ownerRepo) => {
+    const outcome = inspectRepository(ownerRepo);
+    process.stderr.write(`${ownerRepo}: ${outcome.rejected || 'accepted'}\n`);
+    return outcome;
+  });
+  if (accepted.length < count) throw new Error(`Only ${accepted.length} repositories found; fetch more ranking pages`);
+  const lastRank = accepted[accepted.length - 1].rank;
+  const output = { count, ranking: options.ranking, sampledAt: new Date().toISOString(), walkedThroughRank: lastRank, skipped, sample: accepted };
+  fs.mkdirSync(path.dirname(path.resolve(options.out)), { recursive: true });
+  fs.writeFileSync(options.out, `${JSON.stringify(output, null, 2)}\n`);
+  process.stdout.write(`Accepted ${accepted.length} repositories through rank ${lastRank}; skipped ${skipped.length}.\n`);
+}
+
 function run(options) {
   const input = JSON.parse(fs.readFileSync(options.sample, 'utf8'));
   const reportsDir = path.resolve(options.reports || path.join(root, 'reports', 'field', 'run5'));
@@ -377,12 +496,12 @@ function summary(options) {
   ].join('\n'));
 }
 
-const handlers = { sample, run, summary };
+const handlers = { sample, ranking, 'sample-list': sampleList, run, summary };
 
 if (require.main === module) {
   const [command, ...rest] = process.argv.slice(2);
   if (!handlers[command]) {
-    process.stderr.write('Usage: node scripts/fieldtest.js sample|run|summary [options]\n');
+    process.stderr.write('Usage: node scripts/fieldtest.js sample|ranking|sample-list|run|summary [options]\n');
     process.exit(2);
   }
   Promise.resolve(handlers[command](parseArgs(rest))).catch((error) => {
@@ -391,4 +510,14 @@ if (require.main === module) {
   });
 }
 
-module.exports = { clusterBootstrap, expectedFindings, mulberry32, parseManifest, testScriptKind, wilson };
+module.exports = {
+  clusterBootstrap,
+  collectFacts,
+  expectedFindings,
+  mulberry32,
+  normalizeGithubRepository,
+  parseManifest,
+  selectTopRepositories,
+  testScriptKind,
+  wilson
+};
