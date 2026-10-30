@@ -1,0 +1,1716 @@
+{
+  "seed": 20261030,
+  "count": 50,
+  "frame": {
+    "languages": [
+      "JavaScript",
+      "TypeScript"
+    ],
+    "createdFrom": "2014-01-01",
+    "createdTo": "2025-10-29",
+    "pushedSince": "2025-10-30",
+    "minStars": 10
+  },
+  "queryTemplate": "language:<language> created:<day> stars:>=10 pushed:>=2025-10-30 fork:false archived:false is:public",
+  "draws": [
+    {
+      "draw": 1,
+      "language": "TypeScript",
+      "day": "2022-07-27",
+      "totalCount": 17,
+      "index": 6,
+      "repository": "mfuu/vue3-virtual-sortable",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 2,
+      "language": "TypeScript",
+      "day": "2019-02-15",
+      "totalCount": 9,
+      "index": 4,
+      "repository": "wardellbagby/lyricistant",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 3,
+      "language": "TypeScript",
+      "day": "2021-04-19",
+      "totalCount": 11,
+      "index": 1,
+      "repository": "knowankit/trello-clone",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 4,
+      "language": "JavaScript",
+      "day": "2014-06-13",
+      "totalCount": 7,
+      "index": 3,
+      "repository": "tidepool-org/uploader",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 5,
+      "language": "JavaScript",
+      "day": "2021-11-21",
+      "totalCount": 13,
+      "index": 11,
+      "repository": "os-climate/physrisk-ui",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 6,
+      "language": "TypeScript",
+      "day": "2014-10-13",
+      "totalCount": 0,
+      "outcome": "empty"
+    },
+    {
+      "draw": 7,
+      "language": "JavaScript",
+      "day": "2021-04-29",
+      "totalCount": 8,
+      "index": 3,
+      "repository": "regorxxx/Camelot-Wheel-Notation",
+      "outcome": "rejected",
+      "reason": "no-root-package-json"
+    },
+    {
+      "draw": 8,
+      "language": "TypeScript",
+      "day": "2018-02-20",
+      "totalCount": 11,
+      "index": 10,
+      "repository": "snowcoders/sortier",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 9,
+      "language": "TypeScript",
+      "day": "2020-02-29",
+      "totalCount": 11,
+      "index": 5,
+      "repository": "XFox111/TabsAsideExtension",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 10,
+      "language": "TypeScript",
+      "day": "2018-01-29",
+      "totalCount": 6,
+      "index": 1,
+      "repository": "eemeli/yaml",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 11,
+      "language": "TypeScript",
+      "day": "2020-09-12",
+      "totalCount": 7,
+      "index": 5,
+      "repository": "biud436/InitialEditor",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 12,
+      "language": "JavaScript",
+      "day": "2017-05-18",
+      "totalCount": 7,
+      "index": 2,
+      "repository": "uphold/uphold-sdk-javascript",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 13,
+      "language": "JavaScript",
+      "day": "2017-01-17",
+      "totalCount": 10,
+      "index": 0,
+      "repository": "quire-io/SwiftyChrono",
+      "outcome": "rejected",
+      "reason": "no-root-package-json"
+    },
+    {
+      "draw": 14,
+      "language": "JavaScript",
+      "day": "2025-10-24",
+      "totalCount": 33,
+      "index": 8,
+      "repository": "XiaoLuoTian189/LanQiao",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 15,
+      "language": "TypeScript",
+      "day": "2017-08-07",
+      "totalCount": 4,
+      "index": 2,
+      "repository": "Unibeautify/vscode",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 16,
+      "language": "TypeScript",
+      "day": "2023-03-03",
+      "totalCount": 24,
+      "index": 9,
+      "repository": "stackblitz/starters",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 17,
+      "language": "JavaScript",
+      "day": "2020-01-04",
+      "totalCount": 9,
+      "index": 2,
+      "repository": "beforesemicolon/tutorials-files",
+      "outcome": "rejected",
+      "reason": "no-root-package-json"
+    },
+    {
+      "draw": 18,
+      "language": "JavaScript",
+      "day": "2014-02-10",
+      "totalCount": 4,
+      "index": 1,
+      "repository": "jembi/openhim-core-js",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 19,
+      "language": "TypeScript",
+      "day": "2021-02-17",
+      "totalCount": 16,
+      "index": 10,
+      "repository": "TomPlum/learn-japanese",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 20,
+      "language": "TypeScript",
+      "day": "2015-09-02",
+      "totalCount": 1,
+      "index": 0,
+      "repository": "peterKaleta/react-token-autocomplete",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 21,
+      "language": "JavaScript",
+      "day": "2014-09-21",
+      "totalCount": 5,
+      "index": 3,
+      "repository": "eemeli/make-plural",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 22,
+      "language": "TypeScript",
+      "day": "2018-01-01",
+      "totalCount": 4,
+      "index": 0,
+      "repository": "artus9033/chartjs-plugin-dragdata",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 23,
+      "language": "TypeScript",
+      "day": "2022-11-23",
+      "totalCount": 17,
+      "index": 5,
+      "repository": "Pithaya/spicetify-apps",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 24,
+      "language": "TypeScript",
+      "day": "2021-09-06",
+      "totalCount": 9,
+      "index": 0,
+      "repository": "vuejs/repl",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 25,
+      "language": "JavaScript",
+      "day": "2023-06-10",
+      "totalCount": 20,
+      "index": 4,
+      "repository": "FluffyBubu/cypress-sandbox",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 26,
+      "language": "JavaScript",
+      "day": "2015-08-05",
+      "totalCount": 7,
+      "index": 1,
+      "repository": "meikidd/iso-639-1",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 27,
+      "language": "JavaScript",
+      "day": "2022-01-24",
+      "totalCount": 5,
+      "index": 3,
+      "repository": "svtcore/aliexpress-global-switcher",
+      "outcome": "rejected",
+      "reason": "no-root-package-json"
+    },
+    {
+      "draw": 28,
+      "language": "TypeScript",
+      "day": "2018-08-22",
+      "totalCount": 10,
+      "index": 2,
+      "repository": "DanWahlin/Observable-Store",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 29,
+      "language": "JavaScript",
+      "day": "2020-04-06",
+      "totalCount": 17,
+      "index": 3,
+      "repository": "yuhaofe/Video-Quality-Fixer-for-Twitter",
+      "outcome": "rejected",
+      "reason": "no-root-package-json"
+    },
+    {
+      "draw": 30,
+      "language": "TypeScript",
+      "day": "2018-12-02",
+      "totalCount": 7,
+      "index": 4,
+      "repository": "vechain/connex",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 31,
+      "language": "JavaScript",
+      "day": "2023-10-17",
+      "totalCount": 8,
+      "index": 4,
+      "repository": "ruanqizhen/python_book",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 32,
+      "language": "JavaScript",
+      "day": "2021-01-22",
+      "totalCount": 10,
+      "index": 4,
+      "repository": "hmara-info/language-settings-manager",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 33,
+      "language": "TypeScript",
+      "day": "2025-04-04",
+      "totalCount": 45,
+      "index": 14,
+      "repository": "braiekhazem/react-kanban-kit",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 34,
+      "language": "JavaScript",
+      "day": "2020-06-05",
+      "totalCount": 24,
+      "index": 11,
+      "repository": "MIDA-group/CytoBrowser",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 35,
+      "language": "TypeScript",
+      "day": "2021-04-20",
+      "totalCount": 20,
+      "index": 6,
+      "repository": "taiga-family/ng-morph",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 36,
+      "language": "TypeScript",
+      "day": "2019-12-19",
+      "totalCount": 5,
+      "index": 4,
+      "repository": "gabrielbs/react-placeholder-loading",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 37,
+      "language": "JavaScript",
+      "day": "2018-01-13",
+      "totalCount": 8,
+      "index": 3,
+      "repository": "nextcloud/cdav-library",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 38,
+      "language": "JavaScript",
+      "day": "2015-05-03",
+      "totalCount": 0,
+      "outcome": "empty"
+    },
+    {
+      "draw": 39,
+      "language": "TypeScript",
+      "day": "2019-07-13",
+      "totalCount": 8,
+      "index": 6,
+      "repository": "tobysmith568/read-receipt",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 40,
+      "language": "TypeScript",
+      "day": "2021-12-31",
+      "totalCount": 11,
+      "index": 10,
+      "repository": "ChristopherChudzicki/math3d-next",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 41,
+      "language": "JavaScript",
+      "day": "2018-07-06",
+      "totalCount": 8,
+      "index": 3,
+      "repository": "Chia-Network/chips",
+      "outcome": "rejected",
+      "reason": "no-root-package-json"
+    },
+    {
+      "draw": 42,
+      "language": "TypeScript",
+      "day": "2018-03-19",
+      "totalCount": 8,
+      "index": 6,
+      "repository": "josin/kusto-syntax-highlighting",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 43,
+      "language": "JavaScript",
+      "day": "2020-05-17",
+      "totalCount": 12,
+      "index": 11,
+      "repository": "mediaatelier/GrandTotal-Plugins",
+      "outcome": "rejected",
+      "reason": "no-root-package-json"
+    },
+    {
+      "draw": 44,
+      "language": "JavaScript",
+      "day": "2014-01-07",
+      "totalCount": 7,
+      "index": 5,
+      "repository": "nanego/redmine_introductions",
+      "outcome": "rejected",
+      "reason": "no-root-package-json"
+    },
+    {
+      "draw": 45,
+      "language": "JavaScript",
+      "day": "2025-06-22",
+      "totalCount": 28,
+      "index": 23,
+      "repository": "glacier-studio/CoCo-Source-Code-Plan",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 46,
+      "language": "JavaScript",
+      "day": "2017-09-30",
+      "totalCount": 5,
+      "index": 4,
+      "repository": "digitalmediabremen/hej",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 47,
+      "language": "TypeScript",
+      "day": "2022-01-02",
+      "totalCount": 13,
+      "index": 4,
+      "repository": "projectwallace/css-code-quality",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 48,
+      "language": "TypeScript",
+      "day": "2023-07-23",
+      "totalCount": 13,
+      "index": 0,
+      "repository": "FiloSottile/typage",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 49,
+      "language": "JavaScript",
+      "day": "2025-08-14",
+      "totalCount": 26,
+      "index": 23,
+      "repository": "coignard/obsidian-typographer",
+      "outcome": "rejected",
+      "reason": "no-root-package-json"
+    },
+    {
+      "draw": 50,
+      "language": "JavaScript",
+      "day": "2020-08-17",
+      "totalCount": 12,
+      "index": 6,
+      "repository": "vtex-apps/checkout-ui-custom",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 51,
+      "language": "TypeScript",
+      "day": "2019-05-01",
+      "totalCount": 7,
+      "index": 4,
+      "repository": "sourcefuse/loopback4-soft-delete",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 52,
+      "language": "TypeScript",
+      "day": "2019-03-01",
+      "totalCount": 12,
+      "index": 5,
+      "repository": "org-nexus-projects/ufabc-next",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 53,
+      "language": "JavaScript",
+      "day": "2018-07-24",
+      "totalCount": 15,
+      "index": 2,
+      "repository": "UMAprotocol/protocol",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 54,
+      "language": "JavaScript",
+      "day": "2024-06-17",
+      "totalCount": 8,
+      "index": 4,
+      "repository": "TeamAOF/Craftoria",
+      "outcome": "rejected",
+      "reason": "no-root-package-json"
+    },
+    {
+      "draw": 55,
+      "language": "TypeScript",
+      "day": "2022-05-06",
+      "totalCount": 22,
+      "index": 0,
+      "repository": "MomenSherif/react-oauth",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 56,
+      "language": "JavaScript",
+      "day": "2015-06-19",
+      "totalCount": 7,
+      "index": 3,
+      "repository": "fraunhoferfokus/peer-dial",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 57,
+      "language": "TypeScript",
+      "day": "2023-12-18",
+      "totalCount": 26,
+      "index": 17,
+      "repository": "fedstack-org/aoi",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 58,
+      "language": "TypeScript",
+      "day": "2017-06-17",
+      "totalCount": 3,
+      "index": 1,
+      "repository": "IRCraziestTaxi/typeorm-linq-repository",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 59,
+      "language": "TypeScript",
+      "day": "2018-03-17",
+      "totalCount": 7,
+      "index": 0,
+      "repository": "pixijs/pixi-react",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 60,
+      "language": "TypeScript",
+      "day": "2017-05-20",
+      "totalCount": 2,
+      "index": 0,
+      "repository": "meowtec/imgo",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 61,
+      "language": "JavaScript",
+      "day": "2014-03-13",
+      "totalCount": 3,
+      "index": 0,
+      "repository": "2factorauth/twofactorauth",
+      "outcome": "accepted"
+    },
+    {
+      "draw": 62,
+      "language": "TypeScript",
+      "day": "2023-02-02",
+      "totalCount": 23,
+      "index": 1,
+      "repository": "NextJSTemplates/startup-nextjs",
+      "outcome": "accepted"
+    }
+  ],
+  "sample": [
+    {
+      "repository": "mfuu/vue3-virtual-sortable",
+      "url": "https://github.com/mfuu/vue3-virtual-sortable",
+      "language": "TypeScript",
+      "stars": 59,
+      "createdAt": "2022-07-27",
+      "pushedAt": "2026-08-16",
+      "sizeKb": 2337,
+      "defaultBranch": "main",
+      "headCommit": "60cc9f4cc057d1f5499de3249a31d9f43df36c8b",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "LOCKFILE_MISSING",
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "wardellbagby/lyricistant",
+      "url": "https://github.com/wardellbagby/lyricistant",
+      "language": "TypeScript",
+      "stars": 74,
+      "createdAt": "2019-02-15",
+      "pushedAt": "2026-08-24",
+      "sizeKb": 73028,
+      "defaultBranch": "main",
+      "headCommit": "12508c9d21b99810795ca3c997cb531a14154503",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": "npm@11.3.0",
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "knowankit/trello-clone",
+      "url": "https://github.com/knowankit/trello-clone",
+      "language": "TypeScript",
+      "stars": 357,
+      "createdAt": "2021-04-19",
+      "pushedAt": "2026-06-30",
+      "sizeKb": 15775,
+      "defaultBranch": "develop",
+      "headCommit": "19e9d64a42116bae3deb242df091c4f2418c8d8f",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "tidepool-org/uploader",
+      "url": "https://github.com/tidepool-org/uploader",
+      "language": "JavaScript",
+      "stars": 128,
+      "createdAt": "2014-06-13",
+      "pushedAt": "2026-10-29",
+      "sizeKb": 182696,
+      "defaultBranch": "develop",
+      "headCommit": "4c44f03d670a52976867067890e9b0e6bedafd81",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": "yarn@3.6.4",
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "nvmrc": true,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "os-climate/physrisk-ui",
+      "url": "https://github.com/os-climate/physrisk-ui",
+      "language": "JavaScript",
+      "stars": 10,
+      "createdAt": "2021-11-21",
+      "pushedAt": "2026-10-26",
+      "sizeKb": 23423,
+      "defaultBranch": "main",
+      "headCommit": "d285d03b0cfd3e835a5987a271c3f463ccdc684c",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "snowcoders/sortier",
+      "url": "https://github.com/snowcoders/sortier",
+      "language": "TypeScript",
+      "stars": 31,
+      "createdAt": "2018-02-20",
+      "pushedAt": "2026-10-26",
+      "sizeKb": 13036,
+      "defaultBranch": "main",
+      "headCommit": "9ab4d0bec05edbe499189932e8dd1d6d0dbe3034",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": true,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "XFox111/TabsAsideExtension",
+      "url": "https://github.com/XFox111/TabsAsideExtension",
+      "language": "TypeScript",
+      "stars": 180,
+      "createdAt": "2020-02-29",
+      "pushedAt": "2026-10-21",
+      "sizeKb": 3217,
+      "defaultBranch": "main",
+      "headCommit": "0829b24c81b1e324d3d34cf4779602e9c933da54",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "eemeli/yaml",
+      "url": "https://github.com/eemeli/yaml",
+      "language": "TypeScript",
+      "stars": 1702,
+      "createdAt": "2018-01-29",
+      "pushedAt": "2026-09-23",
+      "sizeKb": 9618,
+      "defaultBranch": "main",
+      "headCommit": "528ef30d6ded4bd9f2c3521b670eb2b29d503c5c",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "biud436/InitialEditor",
+      "url": "https://github.com/biud436/InitialEditor",
+      "language": "TypeScript",
+      "stars": 12,
+      "createdAt": "2020-09-12",
+      "pushedAt": "2026-10-25",
+      "sizeKb": 68069,
+      "defaultBranch": "main",
+      "headCommit": "8d84e1ea21d2ad0cee2578f3b4b80e643a8153ff",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": true,
+      "testScript": "present",
+      "packageManager": "yarn@4.3.1",
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "nvmrc": true,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "uphold/uphold-sdk-javascript",
+      "url": "https://github.com/uphold/uphold-sdk-javascript",
+      "language": "JavaScript",
+      "stars": 89,
+      "createdAt": "2017-05-18",
+      "pushedAt": "2026-05-11",
+      "sizeKb": 2023,
+      "defaultBranch": "master",
+      "headCommit": "a282ae571bfa9f4cbdaa34a6f34a6aca3555bd12",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": "yarn@4.12.0",
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "XiaoLuoTian189/LanQiao",
+      "url": "https://github.com/XiaoLuoTian189/LanQiao",
+      "language": "JavaScript",
+      "stars": 38,
+      "createdAt": "2025-10-24",
+      "pushedAt": "2026-01-30",
+      "sizeKb": 613,
+      "defaultBranch": "main",
+      "headCommit": "3dd0b6b60fee845345e544000b9417e57127350a",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "Unibeautify/vscode",
+      "url": "https://github.com/Unibeautify/vscode",
+      "language": "TypeScript",
+      "stars": 118,
+      "createdAt": "2017-08-07",
+      "pushedAt": "2026-10-27",
+      "sizeKb": 2223,
+      "defaultBranch": "master",
+      "headCommit": "faa42041a32ffc0bf46a84273a59cd3b30c86aae",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "stackblitz/starters",
+      "url": "https://github.com/stackblitz/starters",
+      "language": "TypeScript",
+      "stars": 152,
+      "createdAt": "2023-03-03",
+      "pushedAt": "2026-10-26",
+      "sizeKb": 5403,
+      "defaultBranch": "main",
+      "headCommit": "bfcd719483e72b204a0e2d205ec1fb57c1bcfa8b",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "jembi/openhim-core-js",
+      "url": "https://github.com/jembi/openhim-core-js",
+      "language": "JavaScript",
+      "stars": 95,
+      "createdAt": "2014-02-10",
+      "pushedAt": "2026-09-25",
+      "sizeKb": 11307,
+      "defaultBranch": "master",
+      "headCommit": "b62a2e4dbdc644128aa47da7fb73d9c6277dbb27",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "TomPlum/learn-japanese",
+      "url": "https://github.com/TomPlum/learn-japanese",
+      "language": "TypeScript",
+      "stars": 17,
+      "createdAt": "2021-02-17",
+      "pushedAt": "2026-10-26",
+      "sizeKb": 27783,
+      "defaultBranch": "dev",
+      "headCommit": "ec06e2ac96df82fedee5fe39311cd207a40be448",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "peterKaleta/react-token-autocomplete",
+      "url": "https://github.com/peterKaleta/react-token-autocomplete",
+      "language": "TypeScript",
+      "stars": 104,
+      "createdAt": "2015-09-02",
+      "pushedAt": "2026-03-31",
+      "sizeKb": 9598,
+      "defaultBranch": "master",
+      "headCommit": "72b0c5aa66c8fe97542827fdb09e59f5cabeca7c",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "eemeli/make-plural",
+      "url": "https://github.com/eemeli/make-plural",
+      "language": "JavaScript",
+      "stars": 71,
+      "createdAt": "2014-09-21",
+      "pushedAt": "2026-10-25",
+      "sizeKb": 2015,
+      "defaultBranch": "main",
+      "headCommit": "819a748c47be9cd65b5dfdd836af371aa52e6328",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": true,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "artus9033/chartjs-plugin-dragdata",
+      "url": "https://github.com/artus9033/chartjs-plugin-dragdata",
+      "language": "TypeScript",
+      "stars": 276,
+      "createdAt": "2018-01-01",
+      "pushedAt": "2025-12-15",
+      "sizeKb": 46919,
+      "defaultBranch": "master",
+      "headCommit": "dc96befa732c2530b1c721cb4cb1eb9fad970579",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": true,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "Pithaya/spicetify-apps",
+      "url": "https://github.com/Pithaya/spicetify-apps",
+      "language": "TypeScript",
+      "stars": 96,
+      "createdAt": "2022-11-23",
+      "pushedAt": "2026-05-24",
+      "sizeKb": 4933,
+      "defaultBranch": "main",
+      "headCommit": "9a7da4e7c34dd3000e103a4f842e782feb5c29c9",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": true,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "MONOREPO_ROOT_TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "vuejs/repl",
+      "url": "https://github.com/vuejs/repl",
+      "language": "TypeScript",
+      "stars": 1098,
+      "createdAt": "2021-09-06",
+      "pushedAt": "2026-10-29",
+      "sizeKb": 2066,
+      "defaultBranch": "main",
+      "headCommit": "9b5bc873415bbc6fcba6080b9402d140175d5b03",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": "pnpm@10.14.0",
+      "lockfiles": [
+        "pnpm-lock.yaml"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "FluffyBubu/cypress-sandbox",
+      "url": "https://github.com/FluffyBubu/cypress-sandbox",
+      "language": "JavaScript",
+      "stars": 22,
+      "createdAt": "2023-06-10",
+      "pushedAt": "2026-01-22",
+      "sizeKb": 3704,
+      "defaultBranch": "master",
+      "headCommit": "1bdacb9fc876962178397b784edcc715718bb1d2",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "meikidd/iso-639-1",
+      "url": "https://github.com/meikidd/iso-639-1",
+      "language": "JavaScript",
+      "stars": 221,
+      "createdAt": "2015-08-05",
+      "pushedAt": "2026-07-02",
+      "sizeKb": 513,
+      "defaultBranch": "master",
+      "headCommit": "403255b1a0d62fb85a8ffdcdec094e0806fe8698",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": true,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "DanWahlin/Observable-Store",
+      "url": "https://github.com/DanWahlin/Observable-Store",
+      "language": "TypeScript",
+      "stars": 631,
+      "createdAt": "2018-08-22",
+      "pushedAt": "2026-02-06",
+      "sizeKb": 8442,
+      "defaultBranch": "main",
+      "headCommit": "a2066a183cc04b30b1196275adc6eb3e5a8e294d",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "LOCKFILE_MISSING"
+      ]
+    },
+    {
+      "repository": "vechain/connex",
+      "url": "https://github.com/vechain/connex",
+      "language": "TypeScript",
+      "stars": 84,
+      "createdAt": "2018-12-02",
+      "pushedAt": "2026-06-16",
+      "sizeKb": 1536,
+      "defaultBranch": "master",
+      "headCommit": "2c919325738963cd61c095f325aab450b00d77e3",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": true,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "ruanqizhen/python_book",
+      "url": "https://github.com/ruanqizhen/python_book",
+      "language": "JavaScript",
+      "stars": 27,
+      "createdAt": "2023-10-17",
+      "pushedAt": "2026-10-10",
+      "sizeKb": 10459,
+      "defaultBranch": "main",
+      "headCommit": "bfca0141ec76ba9fab2d0d0494c740e1bdc3ba72",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": false,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "hmara-info/language-settings-manager",
+      "url": "https://github.com/hmara-info/language-settings-manager",
+      "language": "JavaScript",
+      "stars": 23,
+      "createdAt": "2021-01-22",
+      "pushedAt": "2026-01-18",
+      "sizeKb": 4282,
+      "defaultBranch": "main",
+      "headCommit": "c7ae8399045b658b0aa3a60482a8b52955dafcd5",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "braiekhazem/react-kanban-kit",
+      "url": "https://github.com/braiekhazem/react-kanban-kit",
+      "language": "TypeScript",
+      "stars": 99,
+      "createdAt": "2025-04-04",
+      "pushedAt": "2026-04-21",
+      "sizeKb": 682,
+      "defaultBranch": "main",
+      "headCommit": "8a6aeaeb2c16a23999c20f0d10aefdbb7d201f1b",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "MIDA-group/CytoBrowser",
+      "url": "https://github.com/MIDA-group/CytoBrowser",
+      "language": "JavaScript",
+      "stars": 22,
+      "createdAt": "2020-06-05",
+      "pushedAt": "2026-10-20",
+      "sizeKb": 5259,
+      "defaultBranch": "stable",
+      "headCommit": "8bacc6497ff541c211acad8542142604a6c4b41a",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "taiga-family/ng-morph",
+      "url": "https://github.com/taiga-family/ng-morph",
+      "language": "TypeScript",
+      "stars": 158,
+      "createdAt": "2021-04-20",
+      "pushedAt": "2026-10-29",
+      "sizeKb": 80806,
+      "defaultBranch": "main",
+      "headCommit": "6611356a76a9a9ae96fc798917c7cfc642e7164f",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": true,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "gabrielbs/react-placeholder-loading",
+      "url": "https://github.com/gabrielbs/react-placeholder-loading",
+      "language": "TypeScript",
+      "stars": 13,
+      "createdAt": "2019-12-19",
+      "pushedAt": "2026-10-26",
+      "sizeKb": 2395,
+      "defaultBranch": "master",
+      "headCommit": "e03e7ab53616ba33d559c5be3908637911160133",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "nextcloud/cdav-library",
+      "url": "https://github.com/nextcloud/cdav-library",
+      "language": "JavaScript",
+      "stars": 74,
+      "createdAt": "2018-01-13",
+      "pushedAt": "2026-10-30",
+      "sizeKb": 7249,
+      "defaultBranch": "main",
+      "headCommit": "8f2dbccf9d768ffd1a99d5fe3e70ebce1d577edc",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "tobysmith568/read-receipt",
+      "url": "https://github.com/tobysmith568/read-receipt",
+      "language": "TypeScript",
+      "stars": 16,
+      "createdAt": "2019-07-13",
+      "pushedAt": "2026-10-27",
+      "sizeKb": 8584,
+      "defaultBranch": "main",
+      "headCommit": "389c4a51981158f77ffe3c83dbf06b2e3472ae16",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "bun.lock"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "ChristopherChudzicki/math3d-next",
+      "url": "https://github.com/ChristopherChudzicki/math3d-next",
+      "language": "TypeScript",
+      "stars": 10,
+      "createdAt": "2021-12-31",
+      "pushedAt": "2026-10-30",
+      "sizeKb": 22908,
+      "defaultBranch": "main",
+      "headCommit": "464506c8387d96074dcdc26369ef81ca25d19e2c",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": true,
+      "testScript": "present",
+      "packageManager": "yarn@4.8.1",
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "nvmrc": true,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "josin/kusto-syntax-highlighting",
+      "url": "https://github.com/josin/kusto-syntax-highlighting",
+      "language": "TypeScript",
+      "stars": 13,
+      "createdAt": "2018-03-19",
+      "pushedAt": "2026-03-19",
+      "sizeKb": 2045,
+      "defaultBranch": "master",
+      "headCommit": "83c54cfe67ed01b84d245f89a1ac6284be07bf2f",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "glacier-studio/CoCo-Source-Code-Plan",
+      "url": "https://github.com/glacier-studio/CoCo-Source-Code-Plan",
+      "language": "JavaScript",
+      "stars": 10,
+      "createdAt": "2025-06-22",
+      "pushedAt": "2026-09-23",
+      "sizeKb": 38848,
+      "defaultBranch": "main",
+      "headCommit": "91c9b89ea9754c8d7e006c258ba5cbeb8d859272",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "digitalmediabremen/hej",
+      "url": "https://github.com/digitalmediabremen/hej",
+      "language": "JavaScript",
+      "stars": 11,
+      "createdAt": "2017-09-30",
+      "pushedAt": "2026-09-16",
+      "sizeKb": 20823,
+      "defaultBranch": "master",
+      "headCommit": "474e6734f8817488f922f376cf4a0a153fb3726a",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "LOCKFILE_MISSING"
+      ]
+    },
+    {
+      "repository": "projectwallace/css-code-quality",
+      "url": "https://github.com/projectwallace/css-code-quality",
+      "language": "TypeScript",
+      "stars": 155,
+      "createdAt": "2022-01-02",
+      "pushedAt": "2026-10-27",
+      "sizeKb": 598,
+      "defaultBranch": "main",
+      "headCommit": "eb29e3045cdd8ba3fcee93fb84bced4019a83014",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": true,
+      "testScript": "present",
+      "packageManager": "pnpm@11.16.0",
+      "lockfiles": [
+        "pnpm-lock.yaml"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "FiloSottile/typage",
+      "url": "https://github.com/FiloSottile/typage",
+      "language": "TypeScript",
+      "stars": 496,
+      "createdAt": "2023-07-23",
+      "pushedAt": "2026-08-28",
+      "sizeKb": 1569,
+      "defaultBranch": "main",
+      "headCommit": "38b8b10cb22409de0eaa8a617a01f16dc2e3f9f4",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "vtex-apps/checkout-ui-custom",
+      "url": "https://github.com/vtex-apps/checkout-ui-custom",
+      "language": "JavaScript",
+      "stars": 25,
+      "createdAt": "2020-08-17",
+      "pushedAt": "2026-02-02",
+      "sizeKb": 6278,
+      "defaultBranch": "master",
+      "headCommit": "287e0a027e7272314abb05ff3c6a0730e3af60ab",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "nvmrc": false,
+      "readme": false,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "sourcefuse/loopback4-soft-delete",
+      "url": "https://github.com/sourcefuse/loopback4-soft-delete",
+      "language": "TypeScript",
+      "stars": 40,
+      "createdAt": "2019-05-01",
+      "pushedAt": "2026-10-29",
+      "sizeKb": 3286,
+      "defaultBranch": "master",
+      "headCommit": "eeb07e3477677b20b57fb311cecc1f4501408313",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "org-nexus-projects/ufabc-next",
+      "url": "https://github.com/org-nexus-projects/ufabc-next",
+      "language": "TypeScript",
+      "stars": 73,
+      "createdAt": "2019-03-01",
+      "pushedAt": "2026-10-29",
+      "sizeKb": 18613,
+      "defaultBranch": "main",
+      "headCommit": "ae1a2d682f5e73ee489b62dc0367b30cdbc0666c",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": true,
+      "testScript": "present",
+      "packageManager": "pnpm@10.33.2",
+      "lockfiles": [
+        "pnpm-lock.yaml"
+      ],
+      "nvmrc": true,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "UMAprotocol/protocol",
+      "url": "https://github.com/UMAprotocol/protocol",
+      "language": "JavaScript",
+      "stars": 490,
+      "createdAt": "2018-07-24",
+      "pushedAt": "2026-10-23",
+      "sizeKb": 57659,
+      "defaultBranch": "master",
+      "headCommit": "c8c3f67367afd1c767712a3dbe3c8cad01b9a4d8",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": true,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "MomenSherif/react-oauth",
+      "url": "https://github.com/MomenSherif/react-oauth",
+      "language": "TypeScript",
+      "stars": 1339,
+      "createdAt": "2022-05-06",
+      "pushedAt": "2026-04-08",
+      "sizeKb": 3990,
+      "defaultBranch": "master",
+      "headCommit": "cbe0d2b5fe1adf3be22f6a01f55674fd864770da",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": true,
+      "testScript": "missing",
+      "packageManager": "yarn@4.6.0+sha512.5383cc12567a95f1d668fbe762dfe0075c595b4bfff433be478dbbe24e05251a8e8c3eb992a986667c1d53b6c3a9c85b8398c35a960587fbd9fa3a0915406728",
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "MONOREPO_ROOT_TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "fraunhoferfokus/peer-dial",
+      "url": "https://github.com/fraunhoferfokus/peer-dial",
+      "language": "JavaScript",
+      "stars": 45,
+      "createdAt": "2015-06-19",
+      "pushedAt": "2026-03-27",
+      "sizeKb": 82,
+      "defaultBranch": "master",
+      "headCommit": "dea62c29884c193947ce52cfe7323f161460b84e",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "fedstack-org/aoi",
+      "url": "https://github.com/fedstack-org/aoi",
+      "language": "TypeScript",
+      "stars": 21,
+      "createdAt": "2023-12-18",
+      "pushedAt": "2026-03-23",
+      "sizeKb": 2395,
+      "defaultBranch": "main",
+      "headCommit": "a8ca8261e4133755dc69e16597618c96a04c9efa",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": true,
+      "testScript": "missing",
+      "packageManager": "yarn@4.9.1+sha512.f95ce356460e05be48d66401c1ae64ef84d163dd689964962c6888a9810865e39097a5e9de748876c2e0bf89b232d583c33982773e9903ae7a76257270986538",
+      "lockfiles": [
+        "yarn.lock"
+      ],
+      "nvmrc": true,
+      "readme": true,
+      "expected": [
+        "MONOREPO_ROOT_TEST_SCRIPT_MISSING"
+      ]
+    },
+    {
+      "repository": "IRCraziestTaxi/typeorm-linq-repository",
+      "url": "https://github.com/IRCraziestTaxi/typeorm-linq-repository",
+      "language": "TypeScript",
+      "stars": 185,
+      "createdAt": "2017-06-17",
+      "pushedAt": "2026-07-10",
+      "sizeKb": 451,
+      "defaultBranch": "master",
+      "headCommit": "701cfaa16f52a13b0d0bebf6410f8a1f56d5330a",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "pixijs/pixi-react",
+      "url": "https://github.com/pixijs/pixi-react",
+      "language": "TypeScript",
+      "stars": 2888,
+      "createdAt": "2018-03-17",
+      "pushedAt": "2026-01-16",
+      "sizeKb": 18408,
+      "defaultBranch": "main",
+      "headCommit": "30cf1f86a590a1d8bb183a36b1887fa30e908d4e",
+      "packageJsonValid": true,
+      "private": false,
+      "workspaces": true,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "meowtec/imgo",
+      "url": "https://github.com/meowtec/imgo",
+      "language": "TypeScript",
+      "stars": 4458,
+      "createdAt": "2017-05-20",
+      "pushedAt": "2026-10-15",
+      "sizeKb": 44447,
+      "defaultBranch": "main",
+      "headCommit": "9fe7450970ddb2417ed8665ae51dfb8e07e79746",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": true,
+      "testScript": "present",
+      "packageManager": "pnpm@12.0.0",
+      "lockfiles": [
+        "pnpm-lock.yaml"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": []
+    },
+    {
+      "repository": "2factorauth/twofactorauth",
+      "url": "https://github.com/2factorauth/twofactorauth",
+      "language": "JavaScript",
+      "stars": 3469,
+      "createdAt": "2014-03-13",
+      "pushedAt": "2026-10-24",
+      "sizeKb": 21260,
+      "defaultBranch": "master",
+      "headCommit": "9b39477ccf259f022f694b4f14ed79c529b1039d",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "present",
+      "packageManager": null,
+      "lockfiles": [],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "LOCKFILE_MISSING"
+      ]
+    },
+    {
+      "repository": "NextJSTemplates/startup-nextjs",
+      "url": "https://github.com/NextJSTemplates/startup-nextjs",
+      "language": "TypeScript",
+      "stars": 1687,
+      "createdAt": "2023-02-02",
+      "pushedAt": "2025-12-12",
+      "sizeKb": 2292,
+      "defaultBranch": "main",
+      "headCommit": "e730b6a99c77b96c835f11347231faa4f4e9f767",
+      "packageJsonValid": true,
+      "private": true,
+      "workspaces": false,
+      "testScript": "missing",
+      "packageManager": null,
+      "lockfiles": [
+        "package-lock.json"
+      ],
+      "nvmrc": false,
+      "readme": true,
+      "expected": [
+        "TEST_SCRIPT_MISSING"
+      ]
+    }
+  ]
+}
