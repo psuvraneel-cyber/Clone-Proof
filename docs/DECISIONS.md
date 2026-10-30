@@ -195,3 +195,10 @@
 - **Why:** While the native GitHub Action previously enforced authoritative event authorization, the standalone `docker-e2e` CI job invoked `node src/cli.js setup` and `node src/cli.js verify ... --docker --execute` directly without a job-level event guard. On pull requests, this ran repository code inside Docker containers, creating a security-boundary inconsistency between the Action and the CI workflow.
 - **Pull-request preservation:** Pull-request workflows continue to execute comprehensive cross-platform unit tests, leak checks, build validation, and packaging checks, as well as the Action's PR security guard job (`action-e2e-pull-request`). The `docker-e2e` job is skipped entirely on pull requests before runner provisioning.
 - **Action guard independence:** Direct CLI verification must never be used in untrusted workflows to circumvent the Action's event authorization model. Both the Action runtime and CI job orchestration enforce the same trusted-event invariant.
+
+## 2026-10-30 — Release from immutable, CI-built version tags
+
+- **Decision:** Publish releases only from `vX.Y.Z` tags on `main`. `.github/workflows/release.yml` checks that the tag matches `package.json` and that `CHANGELOG.md` has a dated section for it, runs the test suite, builds the npm tarball on Linux, attests its provenance with `actions/attest-build-provenance`, and creates the GitHub release with the tarball and `SHA256SUMS`.
+- **Why:** Users could only reference `@main`, which changes with every merge. Security-conscious teams pin a tag or a commit SHA. Building in CI also avoids Windows CRLF line endings breaking the `src/cli.js` shebang in a locally packed tarball.
+- **No moving major tag during 0.x:** A `0.x` minor release may change findings or exit behavior, so a moving `v0` tag would silently deliver behavior changes. Users pin exact versions until `1.0.0`.
+- **Guards:** `test/release.test.js` keeps documented Action references, the changelog, and the release workflow consistent with the package version, and requires every third-party action in every workflow to be pinned to a full commit SHA.

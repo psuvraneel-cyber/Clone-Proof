@@ -1,0 +1,83 @@
+name: Release
+
+# A pushed vX.Y.Z tag builds the npm package on Linux, attests its provenance,
+# and publishes a GitHub release with the tarball and SHA256SUMS attached.
+# workflow_dispatch runs the same checks as a dry run and publishes nothing.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Require the tagged commit to be on main
+        if: github.event_name == 'push'
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: Check version and extract release notes
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            node scripts/release-notes.js --tag "$GITHUB_REF_NAME" > release-notes.md
+          else
+            node scripts/release-notes.js > release-notes.md
+          fi
+          cat release-notes.md
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
+      - name: Build package tarball
+        id: pack
+        shell: bash
+        run: |
+          npm pack --json > pack.json
+          file=$(node -p "JSON.parse(require('node:fs').readFileSync('pack.json', 'utf8'))[0].filename")
+          sha256sum "$file" > SHA256SUMS
+          cat SHA256SUMS
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+      - name: Smoke test the tarball
+        shell: bash
+        env:
+          PACK_FILE: ${{ steps.pack.outputs.file }}
+        run: |
+          npm install --global "./$PACK_FILE"
+          expected=$(node -p "require('./package.json').version")
+          test "$(cloneproof --version)" = "$expected"
+      - name: Attest build provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.pack.outputs.file }}
+      - name: Publish GitHub release
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACK_FILE: ${{ steps.pack.outputs.file }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$PACK_FILE" SHA256SUMS \
+            --verify-tag \
+            --title "CloneProof $GITHUB_REF_NAME" \
+            --notes-file release-notes.md
