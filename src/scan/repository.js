@@ -3293,11 +3293,12 @@ function scanRepository(rootPath, options) {
   // tests that npm test cannot run: test-suite files, or README instructions to
   // run tests (README evidence is attached to the finding above). A repository
   // with no tests at all gets the advisory NO_TESTS_FOUND, unless the caller
-  // requires tests.
+  // requires tests. An incomplete scan may have missed test files, so it keeps
+  // the blocking finding.
   const unrunnableTestFinding = missingTestFinding && missingTestFinding.code === 'TEST_SCRIPT_MISSING'
     ? missingTestFinding
     : placeholderTestFinding;
-  if (unrunnableTestFinding && scanOptions.requireTests !== true) {
+  if (unrunnableTestFinding && scanOptions.requireTests !== true && scanned.complete) {
     const testSuiteFile = [...scanned.files.keys()]
       .sort(compareStrings)
       .find((relativePath) => isTestSuiteFile(relativePath, decodeText(scanned.files.get(relativePath))));

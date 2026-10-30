@@ -131,6 +131,7 @@ without guessing.
 | `TEST_SCRIPT_CHECK_SKIPPED` | Test script |
 | `TEST_SCRIPT_MISSING` | Test script |
 | `MONOREPO_ROOT_TEST_SCRIPT_MISSING` | Test script |
+| `NO_TESTS_FOUND` | Test script |
 | `TEST_SCRIPT_PLACEHOLDER` | Test script |
 | `TEST_SCRIPT_PRESENT` | Test script |
 | `UNSUPPORTED_ROOT` | Project classification |
@@ -195,6 +196,25 @@ All GitHub input errors are converted to one schema-v2 report finding by
 | `GITHUB_GIT_UNAVAILABLE` | `failed` | `error` | A trusted Git executable could not be used. | Install Git or make a trusted absolute Git path available. |
 | `GITHUB_CLONE_FAILED` | `failed` | `error` | Git failed while staging the repository. | Review the public URL, Git installation, and bounded diagnostics. |
 | `GITHUB_SOURCE_ERROR` | `failed` | `error` | An unexpected GitHub source error reached report construction. | Review the reported source error and rerun after fixing the input or environment. |
+
+## Test-script policy
+
+A missing or placeholder `scripts.test` is judged by whether the repository has
+tests that `npm test` cannot run:
+
+| Situation | Finding | Status |
+|---|---|---|
+| Test files exist, or the README tells contributors to run tests | `TEST_SCRIPT_MISSING` / `TEST_SCRIPT_PLACEHOLDER` | `failed` |
+| No test files and no README test instructions | `NO_TESTS_FOUND` | `warning` |
+| Either case with `--require-tests` (Action: `require-tests: 'true'`) | `TEST_SCRIPT_MISSING` / `TEST_SCRIPT_PLACEHOLDER` | `failed` |
+| The scan was incomplete, so test files may have been missed | `TEST_SCRIPT_MISSING` / `TEST_SCRIPT_PLACEHOLDER` | `failed` |
+| A workspace root without a root test script | `MONOREPO_ROOT_TEST_SCRIPT_MISSING` | `warning` |
+
+Test files are files named `*.test.*`, `*.spec.*`, or `*.cy.*`, files inside
+`__tests__/`, and files under `test/` or `tests/` that use a test API
+(`describe(`, `it(`, `test(`, `expect(`, `assert`, or a test-framework import).
+Other files under `test/`, such as dev playgrounds or example programs, do not
+count. `verify` always needs a test script and is blocked without one.
 
 ## High-risk codes
 

@@ -82,6 +82,7 @@ jobs:
 | `report-path` | No | Auto-generated in `RUNNER_TEMP` | Destination for the JSON report. Must resolve inside `GITHUB_WORKSPACE` or `RUNNER_TEMP`. |
 | `mode` | No | `check` | Execution mode: `check` (read-only static scan) or `verify` (static scan + controlled Docker verification). |
 | `allow-network` | No | `false` | Enables network access in Docker verification for `npm ci` package downloads. Must be `false` when `mode` is `check`. |
+| `require-tests` | No | `false` | Treat a repository without tests as failed instead of reporting a `NO_TESTS_FOUND` warning. Works in both modes. |
 | `timeout-ms` | No | `300000` | Execution timeout in milliseconds for Docker verification (1,000 ms to 600,000 ms). |
 | `receipt-path` | No | `RUNNER_TEMP/cloneproof/receipt.json` | Destination for the reproducibility receipt. Must resolve inside `GITHUB_WORKSPACE` or `RUNNER_TEMP`, must not be a directory or symbolic link, and must differ from `report-path`. An unsafe value fails the step before CloneProof runs. |
 
