@@ -22,7 +22,11 @@ function wait(milliseconds) {
 async function waitForFile(filePath, timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (fs.existsSync(filePath)) return;
+    if (fs.existsSync(filePath)) {
+      try {
+        if (fs.statSync(filePath).size > 0) return;
+      } catch {}
+    }
     await wait(25);
   }
   throw new Error(`Timed out waiting for ${path.basename(filePath)}`);
