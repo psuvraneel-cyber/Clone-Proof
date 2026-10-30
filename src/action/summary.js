@@ -124,22 +124,29 @@ function formatSafeReportPath(reportPath, workspaceRoot, runnerTemp) {
   if (trimmed === '') return 'report.json';
 
   const normalized = trimmed.replace(/\\/g, '/');
+  const isWindowsDrive = /^[a-zA-Z]:[/\\]/.test(trimmed) || trimmed.startsWith('\\\\');
+  const isPosixRoot = trimmed.startsWith('/');
 
   // If path is inside workspaceRoot, display the workspace-relative path
   if (workspaceRoot) {
-    const normWs = workspaceRoot.replace(/\\/g, '/');
-    if (normWs && (normalized.startsWith(normWs + '/') || normalized === normWs)) {
-      const rel = path.posix.relative(normWs, normalized);
-      if (rel && !rel.startsWith('../') && rel !== '.') {
-        return rel;
-      }
-    } else {
-      const resolvedWs = path.resolve(workspaceRoot);
-      const resolvedReport = path.resolve(trimmed);
-      if (isSubPath(resolvedWs, resolvedReport)) {
-        const rel = path.relative(resolvedWs, resolvedReport).replace(/\\/g, '/');
+    const isForeignAbsolute = (process.platform === 'win32' && isPosixRoot)
+      || (process.platform !== 'win32' && isWindowsDrive);
+
+    if (!isForeignAbsolute) {
+      const normWs = workspaceRoot.replace(/\\/g, '/');
+      if (normWs && (normalized.startsWith(normWs + '/') || normalized === normWs)) {
+        const rel = path.posix.relative(normWs, normalized);
         if (rel && !rel.startsWith('../') && rel !== '.') {
           return rel;
+        }
+      } else {
+        const resolvedWs = path.resolve(workspaceRoot);
+        const resolvedReport = path.resolve(trimmed);
+        if (isSubPath(resolvedWs, resolvedReport)) {
+          const rel = path.relative(resolvedWs, resolvedReport).replace(/\\/g, '/');
+          if (rel && !rel.startsWith('../') && rel !== '.') {
+            return rel;
+          }
         }
       }
     }
