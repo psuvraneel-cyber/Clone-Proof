@@ -12,6 +12,30 @@ and `2` (blocked or incomplete).
 
 ## [Unreleased]
 
+### Fixed
+
+False findings measured in field test Run 6 (see
+[docs/FIELD_TEST.md](docs/FIELD_TEST.md)):
+
+- Environment checks no longer report keys that nobody configures for a
+  repository: variables set by the operating system or shell (`HOMEPATH`,
+  `PROGRAMFILES`, `OLDPWD`, `COMP_CWORD`, `XDG_*`), by Git while it runs hooks
+  (`GIT_DIR`, `GIT_INDEX_FILE`), by CI services (`TRAVIS`, `TF_BUILD`,
+  `CF_PAGES`, …), by Rollup (`ROLLUP_WATCH`, when Rollup is a dependency), and
+  keys the repository's own code assigns, such as `process.env.WEBPACK_SERVE =
+  'true'`.
+- Environment keys mentioned only in comments or in `.d.ts` type declarations
+  are no longer counted, and keys containing `$` are read whole
+  (`process.env.Wimp$ScrapDir` was reported as `Wimp`).
+- `NO_TESTS_FOUND` now recognizes shell test suites (`test.sh`, `test/*.sh`,
+  Bats) and other languages' test files (Dart and Go `*_test`, Python
+  `test_*`, Ruby `*_spec`). A repository with such tests and no test script
+  fails with `TEST_SCRIPT_MISSING`, as it does for JavaScript tests.
+- `ENGINES_NODE_UNSATISFIED` no longer misreads `engines.node` ranges with a
+  space after the operator, such as `>= 24.10.0`.
+- `PRIVATE_REGISTRY` no longer reports public npm mirrors (npmmirror, Tencent
+  Cloud, Huawei Cloud).
+
 ## [0.2.1] - 2026-10-31
 
 ### Fixed
