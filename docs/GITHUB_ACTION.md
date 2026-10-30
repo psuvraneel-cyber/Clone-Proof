@@ -2,6 +2,8 @@
 
 CloneProof provides a native JavaScript GitHub Action (`node24`) to run read-only static repository checks and controlled Docker container verifications directly within your GitHub Actions workflows without manual npm installations or custom scripts.
 
+It is listed on the GitHub Marketplace as [CloneProof Check](https://github.com/marketplace/actions/cloneproof-check).
+
 ## Choosing a version
 
 Reference a release, never a branch:
