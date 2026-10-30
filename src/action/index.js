@@ -85,7 +85,9 @@ function validateTimeoutMs(rawTimeoutMs) {
   return num;
 }
 
-function isLinuxRunner(platform = process.platform, runnerOs = process.env.RUNNER_OS) {
+function isLinuxRunner(...args) {
+  const platform = args.length > 0 && args[0] !== undefined ? args[0] : process.platform;
+  const runnerOs = args.length > 1 ? args[1] : (process.env.CLONEPROOF_RUNNER_OS || process.env.RUNNER_OS);
   if (platform !== 'linux') return false;
   if (!runnerOs || typeof runnerOs !== 'string' || runnerOs.trim().toLowerCase() !== 'linux') {
     return false;
@@ -93,7 +95,8 @@ function isLinuxRunner(platform = process.platform, runnerOs = process.env.RUNNE
   return true;
 }
 
-function isAllowedVerifyEvent(eventName = process.env.GITHUB_EVENT_NAME) {
+function isAllowedVerifyEvent(...args) {
+  const eventName = args.length > 0 ? args[0] : (process.env.CLONEPROOF_EVENT_NAME || process.env.GITHUB_EVENT_NAME);
   if (!eventName || typeof eventName !== 'string') return false;
   return ALLOWED_VERIFY_EVENTS.has(eventName.trim());
 }
@@ -216,9 +219,10 @@ function validateRequiredEnvironment(env = process.env, rawReportPath = '') {
 
 function validateTargetPath(rawTarget, workspacePath) {
   const targetString = typeof rawTarget === 'string' && rawTarget.trim() !== '' ? rawTarget.trim() : '.';
-  const resolvedTarget = path.isAbsolute(targetString)
+  const normalizedTarget = targetString.replace(/\\/g, '/');
+  const resolvedTarget = path.isAbsolute(targetString) || /^[a-zA-Z]:[/\\]/.test(targetString)
     ? path.resolve(targetString)
-    : path.resolve(workspacePath, targetString);
+    : path.resolve(workspacePath, normalizedTarget);
 
   if (!isSubPath(workspacePath, resolvedTarget)) {
     throw new Error(`Target path "${targetString}" resolves outside GITHUB_WORKSPACE.`);
@@ -262,9 +266,9 @@ function validateReportPath(rawReportPath, workspacePath, runnerTemp, targetPath
     return defaultReportPath;
   }
 
-  const resolved = path.isAbsolute(reportString)
+  const resolved = path.isAbsolute(reportString) || /^[a-zA-Z]:[/\\]/.test(reportString)
     ? path.resolve(reportString)
-    : path.resolve(workspacePath, reportString);
+    : path.resolve(workspacePath, reportString.replace(/\\/g, '/'));
 
   const inWorkspace = isSubPath(workspacePath, resolved);
   const inRunnerTemp = runnerTemp ? isSubPath(path.resolve(runnerTemp), resolved) : false;
@@ -496,8 +500,8 @@ async function runAction(options = {}) {
   }
 
   // mode === 'verify'
-  const runnerOs = env.RUNNER_OS;
-  const eventName = env.GITHUB_EVENT_NAME;
+  const runnerOs = env.CLONEPROOF_RUNNER_OS || env.RUNNER_OS;
+  const eventName = env.CLONEPROOF_EVENT_NAME || env.GITHUB_EVENT_NAME;
   const isLinux = isLinuxRunner(platform, runnerOs);
   const isEventAllowed = isAllowedVerifyEvent(eventName);
 

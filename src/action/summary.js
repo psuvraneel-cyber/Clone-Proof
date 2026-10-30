@@ -123,20 +123,30 @@ function formatSafeReportPath(reportPath, workspaceRoot, runnerTemp) {
   const trimmed = reportPath.trim();
   if (trimmed === '') return 'report.json';
 
+  const normalized = trimmed.replace(/\\/g, '/');
+
   // If path is inside workspaceRoot, display the workspace-relative path
   if (workspaceRoot) {
-    const resolvedWs = path.resolve(workspaceRoot);
-    const resolvedReport = path.resolve(trimmed);
-    if (isSubPath(resolvedWs, resolvedReport)) {
-      const rel = path.relative(resolvedWs, resolvedReport).replace(/\\/g, '/');
+    const normWs = workspaceRoot.replace(/\\/g, '/');
+    if (normWs && (normalized.startsWith(normWs + '/') || normalized === normWs)) {
+      const rel = path.posix.relative(normWs, normalized);
       if (rel && !rel.startsWith('../') && rel !== '.') {
         return rel;
+      }
+    } else {
+      const resolvedWs = path.resolve(workspaceRoot);
+      const resolvedReport = path.resolve(trimmed);
+      if (isSubPath(resolvedWs, resolvedReport)) {
+        const rel = path.relative(resolvedWs, resolvedReport).replace(/\\/g, '/');
+        if (rel && !rel.startsWith('../') && rel !== '.') {
+          return rel;
+        }
       }
     }
   }
 
   // Otherwise, display a safe logical runner path
-  const base = path.basename(trimmed) || 'report.json';
+  const base = path.posix.basename(normalized) || 'report.json';
   return `RUNNER_TEMP/cloneproof/${base}`;
 }
 
@@ -311,7 +321,10 @@ function renderJobSummary(report, options = {}) {
  * Fails safely and gracefully if the environment variable is not set
  * or if filesystem write operations encounter errors.
  */
-function writeJobSummary(summaryMarkdown, summaryFilePath = process.env.GITHUB_STEP_SUMMARY, stderr = process.stderr) {
+function writeJobSummary(summaryMarkdown, ...args) {
+  const summaryFilePath = args.length > 0 ? args[0] : process.env.GITHUB_STEP_SUMMARY;
+  const stderr = args.length > 1 ? args[1] : process.stderr;
+
   if (!summaryFilePath || typeof summaryFilePath !== 'string' || summaryFilePath.trim() === '') {
     return { written: false, skipped: true };
   }

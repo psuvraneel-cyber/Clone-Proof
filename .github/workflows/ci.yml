@@ -310,6 +310,7 @@ jobs:
           mode: verify
           report-path: runner-untrusted-report.json
         env:
+          CLONEPROOF_EVENT_NAME: pull_request
           GITHUB_EVENT_NAME: pull_request
 
       - name: "Test D: Assert blocked verification, fallback check, consistent summary"
