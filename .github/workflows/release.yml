@@ -2,7 +2,7 @@ name: Release
 
 # A pushed vX.Y.Z tag builds the npm package on Linux, attests its provenance,
 # publishes a GitHub release with the tarball and SHA256SUMS attached, and
-# publishes that same tarball to npm as clone-proof.
+# publishes that same tarball to npm as cloneproof-check.
 # workflow_dispatch runs the same checks as a dry run and publishes nothing.
 
 on:

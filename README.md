@@ -57,33 +57,33 @@ CloneProof doesn't claim a repository is "safe" or universally reproducible. Eve
 **Try it once, no install:**
 
 ```bash
-npx clone-proof check https://github.com/tj/commander.js
+npx cloneproof-check check https://github.com/tj/commander.js
 ```
 
 **Install it** (published to npm from CI, with provenance):
 
 ```bash
-npm install -g clone-proof
+npm install -g cloneproof-check
 
 cloneproof check ./my-project                 # a local folder: read-only, no network, no code execution
 cloneproof check https://github.com/owner/repo  # a public GitHub repository
 ```
 
 > [!WARNING]
-> The npm package is **`clone-proof`**, with a hyphen; the command it installs is `cloneproof`. Don't run `npm install -g cloneproof`: that npm name belongs to a **different project**.
+> The npm package is **`cloneproof-check`**; the command it installs is `cloneproof`. Don't run `npm install -g cloneproof`: that npm name belongs to a **different project**.
 
 <details>
 <summary><b>Install the attested release tarball instead</b></summary>
 
-Fetch `clone-proof-0.2.3.tgz` and `SHA256SUMS` from the [v0.2.3 release](https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.2.3), then:
+Fetch `cloneproof-check-0.2.4.tgz` and `SHA256SUMS` from the [v0.2.4 release](https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.2.4), then:
 
 ```bash
 sha256sum -c SHA256SUMS            # macOS: shasum -a 256 -c SHA256SUMS
-gh attestation verify clone-proof-0.2.3.tgz --repo psuvraneel-cyber/Clone-Proof
-npm install -g ./clone-proof-0.2.3.tgz
+gh attestation verify cloneproof-check-0.2.4.tgz --repo psuvraneel-cyber/Clone-Proof
+npm install -g ./cloneproof-check-0.2.4.tgz
 ```
 
-Or install it straight from the release URL, `https://github.com/psuvraneel-cyber/Clone-Proof/releases/download/v0.2.3/clone-proof-0.2.3.tgz`. The tarball is the same file that was published to npm. It contains only `src/`, `README.md`, `CHANGELOG.md`, `LICENSE`, and `package.json`, and has no dependencies.
+Or install it straight from the release URL, `https://github.com/psuvraneel-cyber/Clone-Proof/releases/download/v0.2.4/cloneproof-check-0.2.4.tgz`. The tarball is the same file that was published to npm. It contains only `src/`, `README.md`, `CHANGELOG.md`, `LICENSE`, and `package.json`, and has no dependencies.
 
 </details>
 
@@ -93,7 +93,7 @@ Listed on the GitHub Marketplace as **[CloneProof Check](https://github.com/mark
 
 ```yaml
 - name: Run CloneProof Static Check
-  uses: psuvraneel-cyber/Clone-Proof@v0.2.3
+  uses: psuvraneel-cyber/Clone-Proof@v0.2.4
   with:
     target-path: '.'
     mode: 'check' # default: read-only static scan, safe on every pull request
@@ -103,7 +103,7 @@ Findings show up as annotations on the pull request diff, and a Job Summary list
 
 ```yaml
 - name: Run CloneProof Docker Verification
-  uses: psuvraneel-cyber/Clone-Proof@v0.2.3
+  uses: psuvraneel-cyber/Clone-Proof@v0.2.4
   with:
     target-path: '.'
     mode: 'verify' # static check + locked-down Docker verification
@@ -111,7 +111,7 @@ Findings show up as annotations on the pull request diff, and a Job Summary list
     timeout-ms: '300000' # default: 5 minutes (max 600000)
 ```
 
-Pin a release tag such as `@v0.2.3`, or the release's full commit SHA for supply-chain-sensitive workflows (`uses: psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.2.3`). Don't use `@main`: it changes with every merge. While the version is `0.x` there is no moving major tag, so upgrades are always explicit; see [Releases](https://github.com/psuvraneel-cyber/Clone-Proof/releases) and the [changelog](CHANGELOG.md). Inputs, outputs, annotations, and the Job Summary are documented in [docs/GITHUB_ACTION.md](docs/GITHUB_ACTION.md).
+Pin a release tag such as `@v0.2.4`, or the release's full commit SHA for supply-chain-sensitive workflows (`uses: psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.2.4`). Don't use `@main`: it changes with every merge. While the version is `0.x` there is no moving major tag, so upgrades are always explicit; see [Releases](https://github.com/psuvraneel-cyber/Clone-Proof/releases) and the [changelog](CHANGELOG.md). Inputs, outputs, annotations, and the Job Summary are documented in [docs/GITHUB_ACTION.md](docs/GITHUB_ACTION.md).
 
 ### Prove that install and tests really work
 
