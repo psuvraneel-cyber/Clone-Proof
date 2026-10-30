@@ -33,8 +33,8 @@ CloneProof doesn't claim a repo is "safe" or universally reproducible. It report
 **Requirements:** Node.js ≥ 22.19.0 and npm. Docker is only needed for `verify`.
 
 ```bash
-# Install the v0.1.0 release tarball (built and attested by CI)
-npm install -g https://github.com/psuvraneel-cyber/Clone-Proof/releases/download/v0.1.0/cloneproof-0.1.0.tgz
+# Install the v0.1.1 release tarball (built and attested by CI)
+npm install -g https://github.com/psuvraneel-cyber/Clone-Proof/releases/download/v0.1.1/cloneproof-0.1.1.tgz
 
 # Check a project folder (read-only, no network, no code execution)
 cloneproof check ./my-project
@@ -46,17 +46,17 @@ cloneproof check https://github.com/tj/commander.js
 Or run it once without installing:
 
 ```bash
-npx github:psuvraneel-cyber/Clone-Proof#v0.1.0 check ./my-project
+npx github:psuvraneel-cyber/Clone-Proof#v0.1.1 check ./my-project
 ```
 
 > ⚠️ Don't run `npm install -g cloneproof`. That npm name belongs to a **different project**, so install from the URL above.
 
-To check the download before installing, fetch the tarball and `SHA256SUMS` from the [v0.1.0 release](https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.1.0), then:
+To check the download before installing, fetch the tarball and `SHA256SUMS` from the [v0.1.1 release](https://github.com/psuvraneel-cyber/Clone-Proof/releases/tag/v0.1.1), then:
 
 ```bash
 sha256sum -c SHA256SUMS            # macOS: shasum -a 256 -c SHA256SUMS
-gh attestation verify cloneproof-0.1.0.tgz --repo psuvraneel-cyber/Clone-Proof
-npm install -g ./cloneproof-0.1.0.tgz
+gh attestation verify cloneproof-0.1.1.tgz --repo psuvraneel-cyber/Clone-Proof
+npm install -g ./cloneproof-0.1.1.tgz
 ```
 
 The tarball contains only `src/`, `README.md`, `CHANGELOG.md`, `LICENSE`, and `package.json`, and has no dependencies. Changes between versions are in the [changelog](CHANGELOG.md).
@@ -67,19 +67,19 @@ Run CloneProof automatically in CI using the native GitHub Action (`node24`):
 
 ```yaml
 - name: Run CloneProof Static Check
-  uses: psuvraneel-cyber/Clone-Proof@v0.1.0
+  uses: psuvraneel-cyber/Clone-Proof@v0.1.1
   with:
     target-path: '.'
     mode: 'check' # default: read-only static scan
 ```
 
-Pin a release tag such as `@v0.1.0`, or the release's full commit SHA for supply-chain-sensitive workflows (`uses: psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.1.0`). Don't use `@main`: it changes with every merge. While the version is `0.x` there is no moving major tag, so upgrades are always explicit; see [Releases](https://github.com/psuvraneel-cyber/Clone-Proof/releases) and the [changelog](CHANGELOG.md).
+Pin a release tag such as `@v0.1.1`, or the release's full commit SHA for supply-chain-sensitive workflows (`uses: psuvraneel-cyber/Clone-Proof@<commit-sha> # v0.1.1`). Don't use `@main`: it changes with every merge. While the version is `0.x` there is no moving major tag, so upgrades are always explicit; see [Releases](https://github.com/psuvraneel-cyber/Clone-Proof/releases) and the [changelog](CHANGELOG.md).
 
 To run controlled container verification on trusted branches:
 
 ```yaml
 - name: Run CloneProof Docker Verification
-  uses: psuvraneel-cyber/Clone-Proof@v0.1.0
+  uses: psuvraneel-cyber/Clone-Proof@v0.1.1
   with:
     target-path: '.'
     mode: 'verify' # runs static check + hardened Docker verification

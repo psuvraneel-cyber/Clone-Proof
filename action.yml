@@ -1,4 +1,4 @@
-name: 'CloneProof'
+name: 'CloneProof Check'
 description: 'Evidence-based setup verification for Node.js and TypeScript repositories.'
 author: 'CloneProof Contributors'
 inputs:
