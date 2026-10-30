@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a new check, output, or integration.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What goes wrong for someone cloning a repository today, and how often you see it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What CloneProof should report or do. Note whether it can be detected without running repository code.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example repositories
+      description: Public repositories where this would have helped.

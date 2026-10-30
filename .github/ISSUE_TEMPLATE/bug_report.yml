@@ -1,0 +1,41 @@
+name: Bug report
+description: CloneProof crashed, hung, left files or containers behind, or behaved differently from the docs.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or Action configuration
+      render: shell
+      placeholder: cloneproof check https://github.com/owner/repo --format json
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: The relevant part of the report or terminal output. Remove anything private first.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: CloneProof version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Node.js version, and Docker version if you used verify.
+      placeholder: Ubuntu 24.04, Node 22.19.0, Docker 27.3
+    validations:
+      required: true
