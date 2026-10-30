@@ -5,6 +5,7 @@
 <br>
 
 [![Latest release](https://img.shields.io/github/v/release/psuvraneel-cyber/Clone-Proof?sort=semver&label=release&color=2ea043)](https://github.com/psuvraneel-cyber/Clone-Proof/releases/latest)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-CloneProof%20Check-2ea043?logo=github)](https://github.com/marketplace/actions/cloneproof-check)
 [![CI](https://github.com/psuvraneel-cyber/Clone-Proof/actions/workflows/ci.yml/badge.svg)](https://github.com/psuvraneel-cyber/Clone-Proof/actions/workflows/ci.yml)
 [![Build provenance](https://img.shields.io/badge/build%20provenance-attested-blue)](docs/RELEASING.md#verifying-a-release)
 ![Node](https://img.shields.io/badge/node-%3E%3D22.19.0-43853d)
@@ -87,6 +88,8 @@ The tarball contains only `src/`, `README.md`, `CHANGELOG.md`, `LICENSE`, and `p
 </details>
 
 ### In GitHub Actions
+
+Listed on the GitHub Marketplace as **[CloneProof Check](https://github.com/marketplace/actions/cloneproof-check)**.
 
 ```yaml
 - name: Run CloneProof Static Check
