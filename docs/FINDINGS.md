@@ -111,7 +111,6 @@ without guessing.
 | `PACKAGE_MANAGER_UNRECOGNIZED` | Package-manager consistency |
 | `PRIVATE_REGISTRY` | Package registries and Git dependency hosts |
 | `README_CHECK_SKIPPED` | README npm commands |
-| `README_CI_CHECK_SKIPPED` | README npm commands |
 | `README_CI_COMMAND` | README npm commands |
 | `README_INSTALL_COMMAND` | README npm commands |
 | `README_OTHER_PROJECT_COMMANDS` | README npm commands |
@@ -124,13 +123,18 @@ without guessing.
 | `README_TEST_COMMAND` | README npm commands |
 | `RUNTIME_VERSION_MISMATCH` | Node runtime declarations |
 | `SCAN_ENTRY_LIMIT_EXCEEDED` | Boundary / dynamic |
+| `SCAN_DIRECTORY_UNREADABLE` | Boundary / dynamic |
+| `SCAN_FILE_UNREADABLE` | Boundary / dynamic |
 | `SCAN_ROOT_UNAVAILABLE` | Boundary / dynamic |
 | `SERVICES_LIKELY_REQUIRED` | Compose files and service dependency indicators |
 | `TEST_FILES_FOUND` | Project classification |
 | `TEST_SCRIPT_CHECK_SKIPPED` | Test script |
+| `TEST_SCRIPT_MISSING` | Test script |
+| `MONOREPO_ROOT_TEST_SCRIPT_MISSING` | Test script |
 | `TEST_SCRIPT_PLACEHOLDER` | Test script |
 | `TEST_SCRIPT_PRESENT` | Test script |
 | `UNSUPPORTED_ROOT` | Project classification |
+| `WRONG_TARGET` | Boundary / dynamic |
 
 ### GitHub input and Docker verification findings
 
@@ -153,8 +157,12 @@ without guessing.
 | `DOCKER_VERIFICATION_FAILED` | Boundary / dynamic |
 | `DOCKER_VERIFICATION_PASSED` | Boundary / dynamic |
 | `GITHUB_CHECKOUT_UNAVAILABLE` | Boundary / dynamic |
+| `GITHUB_CHECKOUT_LIMIT_EXCEEDED` | Boundary / dynamic |
 | `GITHUB_CLONE_FAILED` | Boundary / dynamic |
 | `GITHUB_GIT_UNAVAILABLE` | Boundary / dynamic |
+| `GITHUB_REPOSITORY_TOO_LARGE` | Boundary / dynamic |
+| `GITHUB_REPOSITORY_UNAVAILABLE` | Boundary / dynamic |
+| `GITHUB_SOURCE_ERROR` | Boundary / dynamic |
 | `GITHUB_URL_INVALID` | Boundary / dynamic |
 | `VERIFY_NO_TESTS_RAN` | Boundary / dynamic |
 
@@ -169,6 +177,24 @@ static findings and are not added to `report.findings[]`.
 | `DOCKER_IMAGE_READY` | The image was pulled and then confirmed by a second inspect. |
 | `DOCKER_PULL_FAILED` | Pulling the exact pinned image failed. |
 | `DOCKER_SETUP_FAILED` | Setup raised an unexpected error while preparing the Docker CLI configuration or probing the image. |
+
+## GitHub finding details
+
+All GitHub input errors are converted to one schema-v2 report finding by
+`cloneFailureReport`. Blocked input errors use `status=skipped` and
+`severity=warning`; clone/source failures use `status=failed` and
+`severity=error`.
+
+| Code | Status | Severity | Meaning | Fix |
+|---|---|---|---|---|
+| `GITHUB_URL_INVALID` | `skipped` | `warning` | The URL is outside the supported public repository-root form. | Use `https://github.com/OWNER/REPOSITORY`. |
+| `GITHUB_REPOSITORY_UNAVAILABLE` | `skipped` | `warning` | GitHub reported that the repository is missing or inaccessible. | Check the public URL and repository visibility. |
+| `GITHUB_REPOSITORY_TOO_LARGE` | `skipped` | `warning` | The API size sanity limit was exceeded before cloning. | Use a smaller repository or review the checkout policy. |
+| `GITHUB_CHECKOUT_LIMIT_EXCEEDED` | `skipped` | `warning` | The bounded clone exceeded a checkout limit. | Reduce the checkout or review the configured bounds. |
+| `GITHUB_CHECKOUT_UNAVAILABLE` | `skipped` | `warning` | The cloned checkout could not be inspected or was not a directory. | Check Git/filesystem access and rerun. |
+| `GITHUB_GIT_UNAVAILABLE` | `failed` | `error` | A trusted Git executable could not be used. | Install Git or make a trusted absolute Git path available. |
+| `GITHUB_CLONE_FAILED` | `failed` | `error` | Git failed while staging the repository. | Review the public URL, Git installation, and bounded diagnostics. |
+| `GITHUB_SOURCE_ERROR` | `failed` | `error` | An unexpected GitHub source error reached report construction. | Review the reported source error and rerun after fixing the input or environment. |
 
 ## High-risk codes
 

@@ -49,6 +49,38 @@ Or run it once without installing:
 npx github:psuvraneel-cyber/Clone-Proof check ./my-project
 ```
 
+### GitHub Actions
+
+Run CloneProof automatically in CI using the native GitHub Action (`node24`):
+
+```yaml
+- name: Run CloneProof Static Check
+  uses: psuvraneel-cyber/Clone-Proof@main
+  with:
+    target-path: '.'
+    mode: 'check' # default: read-only static scan
+```
+
+To run controlled container verification on trusted branches:
+
+```yaml
+- name: Run CloneProof Docker Verification
+  uses: psuvraneel-cyber/Clone-Proof@main
+  with:
+    target-path: '.'
+    mode: 'verify' # runs static check + hardened Docker verification
+    allow-network: 'false' # default: network isolated (--network=none)
+    timeout-ms: '300000' # default: 5 minutes (max 600000)
+```
+
+The Action integrates natively with GitHub Actions features:
+- **Two execution modes:** `check` for deterministic static analysis (safe on all PRs) and `verify` for controlled Docker verification (restricted to Linux runners on `push` and `workflow_dispatch` events).
+- **Pull request & workflow annotations:** High-priority findings appear inline in file diffs and workflow logs (`error`, `warning`, `notice` capped at 10 each, 30 max total).
+- **GitHub Actions Job Summary:** A structured Markdown summary showing status, metrics, findings table, Docker verification outcome (in `verify` mode), evaluated check groups, and safe logical report locations.
+- **Fail-safe isolation:** Child process secrets are scrubbed, untrusted child output cannot inject workflow commands, non-Linux runners and untrusted PR events fail closed without running repository code on the host, and presentation errors never alter scan results.
+
+See [docs/GITHUB_ACTION.md](docs/GITHUB_ACTION.md) for complete input, output, annotation, Docker verification, and job summary documentation.
+
 > ⚠️ `npm install -g cloneproof` (without the GitHub URL) installs an **unrelated** package with the same name.
 
 Want proof that install and tests really work?

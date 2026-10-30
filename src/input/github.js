@@ -875,10 +875,10 @@ async function cloneGithubRepository(value, options = {}) {
     let cleaned = false;
     const cleanup = async () => {
       if (cleaned) return;
-      stopCleanupSupervisor(cleanupSupervisor);
       try {
         await removeDirectory(temporaryParent);
         cleaned = true;
+        stopCleanupSupervisor(cleanupSupervisor);
       } catch (cleanupError) {
         cleanupError.cleanupDirectory = temporaryParent;
         throw cleanupError;
@@ -925,10 +925,10 @@ async function cloneGithubRepository(value, options = {}) {
       if (error.message) error.message = redactGithubToken(error.message, githubToken);
       if (error.stack) error.stack = redactGithubToken(error.stack, githubToken);
     }
-    stopCleanupSupervisor(cleanupSupervisor);
     if (temporaryParent) {
       try {
         await removeDirectory(temporaryParent);
+        stopCleanupSupervisor(cleanupSupervisor);
       } catch (cleanupError) {
         error.cleanupError = cleanupError;
         error.cleanupDirectory = temporaryParent;

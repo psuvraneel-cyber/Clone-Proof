@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -150,3 +151,242 @@ jobs:
             throw new Error(`Expected pinned verifier image ${process.env.VERIFY_IMAGE}, got ${report.verification.image}`);
           }
           NODE
+
+  action-e2e:
+    name: GitHub Action E2E (Linux)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 15
+    env:
+      VERIFY_IMAGE: node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+
+      # Test A: Successful verification
+      - name: "Test A: Run Action on healthy fixture (verify mode)"
+        id: test_a
+        uses: ./
+        with:
+          target-path: examples/healthy-node
+          mode: verify
+          report-path: runner-healthy-report.json
+
+      - name: "Test A: Assert outputs, report, and container cleanup"
+        shell: bash
+        run: |
+          echo "Status: ${{ steps.test_a.outputs.status }}"
+          echo "Verification Status: ${{ steps.test_a.outputs.verification-status }}"
+          echo "Report Path: ${{ steps.test_a.outputs.report-path }}"
+          test "${{ steps.test_a.outputs.status }}" = "passed"
+          test "${{ steps.test_a.outputs.verification-status }}" = "passed"
+          test -f runner-healthy-report.json
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('runner-healthy-report.json', 'utf8'));
+          if (report.mode !== 'verify') throw new Error(`Expected report.mode verify, got ${report.mode}`);
+          if (report.status !== 'passed') throw new Error(`Expected report.status passed, got ${report.status}`);
+          if (!report.verification) throw new Error('Expected report.verification object');
+          if (report.verification.outcome !== 'passed') throw new Error(`Expected outcome passed, got ${report.verification.outcome}`);
+          if (report.verification.image !== process.env.VERIFY_IMAGE) {
+            throw new Error(`Expected image ${process.env.VERIFY_IMAGE}, got ${report.verification.image}`);
+          }
+          if (report.verification.networkMode !== 'none') throw new Error(`Expected networkMode none, got ${report.verification.networkMode}`);
+          if (!report.verification.cleanup || report.verification.cleanup.completed !== true) {
+            throw new Error('Expected cleanup.completed === true');
+          }
+          NODE
+
+          leftover=$(docker ps -a -q --filter "name=cloneproof-verify")
+          if [ -n "$leftover" ]; then
+            echo "Leftover Docker containers found: $leftover"
+            exit 1
+          fi
+
+      # Test B: Verification failure
+      - name: "Test B: Run Action on failing fixture (verify mode)"
+        id: test_b
+        continue-on-error: true
+        uses: ./
+        with:
+          target-path: fixtures/failing-verify
+          mode: verify
+          report-path: runner-failing-report.json
+
+      - name: "Test B: Assert outputs, failedPhase, stderr, and container cleanup"
+        shell: bash
+        run: |
+          echo "Step outcome: ${{ steps.test_b.outcome }}"
+          echo "Status: ${{ steps.test_b.outputs.status }}"
+          echo "Verification Status: ${{ steps.test_b.outputs.verification-status }}"
+          echo "Report Path: ${{ steps.test_b.outputs.report-path }}"
+          test "${{ steps.test_b.outcome }}" = "failure"
+          test "${{ steps.test_b.outputs.status }}" = "failed"
+          test "${{ steps.test_b.outputs.verification-status }}" = "failed"
+          test -f runner-failing-report.json
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('runner-failing-report.json', 'utf8'));
+          if (report.mode !== 'verify') throw new Error(`Expected report.mode verify, got ${report.mode}`);
+          if (report.status !== 'failed') throw new Error(`Expected report.status failed, got ${report.status}`);
+          if (!report.verification) throw new Error('Expected report.verification object');
+          if (report.verification.outcome !== 'failed') throw new Error(`Expected outcome failed, got ${report.verification.outcome}`);
+          if (report.verification.failedPhase !== 'test') throw new Error(`Expected failedPhase test, got ${report.verification.failedPhase}`);
+          if (report.verification.exitCode !== 1) throw new Error(`Expected exitCode 1, got ${report.verification.exitCode}`);
+          if (!report.verification.stderr.includes('Deliberately failing verification test for Test B')) {
+            throw new Error(`Expected stderr to include failure message, got: ${report.verification.stderr}`);
+          }
+          if (!report.verification.cleanup || report.verification.cleanup.completed !== true) {
+            throw new Error('Expected cleanup.completed === true');
+          }
+          NODE
+
+          leftover=$(docker ps -a -q --filter "name=cloneproof-verify")
+          if [ -n "$leftover" ]; then
+            echo "Leftover Docker containers found: $leftover"
+            exit 1
+          fi
+
+      # Test C: Non-network verification
+      - name: "Test C: Run Action on isolated fixture (allow-network: false)"
+        id: test_c
+        uses: ./
+        with:
+          target-path: fixtures/isolated-network
+          mode: verify
+          allow-network: 'false'
+          report-path: runner-isolated-report.json
+
+      - name: "Test C: Assert container received no network access"
+        shell: bash
+        run: |
+          echo "Status: ${{ steps.test_c.outputs.status }}"
+          echo "Verification Status: ${{ steps.test_c.outputs.verification-status }}"
+          echo "Report Path: ${{ steps.test_c.outputs.report-path }}"
+          test "${{ steps.test_c.outputs.status }}" = "passed"
+          test "${{ steps.test_c.outputs.verification-status }}" = "passed"
+          test -f runner-isolated-report.json
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('runner-isolated-report.json', 'utf8'));
+          if (report.verification.outcome !== 'passed') throw new Error(`Expected outcome passed, got ${report.verification.outcome}`);
+          if (report.verification.networkMode !== 'none') throw new Error(`Expected networkMode none, got ${report.verification.networkMode}`);
+          if (!report.verification.stdout.includes('Confirmed network isolation: DNS lookup failed')) {
+            throw new Error(`Expected stdout to confirm DNS lookup failed in container, got: ${report.verification.stdout}`);
+          }
+          if (!report.verification.cleanup || report.verification.cleanup.completed !== true) {
+            throw new Error('Expected cleanup.completed === true');
+          }
+          NODE
+
+          leftover=$(docker ps -a -q --filter "name=cloneproof-verify")
+          if [ -n "$leftover" ]; then
+            echo "Leftover Docker containers found: $leftover"
+            exit 1
+          fi
+
+      # Test E: Check-mode regression
+      - name: "Test E: Run Action in check mode"
+        id: test_e
+        uses: ./
+        with:
+          target-path: examples/healthy-node
+          mode: check
+          report-path: runner-check-report.json
+
+      - name: "Test E: Assert check mode succeeds without Docker verification"
+        shell: bash
+        run: |
+          echo "Status: ${{ steps.test_e.outputs.status }}"
+          echo "Verification Status: ${{ steps.test_e.outputs.verification-status }}"
+          test "${{ steps.test_e.outputs.status }}" = "passed"
+          test "${{ steps.test_e.outputs.verification-status }}" = "not_run"
+          test -f runner-check-report.json
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('runner-check-report.json', 'utf8'));
+          if (report.mode !== 'check') throw new Error(`Expected report.mode check, got ${report.mode}`);
+          if (report.status !== 'passed') throw new Error(`Expected report.status passed, got ${report.status}`);
+          if (report.verification !== undefined) throw new Error('Expected no verification object in check mode');
+          NODE
+
+  action-e2e-pull-request:
+    name: GitHub Action PR Security Guard (Linux)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+
+      - name: "Run Action on PR with spoofed CLONEPROOF_EVENT_NAME=push"
+        id: test_pr_spoof
+        continue-on-error: true
+        uses: ./
+        with:
+          target-path: examples/healthy-node
+          mode: verify
+          report-path: runner-pr-spoofed-report.json
+        env:
+          CLONEPROOF_EVENT_NAME: push
+
+      - name: "Assert spoofed PR verification is blocked, fallback check ran, no container started"
+        shell: bash
+        run: |
+          echo "Actual GITHUB_EVENT_NAME: $GITHUB_EVENT_NAME"
+          echo "Step outcome: ${{ steps.test_pr_spoof.outcome }}"
+          echo "Status: ${{ steps.test_pr_spoof.outputs.status }}"
+          echo "Verification Status: ${{ steps.test_pr_spoof.outputs.verification-status }}"
+          echo "Report Path: ${{ steps.test_pr_spoof.outputs.report-path }}"
+
+          test "$GITHUB_EVENT_NAME" = "pull_request"
+          test "${{ steps.test_pr_spoof.outcome }}" = "failure"
+          test "${{ steps.test_pr_spoof.outputs.status }}" = "blocked"
+          test "${{ steps.test_pr_spoof.outputs.verification-status }}" = "blocked"
+          test -f runner-pr-spoofed-report.json
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('runner-pr-spoofed-report.json', 'utf8'));
+          if (report.mode !== 'verify') throw new Error(`Expected report.mode verify, got ${report.mode}`);
+          if (report.status !== 'blocked') throw new Error(`Expected report.status blocked, got ${report.status}`);
+          const blockedFinding = report.findings.find(f => f.code === 'DOCKER_EXECUTION_CONSENT_REQUIRED');
+          if (!blockedFinding) throw new Error('Expected DOCKER_EXECUTION_CONSENT_REQUIRED finding');
+          if (blockedFinding.status !== 'skipped') throw new Error(`Expected finding status skipped, got ${blockedFinding.status}`);
+
+          if (report.summary.total !== report.findings.length) {
+            throw new Error(`Summary total ${report.summary.total} !== findings length ${report.findings.length}`);
+          }
+          const skippedCount = report.findings.filter(f => f.status === 'skipped').length;
+          if (report.summary.skipped !== skippedCount) {
+            throw new Error(`Summary skipped ${report.summary.skipped} !== findings skipped ${skippedCount}`);
+          }
+          if (report.verification.outcome !== 'blocked') {
+            throw new Error(`Expected verification.outcome blocked, got ${report.verification.outcome}`);
+          }
+          NODE
+
+          # Verify no Docker containers were created or left running
+          containers=$(docker ps -a -q --filter "name=cloneproof-verify")
+          if [ -n "$containers" ]; then
+            echo "Unexpected Docker containers found: $containers"
+            exit 1
+          fi

@@ -1964,6 +1964,9 @@ function isReadableSourcePath(relativePath) {
 }
 
 function scanFiles(rootPath, limits, options = {}) {
+  const fileSystem = options.fileSystem && typeof options.fileSystem === 'object'
+    ? options.fileSystem
+    : fs;
   const files = new Map();
   const discovered = new Map();
   const skipped = new Set();
@@ -2016,7 +2019,7 @@ function scanFiles(rootPath, limits, options = {}) {
 
   let rootStat;
   try {
-    rootStat = fs.lstatSync(rootPath);
+    rootStat = fileSystem.lstatSync(rootPath);
   } catch {
     rootState = 'unavailable';
     addError('.', 'root');
@@ -2041,7 +2044,7 @@ function scanFiles(rootPath, limits, options = {}) {
     if (entryLimitExceeded) return;
     let entries;
     try {
-      entries = fs.readdirSync(absoluteDirectory, { withFileTypes: true });
+      entries = fileSystem.readdirSync(absoluteDirectory, { withFileTypes: true });
     } catch {
       addError(relativeDirectory, 'directory');
       return;
@@ -2076,7 +2079,7 @@ function scanFiles(rootPath, limits, options = {}) {
       }
 
       try {
-        entryStat = fs.lstatSync(absoluteEntry);
+        entryStat = fileSystem.lstatSync(absoluteEntry);
       } catch {
         if (classifyLstatFailure(relativeEntry, entry) === 'error') addError(relativeEntry, 'file');
         else addSkipped(relativeEntry);
@@ -2149,7 +2152,7 @@ function scanFiles(rootPath, limits, options = {}) {
 
       let bytes;
       try {
-        bytes = fs.readFileSync(absoluteEntry);
+        bytes = fileSystem.readFileSync(absoluteEntry);
       } catch {
         if (coreFile) addError(relativeEntry, 'file');
         else addSkipped(relativeEntry);
@@ -3014,17 +3017,6 @@ function scanRepository(rootPath, options) {
         );
       } else if (missingLockfileFinding) {
         missingLockfileFinding.evidence.push(...evidence);
-      } else {
-        addFinding(
-          findings,
-          'README_CI_CHECK_SKIPPED',
-          'skipped',
-          'info',
-          'README npm ci command could not be checked',
-          'The project type or root scan did not provide enough package metadata for this check.',
-          evidence,
-          'Provide a readable Node.js project root and dependency lockfile.'
-        );
       }
       continue;
     }

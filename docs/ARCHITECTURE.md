@@ -13,6 +13,7 @@ The first slice targets the root of a Node.js or TypeScript repository. It reads
 
 ```text
 src/
+  action/                native GitHub Action entrypoint and runner boundary
   cli.js                 argument parsing, Docker setup, and exit codes
   input/                 public GitHub URL validation and bounded clone staging
   scan/                  bounded filesystem scan and deterministic rules
@@ -72,3 +73,17 @@ npm test
 ```
 
 `--execute` is the execution consent flag. Network is `none` unless `--allow-network` is also provided; that flag applies to both `npm ci` and `npm test`. When the npm lockfile reports external packages, the verifier blocks before the Docker probe unless network consent was provided. If Docker is missing, the image is missing, static prerequisites fail, staging encounters symlinks, or a limit is exceeded, CloneProof reports `blocked` and never falls back to the host. Docker commands use an isolated temporary CLI configuration and the local default endpoint rather than inheriting a user-selected Docker context.
+
+## GitHub Actions native integration
+
+The Action subsystem (`src/action/`) integrates CloneProof into GitHub Actions workflows without adding external dependencies:
+
+- `action/index.js`: Main Action entry point. Validates runner environment (`GITHUB_WORKSPACE`, `GITHUB_OUTPUT`, `RUNNER_TEMP`), action inputs (`mode`, `target-path`, `report-path`, `allow-network`, `timeout-ms`), and runtime constraints. Coordinates execution across two modes:
+  1. `mode: check`: Directly executes `src/cli.js check` via non-shell argument arrays (`child_process.spawn`). Exports `status`, `report-path`, and sets `verification-status: not_run`.
+  2. `mode: verify`: Strictly validates that runner operating system is Linux (`RUNNER_OS === 'Linux'` and `process.platform === 'linux'`) and that the triggering event is authorized (`push`, `workflow_dispatch` via authoritative `env.GITHUB_EVENT_NAME`). Custom environment variables (such as `CLONEPROOF_EVENT_NAME` or `CLONEPROOF_RUNNER_OS`) cannot authorize verification and are completely ignored; missing or empty event metadata fails closed. If unsupported or restricted, safely falls back to static check, injects a blocking finding (`DOCKER_UNAVAILABLE` or `DOCKER_EXECUTION_CONSENT_REQUIRED`), sets `status: blocked`, `verification-status: blocked`, and returns exit code 2. Otherwise, executes `src/cli.js setup` to ensure the pinned Docker image is prepared. Upon successful setup, invokes `src/cli.js verify <target> --docker --execute --format json --output <report> --timeout-ms <timeout> [--allow-network]`. Never runs redundant scans. Exports `verification-status` matching `report.verification.outcome`.
+- `action/workflow-commands.js`: Formats GitHub Actions workflow commands (`::error`, `::warning`, `::notice`) with strict percent-encoding (`%`, `\r`, `\n`, `:`, `,` for properties; `%`, `\r`, `\n` for messages) to prevent command and property injection.
+- `action/annotations.js`: Maps report findings to workflow command annotations. Employs deterministic ordering (priority: `failed` > `warning` > `skipped`, then file, line, col, title, message), resolves finding paths relative to `GITHUB_WORKSPACE` using forward slashes while enforcing workspace containment, and caps emitted annotations at 10 errors, 10 warnings, and 10 notices per step (maximum 30 total). Does not emit an artificial notice command for truncation to prevent consuming quota.
+- `action/summary.js`: Renders GitHub Actions Job Summaries appended to `GITHUB_STEP_SUMMARY`. Formats status badges, summary metrics, findings tables, Docker verification outcomes (in `verify` mode), check coverage, out-of-scope boundaries, and safe logical runner report locations (`RUNNER_TEMP/cloneproof/report.json` or workspace-relative path). Enforces strict Markdown/HTML metacharacter escaping (`escapeMarkdown`, `escapeTableCell`, `escapeInlineCode`) and caps summary output at 512 KiB of UTF-8 text with multi-byte-safe truncation.
+- `action/paths.js`: Shared path utilities ensuring consistent comparison and preventing circular dependencies.
+
+Presentation failures (such as annotation formatting errors or unwritable step summary destinations) are caught and logged to `stderr` as safe diagnostics. They never alter the validated scan report, report status, or CLI exit codes. The report schema version 2 remains untouched as the canonical source of truth.

@@ -55,3 +55,28 @@ The verifier image is pinned by the recorded digest `sha256:4a4884e8a44826194dff
 ## Report output
 
 JSON and HTML renderers consume the versioned CloneProof report. The HTML report is self-contained with inline styles, escapes repository-controlled text, includes no external resources, bounds displayed verification output to the last 60 lines and 4,000 characters per stream, and displays at most ten evidence items per finding. Cleanup notices expose only temporary folder basenames.
+
+## GitHub Action security model
+
+The native GitHub Action (`action.yml` and `src/action/`) preserves CloneProof's security architecture within the GitHub Actions runner environment:
+
+### 1. Two trust levels: `check` vs. `verify`
+- **`mode: check` (Default):** Static, read-only inspection. Starts no container and runs no repository code. Safe to run on all pull requests and workflow triggers.
+- **`mode: verify` (Opt-in):** Performs static check followed by controlled Docker verification inside the pinned verification container.
+
+### 2. Runner and event boundary restrictions
+- **Linux runners only:** Docker container execution is supported and verified only on Linux runners (`runs-on: ubuntu-latest`). Runner operating system validation is derived strictly from GitHub's authoritative `RUNNER_OS` in combination with `process.platform === 'linux'`. Custom environment variables (such as `CLONEPROOF_RUNNER_OS`) are never accepted as overrides. Non-Linux runners or missing runner OS metadata fail closed with `verification-status: blocked`, fall back to a safe static check, and return exit code `2` with `DOCKER_UNAVAILABLE`.
+- **Restricted workflow events:** Docker verification is restricted to trusted events: `push` and `workflow_dispatch`. Event authorization is determined strictly from GitHub's authoritative `GITHUB_EVENT_NAME` environment metadata. Custom environment variables (such as `CLONEPROOF_EVENT_NAME`) are never accepted and cannot authorize verification. Missing or empty event metadata fails closed. Untrusted events (such as `pull_request`, `pull_request_target`, `workflow_run`, and `schedule`) fail closed with `verification-status: blocked`, fall back to a safe static check, and return exit code `2` with `DOCKER_EXECUTION_CONSENT_REQUIRED`. This prevents untrusted PR authors from executing code inside runner containers or abusing runner compute resources.
+
+### 3. Container isolation & network policy
+- **Non-root user:** Container runs strictly as UID/GID 1000 (`node`).
+- **Read-only root filesystem:** Prevents modifications to container system binaries.
+- **Capabilities dropped:** All Linux capabilities are dropped (`--cap-drop=ALL`) with `no-new-privileges`.
+- **Network isolation:** Uses `--network=none` by default. Network access is opt-in (`allow-network: 'true'`) and strictly rejected when `mode` is `check`.
+- **Supervised cleanup:** An independent cleanup supervisor ensures containers and staging folders are removed even during abrupt workflow cancellations or SIGINT.
+
+### 4. Runner secret & environment isolation
+- **Environment filtering:** Only a minimal allowlist of necessary operating system variables (`PATH`, `TEMP`, `SYSTEMROOT`, etc.) is passed to child processes. Runner tokens (`GITHUB_TOKEN`, `ACTIONS_RUNTIME_TOKEN`) and workflow secrets are strictly stripped.
+- **Command injection defense:** Untrusted output from child processes is sanitized to prevent workflow command injection (`::`).
+- **Percent-encoded annotations:** Workflow command properties and messages are strictly percent-encoded. Emitted annotations are capped at 10 errors, 10 warnings, and 10 notices per step (max 30 total).
+- **Safe Job Summaries:** Untrusted finding messages, titles, codes, and paths are escaped to prevent Markdown and HTML injection. Job summaries are capped at 512 KiB UTF-8 text with multi-byte-safe truncation, and report locations are displayed as safe logical paths (`RUNNER_TEMP/cloneproof/report.json` or workspace-relative path) without exposing host filesystem paths.
