@@ -6,6 +6,7 @@ const { spawn } = require('node:child_process');
 const { emitAnnotations } = require('./annotations');
 const { isSubPath, normalizePathForComparison } = require('./paths');
 const { renderJobSummary, writeJobSummary } = require('./summary');
+const { DEFAULT_VERIFY_IMAGE } = require('../verify/docker');
 
 const MINIMAL_PROCESS_ENV_KEYS = [
   'PATH',
@@ -34,6 +35,7 @@ const VALID_REPORT_STATUSES = new Set([
   'incomplete'
 ]);
 
+const MIN_VERIFY_TIMEOUT_MS = 1000;
 const DEFAULT_VERIFY_TIMEOUT_MS = 300000;
 const MAX_VERIFY_TIMEOUT_MS = 600000;
 const ALLOWED_VERIFY_EVENTS = new Set(['push', 'workflow_dispatch']);
@@ -74,18 +76,18 @@ function validateTimeoutMs(rawTimeoutMs) {
   }
   const str = String(rawTimeoutMs).trim();
   if (!/^\d+$/.test(str)) {
-    throw new Error(`Invalid timeout-ms: "${rawTimeoutMs}". Must be a positive integer up to ${MAX_VERIFY_TIMEOUT_MS} ms.`);
+    throw new Error(`Invalid timeout-ms: "${rawTimeoutMs}". Must be a positive integer between ${MIN_VERIFY_TIMEOUT_MS} and ${MAX_VERIFY_TIMEOUT_MS} ms.`);
   }
   const num = Number(str);
-  if (num <= 0 || num > MAX_VERIFY_TIMEOUT_MS) {
-    throw new Error(`Invalid timeout-ms: "${rawTimeoutMs}". Must be a positive integer up to ${MAX_VERIFY_TIMEOUT_MS} ms.`);
+  if (num < MIN_VERIFY_TIMEOUT_MS || num > MAX_VERIFY_TIMEOUT_MS) {
+    throw new Error(`Invalid timeout-ms: "${rawTimeoutMs}". Must be a positive integer between ${MIN_VERIFY_TIMEOUT_MS} and ${MAX_VERIFY_TIMEOUT_MS} ms.`);
   }
   return num;
 }
 
 function isLinuxRunner(platform = process.platform, runnerOs = process.env.RUNNER_OS) {
   if (platform !== 'linux') return false;
-  if (runnerOs && typeof runnerOs === 'string' && runnerOs.trim().toLowerCase() !== 'linux') {
+  if (!runnerOs || typeof runnerOs !== 'string' || runnerOs.trim().toLowerCase() !== 'linux') {
     return false;
   }
   return true;
@@ -94,6 +96,58 @@ function isLinuxRunner(platform = process.platform, runnerOs = process.env.RUNNE
 function isAllowedVerifyEvent(eventName = process.env.GITHUB_EVENT_NAME) {
   if (!eventName || typeof eventName !== 'string') return false;
   return ALLOWED_VERIFY_EVENTS.has(eventName.trim());
+}
+
+function recomputeReportSummary(report) {
+  if (!report || !Array.isArray(report.findings)) return;
+  report.summary = {
+    total: report.findings.length,
+    passed: report.findings.filter((finding) => finding.status === 'passed').length,
+    failed: report.findings.filter((finding) => finding.status === 'failed').length,
+    warnings: report.findings.filter((finding) => finding.status === 'warning').length,
+    skipped: report.findings.filter((finding) => finding.status === 'skipped').length
+  };
+}
+
+function makeBlockedVerificationObject({
+  allowNetwork = false,
+  timeoutMs = DEFAULT_VERIFY_TIMEOUT_MS,
+  image = DEFAULT_VERIFY_IMAGE,
+  setupFailed = false,
+  errorMessage = ''
+} = {}) {
+  return {
+    requested: true,
+    authorized: false,
+    image,
+    networkMode: allowNetwork ? 'bridge' : 'none',
+    networkConsent: Boolean(allowNetwork),
+    timeoutMs,
+    maxOutputBytes: 10 * 1024 * 1024,
+    commands: [
+      'copy the scanned repository snapshot into the container',
+      'npm ci --ignore-scripts',
+      'npm test'
+    ],
+    outcome: 'blocked',
+    dockerAvailable: false,
+    imageAvailable: false,
+    dockerExecutable: null,
+    exitCode: null,
+    signal: null,
+    failedPhase: null,
+    timedOut: false,
+    outputTruncated: false,
+    noTestsRan: false,
+    stdout: '',
+    stderr: errorMessage,
+    omittedPaths: [],
+    ignoredPaths: [],
+    ignoredPathCount: 0,
+    ignoredPathsTruncated: false,
+    cleanup: { attempted: false, completed: true, stagingRemoved: false, clientConfigRemoved: false, stagingAttempted: false },
+    setupFailed: Boolean(setupFailed)
+  };
 }
 
 function sanitizeWorkflowCommandText(text) {
@@ -460,6 +514,7 @@ async function runAction(options = {}) {
 
     const report = readAndValidateReport(resolvedReport);
 
+    report.mode = 'verify';
     if (!isLinux) {
       report.findings.push({
         code: 'DOCKER_UNAVAILABLE',
@@ -483,16 +538,16 @@ async function runAction(options = {}) {
     }
 
     report.status = 'blocked';
-    if (report.summary && typeof report.summary === 'object') {
-      report.summary.skipped = (Number(report.summary.skipped) || 0) + 1;
-      report.summary.total = (Number(report.summary.total) || 0) + 1;
-    }
-    report.verification = {
-      requested: true,
-      outcome: 'blocked',
-      dockerAvailable: false,
-      imageAvailable: false
-    };
+    recomputeReportSummary(report);
+    report.verification = makeBlockedVerificationObject({
+      allowNetwork,
+      timeoutMs,
+      image: DEFAULT_VERIFY_IMAGE,
+      setupFailed: false,
+      errorMessage: !isLinux
+        ? `Docker verification is currently supported only on Linux runners (detected ${runnerOs || platform}).`
+        : `Docker verification was blocked because event "${eventName || '(missing)'}" is not permitted to execute verification containers.`
+    });
 
     fs.writeFileSync(resolvedReport, JSON.stringify(report, null, 2), 'utf8');
 
@@ -553,6 +608,7 @@ async function runAction(options = {}) {
     );
 
     const report = readAndValidateReport(resolvedReport);
+    report.mode = 'verify';
 
     report.findings.push({
       code: 'DOCKER_IMAGE_UNAVAILABLE',
@@ -565,17 +621,14 @@ async function runAction(options = {}) {
     });
 
     report.status = 'blocked';
-    if (report.summary && typeof report.summary === 'object') {
-      report.summary.skipped = (Number(report.summary.skipped) || 0) + 1;
-      report.summary.total = (Number(report.summary.total) || 0) + 1;
-    }
-    report.verification = {
-      requested: true,
-      outcome: 'blocked',
-      dockerAvailable: false,
-      imageAvailable: false,
-      setupFailed: true
-    };
+    recomputeReportSummary(report);
+    report.verification = makeBlockedVerificationObject({
+      allowNetwork,
+      timeoutMs,
+      image: DEFAULT_VERIFY_IMAGE,
+      setupFailed: true,
+      errorMessage: 'Failed to prepare the pinned Docker image; repository verification was not started.'
+    });
 
     fs.writeFileSync(resolvedReport, JSON.stringify(report, null, 2), 'utf8');
 
@@ -704,6 +757,7 @@ module.exports = {
   ALLOWED_VERIFY_EVENTS,
   DEFAULT_VERIFY_TIMEOUT_MS,
   MAX_VERIFY_TIMEOUT_MS,
+  MIN_VERIFY_TIMEOUT_MS,
   MINIMAL_PROCESS_ENV_KEYS,
   VALID_REPORT_STATUSES,
   emitAnnotations,
@@ -713,9 +767,11 @@ module.exports = {
   isAllowedVerifyEvent,
   isLinuxRunner,
   isSubPath,
+  makeBlockedVerificationObject,
   normalizePathForComparison,
   pipeSanitizedOutput,
   readAndValidateReport,
+  recomputeReportSummary,
   renderJobSummary,
   resolveCliEntrypoint,
   runAction,

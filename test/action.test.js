@@ -718,6 +718,11 @@ test('validateTimeoutMs validates integer bounds and defaults', () => {
   assert.throws(() => validateTimeoutMs('0'), /Invalid timeout-ms/);
   assert.throws(() => validateTimeoutMs('-1000'), /Invalid timeout-ms/);
 
+  // < 1000 (minimum 1000 ms bound)
+  assert.throws(() => validateTimeoutMs('1'), /Invalid timeout-ms/);
+  assert.throws(() => validateTimeoutMs('500'), /Invalid timeout-ms/);
+  assert.throws(() => validateTimeoutMs('999'), /Invalid timeout-ms/);
+
   // > 600000
   assert.throws(() => validateTimeoutMs('600001'), /Invalid timeout-ms/);
   assert.throws(() => validateTimeoutMs('1000000'), /Invalid timeout-ms/);
@@ -731,7 +736,13 @@ test('validateTimeoutMs validates integer bounds and defaults', () => {
 test('isLinuxRunner detects Linux platform and runner OS accurately', () => {
   assert.equal(isLinuxRunner('linux', 'Linux'), true);
   assert.equal(isLinuxRunner('linux', 'linux'), true);
-  assert.equal(isLinuxRunner('linux', undefined), true);
+  assert.equal(isLinuxRunner('linux', ' Linux '), true);
+
+  // missing or empty runner OS fails closed
+  assert.equal(isLinuxRunner('linux', undefined), false);
+  assert.equal(isLinuxRunner('linux', ''), false);
+  assert.equal(isLinuxRunner('linux', '   '), false);
+  assert.equal(isLinuxRunner('linux', null), false);
 
   // non-linux platform
   assert.equal(isLinuxRunner('win32', 'Windows'), false);
@@ -750,6 +761,7 @@ test('isAllowedVerifyEvent permits push and workflow_dispatch and rejects untrus
 
   assert.equal(isAllowedVerifyEvent('pull_request'), false);
   assert.equal(isAllowedVerifyEvent('pull_request_target'), false);
+  assert.equal(isAllowedVerifyEvent('workflow_run'), false);
   assert.equal(isAllowedVerifyEvent('schedule'), false);
   assert.equal(isAllowedVerifyEvent('release'), false);
   assert.equal(isAllowedVerifyEvent(''), false);
@@ -788,8 +800,13 @@ test('Verify mode on non-Linux runner blocks verification, runs static check, an
   assert.ok(match);
   const reportPath = match[1].trim();
   const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+  assert.equal(report.mode, 'verify');
   assert.equal(report.status, 'blocked');
+  assert.equal(report.summary.total, report.findings.length);
+  assert.equal(report.summary.skipped, report.findings.filter((f) => f.status === 'skipped').length);
   assert.ok(report.findings.some((f) => f.code === 'DOCKER_UNAVAILABLE'));
+  assert.equal(report.verification.outcome, 'blocked');
+  assert.equal(report.verification.cleanup.completed, true);
 
   const summaryContent = fs.readFileSync(stepSummary, 'utf8');
   assert.match(summaryContent, /## Docker Verification/);
@@ -827,8 +844,12 @@ test('Verify mode on pull_request event blocks verification, runs static check, 
   assert.ok(match);
   const reportPath = match[1].trim();
   const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+  assert.equal(report.mode, 'verify');
   assert.equal(report.status, 'blocked');
+  assert.equal(report.summary.total, report.findings.length);
+  assert.equal(report.summary.skipped, report.findings.filter((f) => f.status === 'skipped').length);
   assert.ok(report.findings.some((f) => f.code === 'DOCKER_EXECUTION_CONSENT_REQUIRED'));
+  assert.equal(report.verification.outcome, 'blocked');
 
   const summaryContent = fs.readFileSync(stepSummary, 'utf8');
   assert.match(summaryContent, /## Docker Verification/);
@@ -902,8 +923,12 @@ test('Verify mode blocks and returns code 2 when Docker setup fails', async () =
   assert.match(outputContent, /^verification-status=blocked$/m);
 
   const report = JSON.parse(fs.readFileSync(customReportPath, 'utf8'));
+  assert.equal(report.mode, 'verify');
   assert.equal(report.status, 'blocked');
+  assert.equal(report.summary.total, report.findings.length);
+  assert.equal(report.summary.skipped, report.findings.filter((f) => f.status === 'skipped').length);
   assert.ok(report.findings.some((f) => f.code === 'DOCKER_IMAGE_UNAVAILABLE'));
+  assert.equal(report.verification.setupFailed, true);
 }));
 
 test('Verify mode runs setup and verify CLI commands with correct flags and timeout', async () => withTempDirAsync('cloneproof-action-verify-success-', async (dir) => {

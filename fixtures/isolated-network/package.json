@@ -1,0 +1,10 @@
+{
+  "name": "cloneproof-isolated-network-fixture",
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "test": "node network-check.js"
+  }
+}
