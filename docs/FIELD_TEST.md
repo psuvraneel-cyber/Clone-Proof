@@ -320,7 +320,7 @@ Run 4's target results above remain valid historical measurements from `ef8056d`
 - The npm package-content assertion failed because its hard-coded source list omitted `src/util/cleanup-supervisor.js`. Commit `3393290` now derives the expected source list from sorted `git ls-files src`, normalizes separators, and keeps exact equality against `npm pack --dry-run --json`.
 - The healthy fixture exposed a false zero-test result because top-level `node:test` output includes `# suites 0`/`ℹ suites 0`. Commit `040ff96` removes suite-count-only triggers, vetoes detection when any positive test evidence is present, and adds a real child-process regression using `examples/healthy-node`.
 - A first local verifier image inspect can transiently miss an existing image while Docker Desktop wakes from Resource Saver. Commit `fef9119` waits two seconds and retries exactly once without pulling; injected tests cover both recovery and persistent failure.
-- The post-fix `npm test` count is 232 tests (231 passed, 0 failed, 1 expected Windows symlink `EPERM` skip). The replacement CI receipt and the requested Docker/network rechecks are pending the next `review-fixes` push.
+- The post-fix `npm test` count was 232 tests (231 passed, 0 failed, 1 expected Windows symlink `EPERM` skip). The replacement CI receipt is main run `39446244932` for the PR #1 merge `bdef68f`, which passed; no separate Docker/network recheck for this follow-up is recorded.
 
 ## Known limitations
 

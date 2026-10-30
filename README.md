@@ -270,8 +270,8 @@ Full commands, target commits and per-finding verdicts are in [docs/FIELD_TEST.m
 | Warning precision (Run 3) | 5 real / 6 = **83.3%** |
 | Planted-bug mutations (offline) | **13 / 13** detected |
 | Planted bugs in real repositories | **39 / 39** detected across 3 repos |
-| Automated tests | **232** (offline, `npm test`) |
-| CI | Ubuntu · macOS · Windows · Docker end-to-end |
+| Automated tests | **323** (offline, `npm test`) |
+| CI | Ubuntu · macOS · Windows · Docker end-to-end · GitHub Action end-to-end |
 | Output determinism | Byte-identical JSON across repeated runs on 10 public repos |
 
 The two environment-limited cases are expected by design: native modules whose install scripts are skipped, and browser tests that the controlled image can't run. CloneProof explains both in the report.
@@ -295,7 +295,7 @@ The two environment-limited cases are expected by design: native modules whose i
 git clone https://github.com/psuvraneel-cyber/Clone-Proof.git
 cd Clone-Proof
 npm ci
-npm test               # 232 offline tests
+npm test               # 323 offline tests
 npm run test:leaks     # same suite with an isolated temp folder; fails on any leftover file
 npm run build          # syntax check
 ```
@@ -309,7 +309,7 @@ docker run --rm --network none cloneproof
 
 No secrets are needed; `.env.example` is a placeholder template only.
 
-**Project docs:** [Architecture](docs/ARCHITECTURE.md) · [Security model](docs/SECURITY.md) · [Design decisions](docs/DECISIONS.md) · [Field tests](docs/FIELD_TEST.md) · [Demo script](docs/DEMO.md)
+**Project docs:** [Architecture](docs/ARCHITECTURE.md) · [Security model](docs/SECURITY.md) · [Design decisions](docs/DECISIONS.md) · [Field tests](docs/FIELD_TEST.md) · [Finding codes](docs/FINDINGS.md) · [GitHub Action](docs/GITHUB_ACTION.md) · [Demo script](docs/DEMO.md)
 
 ---
 
