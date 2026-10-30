@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const test = require('node:test');
 
 const projectRoot = path.resolve(__dirname, '..');
@@ -1021,4 +1021,489 @@ test('Verify mode runs setup and verify CLI commands with correct flags and time
   assert.match(summaryContent, /\*\*Verification result:\*\* PASSED/);
   assert.match(summaryContent, /\| Docker image \| `docker\.io\/library\/node:24-bookworm-slim` \|/);
   assert.match(summaryContent, /\| Network access \| Enabled \|/);
+}));
+
+// =============================================================================
+// Part 3.2: Authorization Regression Tests (A through F)
+// =============================================================================
+
+test('Part 3.2 Test A: Spoofed allowed event (CLONEPROOF_EVENT_NAME=push on pull_request) is blocked', async () => withTempDirAsync('cloneproof-action-test-a-', async (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  const stepSummary = path.join(dir, 'summary.md');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const healthyFixture = path.join(projectRoot, 'examples', 'healthy-node');
+  const customReportPath = path.join(runnerTemp, 'report.json');
+
+  const spawnedCalls = [];
+  const trackingSpawn = (command, args, options) => {
+    spawnedCalls.push({ command, args, options });
+    return spawn(command, args, options);
+  };
+
+  const env = {
+    GITHUB_WORKSPACE: projectRoot,
+    'INPUT_TARGET-PATH': healthyFixture,
+    'INPUT_REPORT-PATH': customReportPath,
+    'INPUT_MODE': 'verify',
+    RUNNER_OS: 'Linux',
+    GITHUB_EVENT_NAME: 'pull_request',
+    CLONEPROOF_EVENT_NAME: 'push',
+    GITHUB_OUTPUT: githubOutput,
+    GITHUB_STEP_SUMMARY: stepSummary,
+    RUNNER_TEMP: runnerTemp,
+    NO_COLOR: '1'
+  };
+
+  const exitCode = await runAction({ env, platform: 'linux', spawn: trackingSpawn });
+  assert.equal(exitCode, 2, 'Action must exit with code 2 when event is pull_request');
+
+  // Verify setup and verify were NEVER spawned
+  assert.equal(spawnedCalls.length, 1, 'Only static check fallback should be spawned');
+  assert.ok(spawnedCalls[0].args.includes('check'));
+  assert.ok(!spawnedCalls.some((c) => c.args.includes('setup')));
+  assert.ok(!spawnedCalls.some((c) => c.args.includes('verify')));
+
+  // Verify outputs
+  const outputContent = fs.readFileSync(githubOutput, 'utf8');
+  assert.match(outputContent, /^status=blocked$/m);
+  assert.match(outputContent, /^verification-status=blocked$/m);
+
+  // Verify report content
+  const report = JSON.parse(fs.readFileSync(customReportPath, 'utf8'));
+  assert.equal(report.mode, 'verify');
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.verification.outcome, 'blocked');
+  assert.ok(report.findings.some((f) => f.code === 'DOCKER_EXECUTION_CONSENT_REQUIRED'));
+}));
+
+test('Part 3.2 Test B: Spoofed disallowed event (CLONEPROOF_EVENT_NAME=pull_request on push) is authorized', async () => withTempDirAsync('cloneproof-action-test-b-', async (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  const stepSummary = path.join(dir, 'summary.md');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const targetDir = path.join(dir, 'workspace');
+  fs.mkdirSync(targetDir, { recursive: true });
+  fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify({ name: 'test', scripts: { test: 'node -e "process.exit(0)"' } }));
+  const customReportPath = path.join(runnerTemp, 'report.json');
+
+  const spawnedCalls = [];
+  const mockSpawn = (command, args, options) => {
+    spawnedCalls.push({ command, args, options });
+    if (args.includes('verify')) {
+      fs.writeFileSync(customReportPath, JSON.stringify({
+        schemaVersion: 2,
+        tool: 'cloneproof',
+        status: 'passed',
+        summary: { total: 0, passed: 0, failed: 0, skipped: 0 },
+        findings: [],
+        verification: { outcome: 'passed' }
+      }), 'utf8');
+    }
+    return {
+      stdout: { on: () => {} },
+      stderr: { on: () => {} },
+      on: (event, handler) => {
+        if (event === 'close') setTimeout(() => handler(0, null), 10);
+      }
+    };
+  };
+
+  const env = {
+    GITHUB_WORKSPACE: dir,
+    'INPUT_TARGET-PATH': targetDir,
+    'INPUT_REPORT-PATH': customReportPath,
+    'INPUT_MODE': 'verify',
+    RUNNER_OS: 'Linux',
+    GITHUB_EVENT_NAME: 'push',
+    CLONEPROOF_EVENT_NAME: 'pull_request',
+    GITHUB_OUTPUT: githubOutput,
+    GITHUB_STEP_SUMMARY: stepSummary,
+    RUNNER_TEMP: runnerTemp
+  };
+
+  const exitCode = await runAction({ env, platform: 'linux', spawn: mockSpawn });
+  assert.equal(exitCode, 0, 'Action must exit with code 0 on authoritative push event');
+
+  // Verify setup and verify were spawned (not blocked)
+  assert.equal(spawnedCalls.length, 2);
+  assert.ok(spawnedCalls[0].args.includes('setup'));
+  assert.ok(spawnedCalls[1].args.includes('verify'));
+
+  const outputContent = fs.readFileSync(githubOutput, 'utf8');
+  assert.match(outputContent, /^status=passed$/m);
+  assert.match(outputContent, /^verification-status=passed$/m);
+}));
+
+test('Part 3.2 Test C: Missing authoritative event (no GITHUB_EVENT_NAME, CLONEPROOF_EVENT_NAME=push) is blocked', async () => withTempDirAsync('cloneproof-action-test-c-', async (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  const stepSummary = path.join(dir, 'summary.md');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const healthyFixture = path.join(projectRoot, 'examples', 'healthy-node');
+  const customReportPath = path.join(runnerTemp, 'report.json');
+
+  const spawnedCalls = [];
+  const trackingSpawn = (command, args, options) => {
+    spawnedCalls.push({ command, args, options });
+    return spawn(command, args, options);
+  };
+
+  const env = {
+    GITHUB_WORKSPACE: projectRoot,
+    'INPUT_TARGET-PATH': healthyFixture,
+    'INPUT_REPORT-PATH': customReportPath,
+    'INPUT_MODE': 'verify',
+    RUNNER_OS: 'Linux',
+    // GITHUB_EVENT_NAME is missing
+    CLONEPROOF_EVENT_NAME: 'push',
+    GITHUB_OUTPUT: githubOutput,
+    GITHUB_STEP_SUMMARY: stepSummary,
+    RUNNER_TEMP: runnerTemp,
+    NO_COLOR: '1'
+  };
+
+  const exitCode = await runAction({ env, platform: 'linux', spawn: trackingSpawn });
+  assert.equal(exitCode, 2, 'Action must return exit code 2 when GITHUB_EVENT_NAME is missing');
+
+  assert.equal(spawnedCalls.length, 1);
+  assert.ok(spawnedCalls[0].args.includes('check'));
+  assert.ok(!spawnedCalls.some((c) => c.args.includes('setup')));
+  assert.ok(!spawnedCalls.some((c) => c.args.includes('verify')));
+
+  const outputContent = fs.readFileSync(githubOutput, 'utf8');
+  assert.match(outputContent, /^status=blocked$/m);
+  assert.match(outputContent, /^verification-status=blocked$/m);
+
+  const report = JSON.parse(fs.readFileSync(customReportPath, 'utf8'));
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.verification.outcome, 'blocked');
+  assert.ok(report.findings.some((f) => f.code === 'DOCKER_EXECUTION_CONSENT_REQUIRED'));
+}));
+
+test('Part 3.2 Test D: Empty authoritative event (GITHUB_EVENT_NAME="", CLONEPROOF_EVENT_NAME=push) is blocked', async () => withTempDirAsync('cloneproof-action-test-d-', async (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  const stepSummary = path.join(dir, 'summary.md');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const healthyFixture = path.join(projectRoot, 'examples', 'healthy-node');
+  const customReportPath = path.join(runnerTemp, 'report.json');
+
+  const spawnedCalls = [];
+  const trackingSpawn = (command, args, options) => {
+    spawnedCalls.push({ command, args, options });
+    return spawn(command, args, options);
+  };
+
+  const env = {
+    GITHUB_WORKSPACE: projectRoot,
+    'INPUT_TARGET-PATH': healthyFixture,
+    'INPUT_REPORT-PATH': customReportPath,
+    'INPUT_MODE': 'verify',
+    RUNNER_OS: 'Linux',
+    GITHUB_EVENT_NAME: '',
+    CLONEPROOF_EVENT_NAME: 'push',
+    GITHUB_OUTPUT: githubOutput,
+    GITHUB_STEP_SUMMARY: stepSummary,
+    RUNNER_TEMP: runnerTemp,
+    NO_COLOR: '1'
+  };
+
+  const exitCode = await runAction({ env, platform: 'linux', spawn: trackingSpawn });
+  assert.equal(exitCode, 2, 'Action must return exit code 2 when GITHUB_EVENT_NAME is empty');
+
+  assert.equal(spawnedCalls.length, 1);
+  assert.ok(spawnedCalls[0].args.includes('check'));
+  assert.ok(!spawnedCalls.some((c) => c.args.includes('setup')));
+  assert.ok(!spawnedCalls.some((c) => c.args.includes('verify')));
+
+  const outputContent = fs.readFileSync(githubOutput, 'utf8');
+  assert.match(outputContent, /^status=blocked$/m);
+  assert.match(outputContent, /^verification-status=blocked$/m);
+
+  const report = JSON.parse(fs.readFileSync(customReportPath, 'utf8'));
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.verification.outcome, 'blocked');
+  assert.ok(report.findings.some((f) => f.code === 'DOCKER_EXECUTION_CONSENT_REQUIRED'));
+}));
+
+test('Part 3.2 Test E: Runner environment spoofing combinations cannot authorize verification', async () => withTempDirAsync('cloneproof-action-test-e-', async (dir) => {
+  const healthyFixture = path.join(projectRoot, 'examples', 'healthy-node');
+
+  // Case 1: RUNNER_OS=Windows, CLONEPROOF_RUNNER_OS=Linux on platform linux -> blocked
+  {
+    const runnerTemp = path.join(dir, 'temp1');
+    const githubOutput = path.join(dir, 'output1.txt');
+    fs.mkdirSync(runnerTemp, { recursive: true });
+    const customReportPath = path.join(runnerTemp, 'report1.json');
+    const spawnedCalls = [];
+    const trackingSpawn = (command, args, options) => {
+      spawnedCalls.push({ command, args, options });
+      return spawn(command, args, options);
+    };
+    const env = {
+      GITHUB_WORKSPACE: projectRoot,
+      'INPUT_TARGET-PATH': healthyFixture,
+      'INPUT_REPORT-PATH': customReportPath,
+      'INPUT_MODE': 'verify',
+      RUNNER_OS: 'Windows',
+      CLONEPROOF_RUNNER_OS: 'Linux',
+      GITHUB_EVENT_NAME: 'push',
+      GITHUB_OUTPUT: githubOutput,
+      GITHUB_STEP_SUMMARY: path.join(runnerTemp, 'summary.md'),
+      RUNNER_TEMP: runnerTemp,
+      NO_COLOR: '1'
+    };
+    const exitCode = await runAction({ env, platform: 'linux', spawn: trackingSpawn });
+    assert.equal(exitCode, 2);
+    assert.ok(!spawnedCalls.some((c) => c.args.includes('setup')));
+    assert.ok(!spawnedCalls.some((c) => c.args.includes('verify')));
+    const output = fs.readFileSync(githubOutput, 'utf8');
+    assert.match(output, /^status=blocked$/m);
+    assert.match(output, /^verification-status=blocked$/m);
+  }
+
+  // Case 2: RUNNER_OS=Linux, CLONEPROOF_RUNNER_OS=Linux on platform win32 -> blocked
+  {
+    const runnerTemp = path.join(dir, 'temp2');
+    const githubOutput = path.join(dir, 'output2.txt');
+    fs.mkdirSync(runnerTemp, { recursive: true });
+    const customReportPath = path.join(runnerTemp, 'report2.json');
+    const spawnedCalls = [];
+    const trackingSpawn = (command, args, options) => {
+      spawnedCalls.push({ command, args, options });
+      return spawn(command, args, options);
+    };
+    const env = {
+      GITHUB_WORKSPACE: projectRoot,
+      'INPUT_TARGET-PATH': healthyFixture,
+      'INPUT_REPORT-PATH': customReportPath,
+      'INPUT_MODE': 'verify',
+      RUNNER_OS: 'Linux',
+      CLONEPROOF_RUNNER_OS: 'Linux',
+      GITHUB_EVENT_NAME: 'push',
+      GITHUB_OUTPUT: githubOutput,
+      GITHUB_STEP_SUMMARY: path.join(runnerTemp, 'summary.md'),
+      RUNNER_TEMP: runnerTemp,
+      NO_COLOR: '1'
+    };
+    const exitCode = await runAction({ env, platform: 'win32', spawn: trackingSpawn });
+    assert.equal(exitCode, 2);
+    assert.ok(!spawnedCalls.some((c) => c.args.includes('setup')));
+    assert.ok(!spawnedCalls.some((c) => c.args.includes('verify')));
+  }
+
+  // Case 3: Missing RUNNER_OS, CLONEPROOF_RUNNER_OS=Linux on platform linux -> blocked
+  {
+    const runnerTemp = path.join(dir, 'temp3');
+    const githubOutput = path.join(dir, 'output3.txt');
+    fs.mkdirSync(runnerTemp, { recursive: true });
+    const customReportPath = path.join(runnerTemp, 'report3.json');
+    const spawnedCalls = [];
+    const trackingSpawn = (command, args, options) => {
+      spawnedCalls.push({ command, args, options });
+      return spawn(command, args, options);
+    };
+    const env = {
+      GITHUB_WORKSPACE: projectRoot,
+      'INPUT_TARGET-PATH': healthyFixture,
+      'INPUT_REPORT-PATH': customReportPath,
+      'INPUT_MODE': 'verify',
+      CLONEPROOF_RUNNER_OS: 'Linux',
+      GITHUB_EVENT_NAME: 'push',
+      GITHUB_OUTPUT: githubOutput,
+      GITHUB_STEP_SUMMARY: path.join(runnerTemp, 'summary.md'),
+      RUNNER_TEMP: runnerTemp,
+      NO_COLOR: '1'
+    };
+    const exitCode = await runAction({ env, platform: 'linux', spawn: trackingSpawn });
+    assert.equal(exitCode, 2);
+    assert.ok(!spawnedCalls.some((c) => c.args.includes('setup')));
+    assert.ok(!spawnedCalls.some((c) => c.args.includes('verify')));
+  }
+
+  // Case 4: RUNNER_OS=Linux, CLONEPROOF_RUNNER_OS=Windows on platform linux -> authorized (custom var ignored)
+  {
+    const runnerTemp = path.join(dir, 'temp4');
+    const githubOutput = path.join(dir, 'output4.txt');
+    fs.mkdirSync(runnerTemp, { recursive: true });
+    const targetDir = path.join(dir, 'workspace4');
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify({ name: 'test', scripts: { test: 'node -e "process.exit(0)"' } }));
+    const customReportPath = path.join(runnerTemp, 'report4.json');
+
+    const spawnedCalls = [];
+    const mockSpawn = (command, args, options) => {
+      spawnedCalls.push({ command, args, options });
+      if (args.includes('verify')) {
+        fs.writeFileSync(customReportPath, JSON.stringify({
+          schemaVersion: 2,
+          tool: 'cloneproof',
+          status: 'passed',
+          summary: { total: 0, passed: 0, failed: 0, skipped: 0 },
+          findings: [],
+          verification: { outcome: 'passed' }
+        }), 'utf8');
+      }
+      return {
+        stdout: { on: () => {} },
+        stderr: { on: () => {} },
+        on: (event, handler) => {
+          if (event === 'close') setTimeout(() => handler(0, null), 10);
+        }
+      };
+    };
+
+    const env = {
+      GITHUB_WORKSPACE: dir,
+      'INPUT_TARGET-PATH': targetDir,
+      'INPUT_REPORT-PATH': customReportPath,
+      'INPUT_MODE': 'verify',
+      RUNNER_OS: 'Linux',
+      CLONEPROOF_RUNNER_OS: 'Windows',
+      GITHUB_EVENT_NAME: 'push',
+      GITHUB_OUTPUT: githubOutput,
+      GITHUB_STEP_SUMMARY: path.join(runnerTemp, 'summary.md'),
+      RUNNER_TEMP: runnerTemp
+    };
+
+    const exitCode = await runAction({ env, platform: 'linux', spawn: mockSpawn });
+    assert.equal(exitCode, 0);
+    assert.equal(spawnedCalls.length, 2);
+    assert.ok(spawnedCalls[0].args.includes('setup'));
+    assert.ok(spawnedCalls[1].args.includes('verify'));
+  }
+}));
+
+test('Part 3.2 Test F: No regression for push, workflow_dispatch, unsupported events, and check mode', async () => withTempDirAsync('cloneproof-action-test-f-', async (dir) => {
+  const healthyFixture = path.join(projectRoot, 'examples', 'healthy-node');
+
+  // Case 1: workflow_dispatch on Linux -> authorized
+  {
+    const runnerTemp = path.join(dir, 'temp-wd');
+    const githubOutput = path.join(dir, 'output-wd.txt');
+    fs.mkdirSync(runnerTemp, { recursive: true });
+    const targetDir = path.join(dir, 'workspace-wd');
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify({ name: 'test', scripts: { test: 'node -e "process.exit(0)"' } }));
+    const customReportPath = path.join(runnerTemp, 'report-wd.json');
+
+    const spawnedCalls = [];
+    const mockSpawn = (command, args, options) => {
+      spawnedCalls.push({ command, args, options });
+      if (args.includes('verify')) {
+        fs.writeFileSync(customReportPath, JSON.stringify({
+          schemaVersion: 2,
+          tool: 'cloneproof',
+          status: 'passed',
+          summary: { total: 0, passed: 0, failed: 0, skipped: 0 },
+          findings: [],
+          verification: { outcome: 'passed' }
+        }), 'utf8');
+      }
+      return {
+        stdout: { on: () => {} },
+        stderr: { on: () => {} },
+        on: (event, handler) => {
+          if (event === 'close') setTimeout(() => handler(0, null), 10);
+        }
+      };
+    };
+
+    const env = {
+      GITHUB_WORKSPACE: dir,
+      'INPUT_TARGET-PATH': targetDir,
+      'INPUT_REPORT-PATH': customReportPath,
+      'INPUT_MODE': 'verify',
+      RUNNER_OS: 'Linux',
+      GITHUB_EVENT_NAME: 'workflow_dispatch',
+      GITHUB_OUTPUT: githubOutput,
+      GITHUB_STEP_SUMMARY: path.join(runnerTemp, 'summary.md'),
+      RUNNER_TEMP: runnerTemp
+    };
+
+    const exitCode = await runAction({ env, platform: 'linux', spawn: mockSpawn });
+    assert.equal(exitCode, 0);
+    assert.equal(spawnedCalls.length, 2);
+    assert.ok(spawnedCalls[0].args.includes('setup'));
+    assert.ok(spawnedCalls[1].args.includes('verify'));
+  }
+
+  // Case 2: Various untrusted events are blocked
+  const untrustedEvents = ['pull_request_target', 'workflow_run', 'schedule', 'release', 'issues'];
+  for (const ev of untrustedEvents) {
+    const runnerTemp = path.join(dir, `temp-${ev}`);
+    const githubOutput = path.join(dir, `output-${ev}.txt`);
+    fs.mkdirSync(runnerTemp, { recursive: true });
+    const customReportPath = path.join(runnerTemp, `report-${ev}.json`);
+
+    const spawnedCalls = [];
+    const trackingSpawn = (command, args, options) => {
+      spawnedCalls.push({ command, args, options });
+      return spawn(command, args, options);
+    };
+
+    const env = {
+      GITHUB_WORKSPACE: projectRoot,
+      'INPUT_TARGET-PATH': healthyFixture,
+      'INPUT_REPORT-PATH': customReportPath,
+      'INPUT_MODE': 'verify',
+      RUNNER_OS: 'Linux',
+      GITHUB_EVENT_NAME: ev,
+      GITHUB_OUTPUT: githubOutput,
+      GITHUB_STEP_SUMMARY: path.join(runnerTemp, 'summary.md'),
+      RUNNER_TEMP: runnerTemp,
+      NO_COLOR: '1'
+    };
+
+    const exitCode = await runAction({ env, platform: 'linux', spawn: trackingSpawn });
+    assert.equal(exitCode, 2, `Event ${ev} must be blocked`);
+    assert.ok(!spawnedCalls.some((c) => c.args.includes('setup')));
+    assert.ok(!spawnedCalls.some((c) => c.args.includes('verify')));
+  }
+
+  // Case 3: Check mode remains unaffected
+  {
+    const runnerTemp = path.join(dir, 'temp-check');
+    const githubOutput = path.join(dir, 'output-check.txt');
+    fs.mkdirSync(runnerTemp, { recursive: true });
+    const customReportPath = path.join(runnerTemp, 'report-check.json');
+
+    const spawnedCalls = [];
+    const trackingSpawn = (command, args, options) => {
+      spawnedCalls.push({ command, args, options });
+      return spawn(command, args, options);
+    };
+
+    const env = {
+      GITHUB_WORKSPACE: projectRoot,
+      'INPUT_TARGET-PATH': healthyFixture,
+      'INPUT_REPORT-PATH': customReportPath,
+      'INPUT_MODE': 'check',
+      RUNNER_OS: 'Linux',
+      GITHUB_EVENT_NAME: 'pull_request', // check mode allows pull_request!
+      GITHUB_OUTPUT: githubOutput,
+      GITHUB_STEP_SUMMARY: path.join(runnerTemp, 'summary.md'),
+      RUNNER_TEMP: runnerTemp,
+      NO_COLOR: '1'
+    };
+
+    const exitCode = await runAction({ env, platform: 'linux', spawn: trackingSpawn });
+    assert.equal(exitCode, 0, 'Check mode must succeed');
+    assert.equal(spawnedCalls.length, 1);
+    assert.ok(spawnedCalls[0].args.includes('check'));
+
+    const outputContent = fs.readFileSync(githubOutput, 'utf8');
+    assert.match(outputContent, /^status=passed$/m);
+    assert.match(outputContent, /^verification-status=not_run$/m);
+
+    const report = JSON.parse(fs.readFileSync(customReportPath, 'utf8'));
+    assert.equal(report.mode, 'check');
+    assert.equal(report.status, 'passed');
+    assert.equal(report.verification, undefined);
+  }
 }));

@@ -171,8 +171,8 @@ The Action automatically executes `cloneproof setup` to inspect or pull the imag
 
 ### 2. Runtime restrictions & fail-closed guards
 To protect GitHub Actions runners and infrastructure:
-- **Linux runners only:** Docker verification is currently supported on Linux runners (`runs-on: ubuntu-latest`). Non-Linux runners fail closed with `verification-status: blocked`, fall back to a safe static check, and return exit code `2` with `DOCKER_UNAVAILABLE`.
-- **Restricted events:** Only `push` and `workflow_dispatch` events are permitted. Untrusted events (such as `pull_request` and `pull_request_target`) fail closed with `verification-status: blocked`, fall back to a safe static check, and return exit code `2` with `DOCKER_EXECUTION_CONSENT_REQUIRED`.
+- **Authoritative runner OS validation:** Docker verification is currently supported only on Linux runners (`runs-on: ubuntu-latest`). Runner operating system validation is determined strictly from GitHub's `RUNNER_OS` in combination with `process.platform === 'linux'`. Custom environment variables cannot override the runner operating system. Non-Linux runners or missing runner OS values fail closed with `verification-status: blocked`, fall back to a safe static check, and return exit code `2` with `DOCKER_UNAVAILABLE`.
+- **Authoritative event authorization:** Only `push` and `workflow_dispatch` events are permitted to execute verification containers. The Action determines event authorization strictly from GitHub's authoritative `GITHUB_EVENT_NAME` metadata. Custom environment variables (such as `CLONEPROOF_EVENT_NAME`) are never consulted and cannot authorize verification. Missing or empty event metadata fails closed. Untrusted events (such as `pull_request`, `pull_request_target`, `workflow_run`, and `schedule`) fail closed with `verification-status: blocked`, fall back to a safe static check, and return exit code `2` with `DOCKER_EXECUTION_CONSENT_REQUIRED`. Neither `event-name` nor `runner-os` is accepted as an Action input.
 
 ### 3. Container security hardening
 The container executes under a controlled, hardened profile:

@@ -155,6 +155,7 @@ jobs:
   action-e2e:
     name: GitHub Action E2E (Linux)
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
     timeout-minutes: 15
     env:
       VERIFY_IMAGE: node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90
@@ -177,8 +178,6 @@ jobs:
           target-path: examples/healthy-node
           mode: verify
           report-path: runner-healthy-report.json
-        env:
-          GITHUB_EVENT_NAME: push
 
       - name: "Test A: Assert outputs, report, and container cleanup"
         shell: bash
@@ -221,8 +220,6 @@ jobs:
           target-path: fixtures/failing-verify
           mode: verify
           report-path: runner-failing-report.json
-        env:
-          GITHUB_EVENT_NAME: push
 
       - name: "Test B: Assert outputs, failedPhase, stderr, and container cleanup"
         shell: bash
@@ -268,8 +265,6 @@ jobs:
           mode: verify
           allow-network: 'false'
           report-path: runner-isolated-report.json
-        env:
-          GITHUB_EVENT_NAME: push
 
       - name: "Test C: Assert container received no network access"
         shell: bash
@@ -300,51 +295,6 @@ jobs:
             exit 1
           fi
 
-      # Test D: Untrusted event guard
-      - name: "Test D: Run Action under untrusted event (pull_request)"
-        id: test_d
-        continue-on-error: true
-        uses: ./
-        with:
-          target-path: examples/healthy-node
-          mode: verify
-          report-path: runner-untrusted-report.json
-        env:
-          CLONEPROOF_EVENT_NAME: pull_request
-          GITHUB_EVENT_NAME: pull_request
-
-      - name: "Test D: Assert blocked verification, fallback check, consistent summary"
-        shell: bash
-        run: |
-          echo "Step outcome: ${{ steps.test_d.outcome }}"
-          echo "Status: ${{ steps.test_d.outputs.status }}"
-          echo "Verification Status: ${{ steps.test_d.outputs.verification-status }}"
-          test "${{ steps.test_d.outcome }}" = "failure"
-          test "${{ steps.test_d.outputs.status }}" = "blocked"
-          test "${{ steps.test_d.outputs.verification-status }}" = "blocked"
-          test -f runner-untrusted-report.json
-
-          node <<'NODE'
-          const fs = require('node:fs');
-          const report = JSON.parse(fs.readFileSync('runner-untrusted-report.json', 'utf8'));
-          if (report.mode !== 'verify') throw new Error(`Expected report.mode verify, got ${report.mode}`);
-          if (report.status !== 'blocked') throw new Error(`Expected report.status blocked, got ${report.status}`);
-          const blockedFinding = report.findings.find(f => f.code === 'DOCKER_EXECUTION_CONSENT_REQUIRED');
-          if (!blockedFinding) throw new Error('Expected DOCKER_EXECUTION_CONSENT_REQUIRED finding');
-          if (blockedFinding.status !== 'skipped') throw new Error(`Expected finding status skipped, got ${blockedFinding.status}`);
-
-          if (report.summary.total !== report.findings.length) {
-            throw new Error(`Summary total ${report.summary.total} !== findings length ${report.findings.length}`);
-          }
-          const skippedCount = report.findings.filter(f => f.status === 'skipped').length;
-          if (report.summary.skipped !== skippedCount) {
-            throw new Error(`Summary skipped ${report.summary.skipped} !== findings skipped ${skippedCount}`);
-          }
-          if (report.verification.outcome !== 'blocked') {
-            throw new Error(`Expected verification.outcome blocked, got ${report.verification.outcome}`);
-          }
-          NODE
-
       # Test E: Check-mode regression
       - name: "Test E: Run Action in check mode"
         id: test_e
@@ -370,3 +320,73 @@ jobs:
           if (report.status !== 'passed') throw new Error(`Expected report.status passed, got ${report.status}`);
           if (report.verification !== undefined) throw new Error('Expected no verification object in check mode');
           NODE
+
+  action-e2e-pull-request:
+    name: GitHub Action PR Security Guard (Linux)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+
+      - name: "Run Action on PR with spoofed CLONEPROOF_EVENT_NAME=push"
+        id: test_pr_spoof
+        continue-on-error: true
+        uses: ./
+        with:
+          target-path: examples/healthy-node
+          mode: verify
+          report-path: runner-pr-spoofed-report.json
+        env:
+          CLONEPROOF_EVENT_NAME: push
+
+      - name: "Assert spoofed PR verification is blocked, fallback check ran, no container started"
+        shell: bash
+        run: |
+          echo "Actual GITHUB_EVENT_NAME: $GITHUB_EVENT_NAME"
+          echo "Step outcome: ${{ steps.test_pr_spoof.outcome }}"
+          echo "Status: ${{ steps.test_pr_spoof.outputs.status }}"
+          echo "Verification Status: ${{ steps.test_pr_spoof.outputs.verification-status }}"
+          echo "Report Path: ${{ steps.test_pr_spoof.outputs.report-path }}"
+
+          test "$GITHUB_EVENT_NAME" = "pull_request"
+          test "${{ steps.test_pr_spoof.outcome }}" = "failure"
+          test "${{ steps.test_pr_spoof.outputs.status }}" = "blocked"
+          test "${{ steps.test_pr_spoof.outputs.verification-status }}" = "blocked"
+          test -f runner-pr-spoofed-report.json
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('runner-pr-spoofed-report.json', 'utf8'));
+          if (report.mode !== 'verify') throw new Error(`Expected report.mode verify, got ${report.mode}`);
+          if (report.status !== 'blocked') throw new Error(`Expected report.status blocked, got ${report.status}`);
+          const blockedFinding = report.findings.find(f => f.code === 'DOCKER_EXECUTION_CONSENT_REQUIRED');
+          if (!blockedFinding) throw new Error('Expected DOCKER_EXECUTION_CONSENT_REQUIRED finding');
+          if (blockedFinding.status !== 'skipped') throw new Error(`Expected finding status skipped, got ${blockedFinding.status}`);
+
+          if (report.summary.total !== report.findings.length) {
+            throw new Error(`Summary total ${report.summary.total} !== findings length ${report.findings.length}`);
+          }
+          const skippedCount = report.findings.filter(f => f.status === 'skipped').length;
+          if (report.summary.skipped !== skippedCount) {
+            throw new Error(`Summary skipped ${report.summary.skipped} !== findings skipped ${skippedCount}`);
+          }
+          if (report.verification.outcome !== 'blocked') {
+            throw new Error(`Expected verification.outcome blocked, got ${report.verification.outcome}`);
+          }
+          NODE
+
+          # Verify no Docker containers were created or left running
+          containers=$(docker ps -a -q --filter "name=cloneproof-verify")
+          if [ -n "$containers" ]; then
+            echo "Unexpected Docker containers found: $containers"
+            exit 1
+          fi

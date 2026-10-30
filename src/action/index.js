@@ -85,19 +85,21 @@ function validateTimeoutMs(rawTimeoutMs) {
   return num;
 }
 
-function isLinuxRunner(...args) {
-  const platform = args.length > 0 && args[0] !== undefined ? args[0] : process.platform;
-  const runnerOs = args.length > 1 ? args[1] : (process.env.CLONEPROOF_RUNNER_OS || process.env.RUNNER_OS);
-  if (platform !== 'linux') return false;
-  if (!runnerOs || typeof runnerOs !== 'string' || runnerOs.trim().toLowerCase() !== 'linux') {
+function isLinuxRunner(platform, runnerOs) {
+  const currentPlatform = arguments.length > 0 ? platform : process.platform;
+  const currentRunnerOs = arguments.length > 1 ? runnerOs : process.env.RUNNER_OS;
+  if (currentPlatform !== 'linux') return false;
+  if (!currentRunnerOs || typeof currentRunnerOs !== 'string' || currentRunnerOs.trim().toLowerCase() !== 'linux') {
     return false;
   }
   return true;
 }
 
-function isAllowedVerifyEvent(...args) {
-  const eventName = args.length > 0 ? args[0] : (process.env.CLONEPROOF_EVENT_NAME || process.env.GITHUB_EVENT_NAME);
-  if (!eventName || typeof eventName !== 'string') return false;
+function isAllowedVerifyEvent(eventName) {
+  if (!eventName || typeof eventName !== 'string') {
+    return false;
+  }
+
   return ALLOWED_VERIFY_EVENTS.has(eventName.trim());
 }
 
@@ -500,8 +502,8 @@ async function runAction(options = {}) {
   }
 
   // mode === 'verify'
-  const runnerOs = env.CLONEPROOF_RUNNER_OS || env.RUNNER_OS;
-  const eventName = env.CLONEPROOF_EVENT_NAME || env.GITHUB_EVENT_NAME;
+  const runnerOs = options.runnerOs !== undefined ? options.runnerOs : env.RUNNER_OS;
+  const eventName = options.eventName !== undefined ? options.eventName : env.GITHUB_EVENT_NAME;
   const isLinux = isLinuxRunner(platform, runnerOs);
   const isEventAllowed = isAllowedVerifyEvent(eventName);
 
