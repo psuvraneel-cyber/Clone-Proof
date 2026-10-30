@@ -42,6 +42,6 @@ body:
     attributes:
       label: CloneProof version
       description: Output of `cloneproof --version`, or the Action ref you used.
-      placeholder: 0.2.2
+      placeholder: 0.2.3
     validations:
       required: true
