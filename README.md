@@ -328,7 +328,7 @@ docker run --rm --network none cloneproof
 
 No secrets are needed; `.env.example` is a placeholder template only.
 
-**Project docs:** [Architecture](docs/ARCHITECTURE.md) · [Security model](docs/SECURITY.md) · [Design decisions](docs/DECISIONS.md) · [Field tests](docs/FIELD_TEST.md) · [Finding codes](docs/FINDINGS.md) · [GitHub Action](docs/GITHUB_ACTION.md) · [Releasing](docs/RELEASING.md) · [Changelog](CHANGELOG.md) · [Demo script](docs/DEMO.md)
+**Project docs:** [Architecture](docs/ARCHITECTURE.md) · [Security model](docs/SECURITY.md) · [Design decisions](docs/DECISIONS.md) · [Field tests](docs/FIELD_TEST.md) · [Finding codes](docs/FINDINGS.md) · [GitHub Action](docs/GITHUB_ACTION.md) · [Releasing](docs/RELEASING.md) · [Changelog](CHANGELOG.md) · [Demo script](docs/DEMO.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
 
 ---
 

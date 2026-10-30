@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/psuvraneel-cyber/Clone-Proof/discussions
+    about: Ask how to use CloneProof or discuss an idea before opening an issue.
+  - name: Security vulnerability
+    url: https://github.com/psuvraneel-cyber/Clone-Proof/security/advisories/new
+    about: Report security problems privately. Please do not open a public issue.
