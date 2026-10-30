@@ -12,6 +12,22 @@ and `2` (blocked or incomplete).
 
 ## [Unreleased]
 
+### Fixed
+
+- `ENV_EXAMPLE_MISSING` / `ENV_KEY_MISSING`: committed root `.env` files
+  (for example `.env.development` or `.env.default`) now count as
+  documentation. Only key names are read; values are never stored or
+  reported. Gitignored local `.env` files still do not count.
+- Environment checks no longer report keys that a framework or build tool
+  sets itself: Vite's `import.meta.env` `MODE`, `BASE_URL`, `PROD`, `DEV`,
+  and `SSR`; WXT, Astro, create-react-app, and Next.js keys when that
+  framework is a dependency; and keys injected through a build-time define
+  map such as webpack `DefinePlugin`.
+- `BROWSER_TESTS_DETECTED` no longer fires just because Playwright or a
+  Vitest browser package is installed. Vitest now counts only when the test
+  command passes `--browser` or a configuration it loads sets
+  `browser.enabled: true`. Dedicated browser runners are reported as before.
+
 ## [0.1.0] - 2026-10-30
 
 First tagged release.

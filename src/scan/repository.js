@@ -353,6 +353,56 @@ function decodeText(bytes) {
   return bytes.toString('utf8');
 }
 
+// Committed root .env files other than the example templates also give a fresh
+// clone its values (for example .env.development or .env.default). Only their
+// key names are kept; values are never stored or reported.
+function isCommittedEnvironmentFilePath(relativePath) {
+  const lower = String(relativePath).toLowerCase();
+  if (lower.includes('/') || lower.includes('\\')) return false;
+  if (lower === '.env.example' || lower === '.env.sample') return false;
+  return lower === '.env' || /^\.env\.[a-z0-9._-]+$/.test(lower);
+}
+
+// Keys that a framework or build tool sets itself. Developers never configure
+// them, so they are not environment-documentation gaps. import.meta.env is
+// Vite's namespace, and its standard keys are always built in.
+const IMPORT_META_ENV_BUILTINS = Object.freeze(['MODE', 'BASE_URL', 'PROD', 'DEV', 'SSR']);
+const FRAMEWORK_ENV_BUILTINS = Object.freeze([
+  { dependency: 'wxt', source: 'importMeta', keys: ['BROWSER', 'CHROME', 'FIREFOX', 'SAFARI', 'EDGE', 'OPERA', 'MANIFEST_VERSION', 'ENTRYPOINT', 'COMMAND'] },
+  { dependency: 'astro', source: 'importMeta', keys: ['SITE', 'ASSETS_PREFIX'] },
+  { dependency: 'react-scripts', source: 'process', keys: ['PUBLIC_URL'] },
+  { dependency: 'next', source: 'process', keys: ['NEXT_RUNTIME'] }
+]);
+
+function frameworkEnvironmentBuiltins(packageData) {
+  const builtins = { process: new Set(), importMeta: new Set(IMPORT_META_ENV_BUILTINS) };
+  const dependencies = new Set(dependencyEntries(packageData).map((entry) => entry.name));
+  for (const framework of FRAMEWORK_ENV_BUILTINS) {
+    if (!dependencies.has(framework.dependency)) continue;
+    for (const key of framework.keys) builtins[framework.source].add(key);
+  }
+  return builtins;
+}
+
+// Keys injected at build time through a define map, such as webpack DefinePlugin
+// ('process.env.APP_VERSION': ...) or Vite define ('import.meta.env.X': ...).
+function toolDefinedEnvironmentKeys(files) {
+  const defined = new Map();
+  const expression = /(['"`])(?:process\.env|import\.meta\.env)\.([A-Za-z_][A-Za-z0-9_]*)\1\s*:/g;
+  for (const relativePath of [...files.keys()].filter(isReadableSourcePath).sort(compareStrings)) {
+    const text = decodeText(files.get(relativePath));
+    expression.lastIndex = 0;
+    let match = expression.exec(text);
+    while (match) {
+      if (!defined.has(match[2])) {
+        defined.set(match[2], { path: relativePath, line: lineNumberAt(text, match.index) });
+      }
+      match = expression.exec(text);
+    }
+  }
+  return defined;
+}
+
 function parseEnvTemplate(text) {
   const keys = new Map();
   const lines = text.split(/\r?\n/);
@@ -498,10 +548,10 @@ function destructuringEntryHasDefault(value, keyEnd) {
 function extractEnvironmentReferences(text, relativePath) {
   const matches = [];
   const directPatterns = [
-    { expression: /\bprocess\.env(?:\?\.|\.)([A-Za-z_][A-Za-z0-9_]*)/g, group: 1 },
-    { expression: /\bprocess\.env\s*\[\s*(['"`])([A-Za-z_][A-Za-z0-9_]*)\1\s*\]/g, group: 2 },
-    { expression: /\bimport\.meta\.env(?:\?\.|\.)([A-Za-z_][A-Za-z0-9_]*)/g, group: 1 },
-    { expression: /\bimport\.meta\.env\s*\[\s*(['"`])([A-Za-z_][A-Za-z0-9_]*)\1\s*\]/g, group: 2 }
+    { expression: /\bprocess\.env(?:\?\.|\.)([A-Za-z_][A-Za-z0-9_]*)/g, group: 1, source: 'process' },
+    { expression: /\bprocess\.env\s*\[\s*(['"`])([A-Za-z_][A-Za-z0-9_]*)\1\s*\]/g, group: 2, source: 'process' },
+    { expression: /\bimport\.meta\.env(?:\?\.|\.)([A-Za-z_][A-Za-z0-9_]*)/g, group: 1, source: 'importMeta' },
+    { expression: /\bimport\.meta\.env\s*\[\s*(['"`])([A-Za-z_][A-Za-z0-9_]*)\1\s*\]/g, group: 2, source: 'importMeta' }
   ];
 
   for (const pattern of directPatterns) {
@@ -511,6 +561,7 @@ function extractEnvironmentReferences(text, relativePath) {
       matches.push({
         key: match[pattern.group],
         index: match.index,
+        source: pattern.source,
         defaulted: hasLiteralEnvironmentDefault(text, match.index + match[0].length)
       });
       match = pattern.expression.exec(text);
@@ -612,7 +663,7 @@ function extractEnvironmentReferences(text, relativePath) {
     const openingBrace = destructuringStart.index + destructuringStart[0].length - 1;
     const closingBrace = matchingDestructuringBrace(openingBrace);
     if (closingBrace !== null) {
-      const assignment = /^\s*=\s*(?:process\.env|import\.meta\.env)\b/.exec(text.slice(closingBrace + 1));
+      const assignment = /^\s*=\s*(process\.env|import\.meta\.env)\b/.exec(text.slice(closingBrace + 1));
       if (assignment) {
         const body = text.slice(openingBrace + 1, closingBrace);
         for (const entry of splitDestructuringBody(body)) {
@@ -623,6 +674,7 @@ function extractEnvironmentReferences(text, relativePath) {
           matches.push({
             key: keyMatch[2] || keyMatch[3],
             index: openingBrace + 1 + entry.start + entry.text.indexOf(trimmed),
+            source: assignment[1] === 'process.env' ? 'process' : 'importMeta',
             defaulted: destructuringEntryHasDefault(trimmed, keyMatch[0].length)
           });
         }
@@ -637,6 +689,7 @@ function extractEnvironmentReferences(text, relativePath) {
     if (!references.has(match.key)) references.set(match.key, []);
     references.get(match.key).push({
       defaulted: match.defaulted === true,
+      source: match.source,
       evidence: makeEvidence(
         relativePath,
         `Source references environment key ${match.key}.`,
@@ -870,6 +923,66 @@ function browserTestWorkflow(scripts) {
     runners: [...runners].sort(compareStrings),
     scriptNames: [...visited].sort(compareStrings)
   };
+}
+
+const VITEST_ROOT_CONFIG = /^vitest\.config\.[cm]?[jt]s$/;
+const VITE_ROOT_CONFIG = /^vite\.config\.[cm]?[jt]s$/;
+const VITEST_ROOT_WORKSPACE = /^vitest\.workspace\.[cm]?[jt]s$/;
+const VITEST_BROWSER_ENABLED = /\bbrowser\s*:\s*\{[\s\S]{0,2000}?\benabled\s*:\s*true\b/;
+
+function normalizeConfigReference(value) {
+  return String(value).split('\\').join('/').replace(/^\.\//, '');
+}
+
+// Returns evidence that the Vitest run started by these commands uses browser
+// mode: a --browser flag, or browser.enabled: true in a readable config that the
+// run loads (the explicit --config file, else vitest.config.* or vite.config.*,
+// plus vitest.workspace.* and project config files they reference). Projects
+// filtered out with --project are not counted. Unreadable configs give no evidence.
+function vitestBrowserModeEvidence(commands, files) {
+  // Read flags only from the Vitest invocations: `tsc --project x && vitest run`
+  // must not treat tsc's --project as a Vitest project filter.
+  const text = commands
+    .filter((command) => typeof command === 'string')
+    .flatMap((command) => command.split(/&&|\|\||[;|]/))
+    .filter((segment) => /(?:^|[^A-Za-z0-9_@-])vitest(?=$|[^A-Za-z0-9_@-])/i.test(segment))
+    .join('\n');
+  if (/(?:^|\s)--browser(?:[.=\s]|$)/.test(text)) {
+    return { path: 'package.json', detail: 'The npm test workflow passes --browser to Vitest.' };
+  }
+  const explicitConfigs = [...text.matchAll(/(?:^|\s)(?:--config|-c)(?:=|\s+)([^\s"'`;&|]+)/g)]
+    .map((match) => normalizeConfigReference(match[1]));
+  const selectedProjects = [...text.matchAll(/(?:^|\s)--project(?:=|\s+)([^\s"'`;&|]+)/g)]
+    .map((match) => match[1]);
+  const rootPaths = [...files.keys()].filter((relativePath) => !relativePath.includes('/')).sort(compareStrings);
+  const defaultConfig = rootPaths.find((relativePath) => VITEST_ROOT_CONFIG.test(relativePath))
+    || rootPaths.find((relativePath) => VITE_ROOT_CONFIG.test(relativePath));
+  const pending = [
+    ...(explicitConfigs.length > 0 ? explicitConfigs : [defaultConfig].filter(Boolean)),
+    ...rootPaths.filter((relativePath) => VITEST_ROOT_WORKSPACE.test(relativePath))
+  ];
+  const visited = new Set();
+  while (pending.length > 0) {
+    const relativePath = pending.shift();
+    if (visited.has(relativePath) || !files.has(relativePath)) continue;
+    visited.add(relativePath);
+    const configText = decodeText(files.get(relativePath));
+    const enabled = VITEST_BROWSER_ENABLED.exec(configText);
+    if (enabled) {
+      const names = [...configText.matchAll(/\bname\s*:\s*(['"`])([^'"`]+)\1/g)].map((match) => match[2]);
+      if (selectedProjects.length === 0 || names.some((name) => selectedProjects.includes(name))) {
+        return {
+          path: relativePath,
+          line: lineNumberAt(configText, enabled.index),
+          detail: 'Vitest browser mode is enabled (browser.enabled: true).'
+        };
+      }
+    }
+    for (const match of configText.matchAll(/(['"`])([^'"`\s]+\.config\.[cm]?[jt]s)\1/g)) {
+      pending.push(normalizeConfigReference(match[2]));
+    }
+  }
+  return null;
 }
 
 function parseReadableNpmLockfile(bytes) {
@@ -1972,6 +2085,7 @@ function scanFiles(rootPath, limits, options = {}) {
   const skipped = new Set();
   const ignoredCorePaths = new Set();
   const depthSkipped = new Set();
+  const environmentFiles = new Map();
   const errors = [];
   let complete = true;
   let fileCount = 0;
@@ -2006,6 +2120,7 @@ function scanFiles(rootPath, limits, options = {}) {
       skipped,
       ignoredCorePaths,
       depthSkipped,
+      environmentFiles,
       skippedPathsTruncated,
       errors,
       complete,
@@ -2135,8 +2250,9 @@ function scanFiles(rootPath, limits, options = {}) {
       }
 
       const sourceFile = !nestedFile && isReadableSourcePath(relativeEntry);
-      if (!coreFile && !sourceFile) continue;
-      metadata.category = coreFile ? 'core' : 'source';
+      const environmentFile = !nestedFile && !coreFile && isCommittedEnvironmentFilePath(relativeEntry);
+      if (!coreFile && !sourceFile && !environmentFile) continue;
+      metadata.category = coreFile ? 'core' : (sourceFile ? 'source' : 'environment');
 
       const sizeLimit = coreFile && isLockfilePath(relativeEntry)
         ? limits.maxLockfileBytes
@@ -2167,7 +2283,8 @@ function scanFiles(rootPath, limits, options = {}) {
         continue;
       }
 
-      files.set(relativeEntry, bytes);
+      if (environmentFile) environmentFiles.set(relativeEntry, parseEnvTemplate(decodeText(bytes)));
+      else files.set(relativeEntry, bytes);
       metadata.scanned = true;
       fileCount += 1;
       totalBytes += bytes.length;
@@ -2849,7 +2966,14 @@ function scanRepository(rootPath, options) {
     coverage.mark(CHECK_GROUPS.BROWSER_TESTS);
     const browserDependencies = browserTestDependencyNames(packageData);
     const browserWorkflow = browserTestWorkflow(scripts);
-    if (browserDependencies.length > 0 && browserWorkflow.runners.length > 0) {
+    // Vitest runs in Node unless browser mode is enabled, so it only counts with
+    // evidence from the configuration the test command loads.
+    const vitestBrowser = browserWorkflow.runners.includes('vitest')
+      ? vitestBrowserModeEvidence(browserWorkflow.scriptNames.map((name) => scripts[name]), scanned.files)
+      : null;
+    const browserRunners = browserWorkflow.runners
+      .filter((runner) => runner !== 'vitest' || vitestBrowser !== null);
+    if (browserDependencies.length > 0 && browserRunners.length > 0) {
       const evidence = [
         ...browserDependencies.map((name) => makeEvidence(
           'package.json',
@@ -2860,15 +2984,17 @@ function scanRepository(rootPath, options) {
           'package.json',
           `scripts.${name} participates in the npm test workflow.`,
           packageText ? firstMatchLine(packageText, regexForPackageName(name)) : undefined
-        ))
+        )),
+        ...(vitestBrowser ? [makeEvidence(vitestBrowser.path, vitestBrowser.detail, vitestBrowser.line)] : [])
       ];
+      const runnerLabels = browserRunners.map((runner) => (runner === 'vitest' ? 'vitest (browser mode)' : runner));
       addFinding(
         findings,
         'BROWSER_TESTS_DETECTED',
         'warning',
         'warning',
         'Browser test tooling is part of the package test workflow',
-        `Root devDependencies include ${browserDependencies.join(', ')}, and the npm test workflow references ${browserWorkflow.runners.join(', ')}.`,
+        `Root devDependencies include ${browserDependencies.join(', ')}, and the npm test workflow runs ${runnerLabels.join(', ')}.`,
         evidence,
         'Ensure the required browser executable is available before relying on Docker verification for npm test.'
       );
@@ -3161,6 +3287,7 @@ function scanRepository(rootPath, options) {
   ));
   const scannedSourceFiles = environmentSourceFiles.filter((relativePath) => scanned.files.has(relativePath));
   const unscannedSourceFiles = environmentSourceFiles.filter((relativePath) => !scanned.files.has(relativePath));
+  const environmentBuiltins = frameworkEnvironmentBuiltins(packageData);
   const environmentReferences = new Map();
   for (const relativePath of scannedSourceFiles) {
     const references = extractEnvironmentReferences(
@@ -3168,10 +3295,11 @@ function scanRepository(rootPath, options) {
       relativePath
     );
     for (const [key, evidence] of references) {
-      if (!isConventionalEnvironmentKey(key)) {
-        const existing = environmentReferences.get(key) || [];
-        environmentReferences.set(key, existing.concat(evidence));
-      }
+      if (isConventionalEnvironmentKey(key)) continue;
+      const userReferences = evidence.filter((reference) => !environmentBuiltins[reference.source].has(key));
+      if (userReferences.length === 0) continue;
+      const existing = environmentReferences.get(key) || [];
+      environmentReferences.set(key, existing.concat(userReferences));
     }
   }
   for (const references of environmentReferences.values()) {
@@ -3192,6 +3320,11 @@ function scanRepository(rootPath, options) {
     } else if (state === 'unscanned' || state === 'skipped') {
       unscannedEnvTemplates.push(relativePath);
     }
+  }
+  const committedEnvironmentFiles = [...(scanned.environmentFiles || new Map())]
+    .sort(([left], [right]) => compareStrings(left, right));
+  for (const [relativePath, keys] of committedEnvironmentFiles) {
+    envTemplates.push({ path: relativePath, keys });
   }
 
   const depthSkippedEnvironmentPaths = [...scanned.depthSkipped]
@@ -3225,8 +3358,11 @@ function scanRepository(rootPath, options) {
     const documentedKeys = new Map();
     for (const template of envTemplates) {
       for (const [key, line] of template.keys) {
-        if (!documentedKeys.has(key)) documentedKeys.set(key, { path: template.path, line });
+        if (!documentedKeys.has(key)) documentedKeys.set(key, { path: template.path, line, kind: 'file' });
       }
+    }
+    for (const [key, definition] of toolDefinedEnvironmentKeys(scanned.files)) {
+      if (!documentedKeys.has(key)) documentedKeys.set(key, { ...definition, kind: 'build' });
     }
 
     const requiredReferencesFor = (key) => (environmentReferences.get(key) || [])
@@ -3253,7 +3389,7 @@ function scanRepository(rootPath, options) {
         'warning',
         'warning',
         'No environment example file documents the source environment keys',
-        `Source references ${missingKeys.join(', ')}, but neither .env.example nor .env.sample is present.`,
+        `Source references ${missingKeys.join(', ')}, but no .env.example, .env.sample, or other committed root .env file documents them.`,
         missingKeys.flatMap((key) => sourceEvidenceFor(
           key,
           `Source references undocumented environment key ${key}.`
@@ -3271,7 +3407,7 @@ function scanRepository(rootPath, options) {
           'warning',
           'warning',
           `Environment key ${key} is missing from the example configuration`,
-          `Source references ${key}, but no scanned .env.example or .env.sample defines it.`,
+          `Source references ${key}, but no scanned .env.example, .env.sample, or committed root .env file defines it.`,
           sourceEvidenceFor(key, `Source references undocumented environment key ${key}.`),
           'Document the key in .env.example or .env.sample without committing a real secret.'
         );
@@ -3287,10 +3423,18 @@ function scanRepository(rootPath, options) {
           'passed',
           'info',
           `Environment key ${key} is documented`,
-          `Source references ${key} and an environment example defines it.`,
+          templateEvidence.kind === 'build'
+            ? `Source references ${key} and the build configuration defines it.`
+            : `Source references ${key} and a committed environment file defines it.`,
           [
             ...sourceEvidenceFor(key, `Source references environment key ${key}.`, true),
-            makeEvidence(templateEvidence.path, `Example configuration defines ${key}.`, templateEvidence.line)
+            makeEvidence(
+              templateEvidence.path,
+              templateEvidence.kind === 'build'
+                ? `Build configuration defines ${key}.`
+                : `Environment file defines ${key}.`,
+              templateEvidence.line
+            )
           ],
           'Keep the example configuration synchronized with source references.'
         );

@@ -1,0 +1,198 @@
+{
+  "reviewer": "Claude (AI assistant), 2026-10-30. Unchanged findings keep their Run 5 judgment; changed or new findings are judged by the same rules.",
+  "envPrecedence": "ENV_EXAMPLE_MISSING: real if any listed key is required with no default; otherwise false if any listed key is documented in a committed .env* file or injected by a framework or build tool; otherwise policy.",
+  "judgments": [
+    {
+      "repository": "mfuu/vue3-virtual-sortable",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "No test files, test workflow, or README test instructions; the library has no tests."
+    },
+    {
+      "repository": "mfuu/vue3-virtual-sortable",
+      "code": "LOCKFILE_MISSING",
+      "judgment": "policy",
+      "reason": "Library published on npm as vue-virtual-sortable (publish script uses --tag=next)."
+    },
+    {
+      "repository": "wardellbagby/lyricistant",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "real",
+      "reason": "About 50 test files; README says to run tests with `gulp testAll`, so `npm test` does not run them."
+    },
+    {
+      "repository": "wardellbagby/lyricistant",
+      "code": "ENV_EXAMPLE_MISSING",
+      "judgment": "policy",
+      "reason": "After the fix only APPLE_ID, APPLE_ID_PASSWORD, CSC_KEY_PASSWORD, and CSC_LINK remain: optional release-signing secrets."
+    },
+    {
+      "repository": "knowankit/trello-clone",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "No tests; README lists 'Add cypress testing' as future work."
+    },
+    {
+      "repository": "tidepool-org/uploader",
+      "code": "README_SCRIPT_UNKNOWN",
+      "judgment": "real",
+      "reason": "README.md:240 tells contributors to run `npm run test-e2e`; package.json defines test and test-all but not test-e2e."
+    },
+    {
+      "repository": "XFox111/TabsAsideExtension",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "No test files or test workflow."
+    },
+    {
+      "repository": "XFox111/TabsAsideExtension",
+      "code": "ENV_EXAMPLE_MISSING",
+      "judgment": "policy",
+      "reason": "After the fix only WXT_GA4_API_SECRET and WXT_GA4_MEASUREMENT_ID remain: optional analytics secrets set in CI."
+    },
+    {
+      "repository": "eemeli/yaml",
+      "code": "ENV_EXAMPLE_MISSING",
+      "judgment": "policy",
+      "reason": "LOG_STREAM and LOG_TOKENS are optional debug switches in library source."
+    },
+    {
+      "repository": "XiaoLuoTian189/LanQiao",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "Small application with no tests."
+    },
+    {
+      "repository": "stackblitz/starters",
+      "code": "BROWSER_TESTS_DETECTED",
+      "judgment": "real",
+      "reason": "vitest.config.ts enables browser mode with the Playwright Chromium provider."
+    },
+    {
+      "repository": "jembi/openhim-core-js",
+      "code": "RUNTIME_VERSION_MISMATCH",
+      "judgment": "policy",
+      "reason": "Deliberate multi-stage Dockerfile: build stage node:20, runtime stage node:14.21.3, matching engines that allow both."
+    },
+    {
+      "repository": "artus9033/chartjs-plugin-dragdata",
+      "code": "BROWSER_TESTS_DETECTED",
+      "judgment": "real",
+      "reason": "`npm test` includes test:e2e, which runs Playwright."
+    },
+    {
+      "repository": "Pithaya/spicetify-apps",
+      "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+      "judgment": "real",
+      "reason": "Workspace packages contain 28 spec files, but the root has no command to run them."
+    },
+    {
+      "repository": "vuejs/repl",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "test/main.ts is a dev playground entry, not a test; there are no tests."
+    },
+    {
+      "repository": "FluffyBubu/cypress-sandbox",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "real",
+      "reason": "Cypress tests exist (cypress/e2e/login.cy.js) and run only through `cy:open`."
+    },
+    {
+      "repository": "DanWahlin/Observable-Store",
+      "code": "LOCKFILE_MISSING",
+      "judgment": "real",
+      "reason": "Private monorepo root, not published under its package.json name; dependency versions are not reproducible."
+    },
+    {
+      "repository": "ruanqizhen/python_book",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "Docusaurus documentation site with no tests."
+    },
+    {
+      "repository": "MIDA-group/CytoBrowser",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "Application with no tests."
+    },
+    {
+      "repository": "josin/kusto-syntax-highlighting",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "VS Code grammar extension with no tests."
+    },
+    {
+      "repository": "glacier-studio/CoCo-Source-Code-Plan",
+      "code": "PRIVATE_REGISTRY",
+      "judgment": "false",
+      "reason": "registry.npmmirror.com is a public npm mirror, not a private registry."
+    },
+    {
+      "repository": "glacier-studio/CoCo-Source-Code-Plan",
+      "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "No tests anywhere. Treated as a workspace root only because package.json is private and one vendored nested package exists."
+    },
+    {
+      "repository": "digitalmediabremen/hej",
+      "code": "LOCKFILE_MISSING",
+      "judgment": "real",
+      "reason": "Private application (the npm package named hej is unrelated); dependency versions are not reproducible."
+    },
+    {
+      "repository": "vtex-apps/checkout-ui-custom",
+      "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+      "judgment": "real",
+      "reason": "17 Cypress specs at the root run only through the custom `cy-r` runner; there is no test command."
+    },
+    {
+      "repository": "MomenSherif/react-oauth",
+      "code": "MONOREPO_ROOT_TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "Turbo workspace with no test files."
+    },
+    {
+      "repository": "fraunhoferfokus/peer-dial",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "test/ holds example programs the README tells users to run with node, not tests; package.json has no scripts."
+    },
+    {
+      "repository": "fedstack-org/aoi",
+      "code": "GITHUB_CLONE_FAILED",
+      "judgment": "real",
+      "reason": "The path apps/frontend/src/pages/org/[orgId]/app/tag/[:tag].vue contains ':', which Windows cannot check out, so any Windows contributor hits this. Host-specific: a Linux runner would clone it."
+    },
+    {
+      "repository": "pixijs/pixi-react",
+      "code": "BROWSER_TESTS_DETECTED",
+      "judgment": "real",
+      "reason": "vitest.workspace.ts includes a Playwright browser project that `vitest run` executes."
+    },
+    {
+      "repository": "2factorauth/twofactorauth",
+      "code": "LOCKFILE_MISSING",
+      "judgment": "real",
+      "reason": "Private repository tooling (the npm package named twofactorauth is unrelated); dependency versions are not reproducible."
+    },
+    {
+      "repository": "NextJSTemplates/startup-nextjs",
+      "code": "TEST_SCRIPT_MISSING",
+      "judgment": "policy",
+      "reason": "Next.js template with no tests."
+    },
+    {
+      "repository": "tidepool-org/uploader",
+      "code": "ENV_KEY_MISSING",
+      "judgment": "policy",
+      "reason": "13 per-key findings for optional dev, deployment, CI, and telemetry settings (PORT, HTTPS_PORT, START_HOT, GH_TOKEN, ROLLBAR_POST_TOKEN, ...); several are listed in the README env table and none is required for a fresh clone."
+    },
+    {
+      "repository": "TomPlum/learn-japanese",
+      "code": "ENV_KEY_MISSING",
+      "judgment": "policy",
+      "reason": "REACT_APP_API_HOST_URI and REACT_APP_ENVIRONMENT are optional mock-mode leftovers; the app uses VITE_* keys from the committed .env files."
+    }
+  ]
+}
