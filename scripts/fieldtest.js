@@ -2,9 +2,9 @@
 
 // Repeatable public-repository field test (Run 5 and later).
 //
-//   node scripts/field-test.js sample  --seed N --count N --out FILE
-//   node scripts/field-test.js run     --sample FILE --out FILE [--reports DIR]
-//   node scripts/field-test.js summary --results FILE --judgments FILE
+//   node scripts/fieldtest.js sample  --seed N --count N --out FILE
+//   node scripts/fieldtest.js run     --sample FILE --out FILE [--reports DIR]
+//   node scripts/fieldtest.js summary --results FILE --judgments FILE
 //
 // `sample` draws repositories from GitHub search with a seeded PRNG and records
 // facts and pre-registered expectations through the authenticated `gh` CLI. It
@@ -317,7 +317,7 @@ const handlers = { sample, run, summary };
 if (require.main === module) {
   const [command, ...rest] = process.argv.slice(2);
   if (!handlers[command]) {
-    process.stderr.write('Usage: node scripts/field-test.js sample|run|summary [options]\n');
+    process.stderr.write('Usage: node scripts/fieldtest.js sample|run|summary [options]\n');
     process.exit(2);
   }
   Promise.resolve(handlers[command](parseArgs(rest))).catch((error) => {

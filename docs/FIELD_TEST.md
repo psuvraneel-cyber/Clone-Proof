@@ -329,7 +329,7 @@ Runs 1–4 used hand-picked, well-known repositories, and no blocking (exit `1`)
 ### Sampling frame
 
 - **Population:** public, non-fork, non-archived GitHub repositories whose primary language is JavaScript or TypeScript, created between 2014-01-01 and 2025-10-29, with at least 10 stars, pushed on or after 2025-10-30, and with a root `package.json` on the default branch.
-- **Draw:** `node scripts/field-test.js sample --seed 20261030 --count 50 --out docs/field-test/run5-sample.json`. Each draw picks a language and a creation day uniformly at random, runs the GitHub search `language:<language> created:<day> stars:>=10 pushed:>=2025-10-30 fork:false archived:false is:public`, and takes a uniformly random result among the first 1,000. Days with no results, duplicates, and repositories without a root `package.json` are recorded as rejected draws and redrawn.
+- **Draw:** `node scripts/fieldtest.js sample --seed 20261030 --count 50 --out docs/field-test/run5-sample.json`. Each draw picks a language and a creation day uniformly at random, runs the GitHub search `language:<language> created:<day> stars:>=10 pushed:>=2025-10-30 fork:false archived:false is:public`, and takes a uniformly random result among the first 1,000. Days with no results, duplicates, and repositories without a root `package.json` are recorded as rejected draws and redrawn.
 - **Known biases:** sampling is uniform over creation days, not over repositories, so repositories created on quiet days are over-represented; GitHub search caps each query at 1,000 results; the 10-star floor and the 12-month activity window exclude abandoned and very small projects. The result describes this frame, not all Node.js repositories.
 - **Pre-run facts:** for every sampled repository, the sampler records the default-branch head commit, root lockfiles, the `scripts.test` kind, `packageManager`, workspaces, and `private`, read through the GitHub API. No repository is cloned or executed while sampling.
 
@@ -392,7 +392,7 @@ Drawn on 2026-10-30 with seed `20261030`. Draws: 62 (accepted 50, empty 2, rejec
 
 ### Pre-registered expectations
 
-`expected` in `run5-sample.json` lists the findings predicted from those facts alone, by fixed rules in `scripts/field-test.js`:
+`expected` in `run5-sample.json` lists the findings predicted from those facts alone, by fixed rules in `scripts/fieldtest.js`:
 
 1. Invalid `package.json` → `PACKAGE_JSON_INVALID` (nothing else predicted).
 2. Missing or empty `scripts.test` → `TEST_SCRIPT_MISSING`, or `MONOREPO_ROOT_TEST_SCRIPT_MISSING` when workspaces are declared.
@@ -404,7 +404,7 @@ Drawn on 2026-10-30 with seed `20261030`. Draws: 62 (accepted 50, empty 2, rejec
 
 ### Procedure
 
-`node scripts/field-test.js run --sample docs/field-test/run5-sample.json --out docs/field-test/run5-results.json` runs `node src/cli.js check <url> --format json` once per repository, static inspection only, with the unauthenticated GitHub preflight. No `verify` run is made. Reports are written to the ignored `reports/field/run5/` folder; the committed results keep each repository's status, exit code, commit, duration, and every `failed` and `warning` finding.
+`node scripts/fieldtest.js run --sample docs/field-test/run5-sample.json --out docs/field-test/run5-results.json` runs `node src/cli.js check <url> --format json` once per repository, static inspection only, with the unauthenticated GitHub preflight. No `verify` run is made. Reports are written to the ignored `reports/field/run5/` folder; the committed results keep each repository's status, exit code, commit, duration, and every `failed` and `warning` finding.
 
 ### Judging rules
 
@@ -427,6 +427,64 @@ Code-specific rules:
 Each judgment records a one-line reason. Reported metrics: **precision** = real ÷ total and **correctness** = (real + policy) ÷ total, separately for blocking (`failed`) and warning findings, with Wilson 95% intervals, plus the share of exit-`1` repositories justified by at least one real blocking finding.
 
 Limitations of this design: one reviewer (Claude, an AI assistant working in this session) makes every judgment, and it is not blind to CloneProof's output. The recorded reasons and committed results let anyone re-judge the same findings.
+
+### Run 5 results
+
+The pre-registration was committed as `df0ee43` before the run. CloneProof's `src/` at that commit is identical to `main` at `32bf359`. All 50 checks ran on the Windows host on 2026-10-30 with `target.preflightReason: checked`. All 49 reported commits matched the head commits recorded at sampling time; the 50th clone failed, so it reported none. After the run, the script was renamed from `scripts/field-test.js` to `scripts/fieldtest.js` because `node --test` treats `*-test.js` files as tests; its logic did not change. Median duration was 2.7 s and the longest was 22 s. Raw results are in [`field-test/run5-results.json`](field-test/run5-results.json), and every judgment with its reason is in [`field-test/run5-judgments.json`](field-test/run5-judgments.json). Reproduce the tables with `node scripts/fieldtest.js summary --results docs/field-test/run5-results.json --judgments docs/field-test/run5-judgments.json`.
+
+| Report status | Repositories | Exit code |
+|---|---:|---|
+| `passed` | 17 | 0 |
+| `passed_with_warnings` | 19 | 0 |
+| `failed` | 13 | 1 |
+| `incomplete` | 1 | 2 |
+
+| Findings | Total | Real | Policy | False | Precision (real) | Correctness (real + policy) |
+|---|---:|---:|---:|---:|---|---|
+| Blocking (failed) | 14 | 4 | 10 | 0 | 4 / 14 = **28.6%** (95% CI 11.7%–54.6%) | 14 / 14 = **100.0%** (95% CI 78.5%–100.0%) |
+| Warning | 26 | 8 | 5 | 13 | 8 / 26 = **30.8%** (95% CI 16.5%–50.0%) | 13 / 26 = **50.0%** (95% CI 32.1%–67.9%) |
+
+Repositories with exit `1`: 13 of 50. Justified by at least one real blocking finding: 3 / 13 = **23.1%** (95% CI 8.2%–50.3%).
+
+| Code | Status | Total | Real | Policy | False |
+|---|---|---:|---:|---:|---:|
+| `GITHUB_CLONE_FAILED` | failed | 1 | 1 | 0 | 0 |
+| `README_SCRIPT_UNKNOWN` | failed | 1 | 1 | 0 | 0 |
+| `TEST_SCRIPT_MISSING` | failed | 12 | 2 | 10 | 0 |
+| `BROWSER_TESTS_DETECTED` | warning | 8 | 3 | 0 | 5 |
+| `ENV_EXAMPLE_MISSING` | warning | 8 | 0 | 1 | 7 |
+| `LOCKFILE_MISSING` | warning | 4 | 3 | 1 | 0 |
+| `MONOREPO_ROOT_TEST_SCRIPT_MISSING` | warning | 4 | 2 | 2 | 0 |
+| `PRIVATE_REGISTRY` | warning | 1 | 0 | 0 | 1 |
+| `RUNTIME_VERSION_MISMATCH` | warning | 1 | 0 | 1 | 0 |
+
+**What this shows.**
+
+- **Every blocking finding was factually true (14 / 14), but most were policy rather than actionable.** Ten of the twelve `TEST_SCRIPT_MISSING` failures are repositories with no tests at all: templates, documentation sites, small apps, and one grammar extension. The finding is correct, but failing the build of a repository that deliberately has no tests is what a maintainer would experience as noise. Whether "no tests" should be blocking is a product decision.
+- **Two warning checks produce most of the false findings.**
+  - `ENV_EXAMPLE_MISSING` (7 of 8 false): it does not recognize committed `.env`, `.env.default`, `.env.development`, `.env.mock`, or `.env.test` files as documentation, and it reports framework- and tool-provided keys (Vite and WXT `import.meta.env.DEV` and browser flags, create-react-app's `PUBLIC_URL`, webpack DefinePlugin values) as user settings.
+  - `BROWSER_TESTS_DETECTED` (5 of 8 false): it fires on browser packages in `devDependencies` even when the `npm test` command runs Vitest in node or jsdom and the browser suites are separate.
+- `PRIVATE_REGISTRY` called `registry.npmmirror.com`, a public mirror, non-public.
+- `README_SCRIPT_UNKNOWN`, `LOCKFILE_MISSING` for applications, and the root-test findings for repositories that do have tests were accurate and useful.
+
+**Judgment interpretation made while judging.** The pre-registered `ENV_EXAMPLE_MISSING` rule did not say how to judge a finding whose keys were a mix of optional, documented, and tool-injected. The precedence used is recorded in `run5-judgments.json`: real if any key is required, otherwise false if any listed key is documented in a committed `.env*` file or injected by a framework or build tool, otherwise policy. Under the stricter alternative (false only when every listed key is wrong), `ENV_EXAMPLE_MISSING` becomes 0 real, 5 policy, and 3 false. Warning correctness becomes 17 / 26 = 65.4%, and warning precision is unchanged at 30.8%.
+
+**Differences from the pre-registered expectations.**
+
+- `glacier-studio/CoCo-Source-Code-Plan` and `vtex-apps/checkout-ui-custom` were predicted to fail with `TEST_SCRIPT_MISSING` but received the advisory `MONOREPO_ROOT_TEST_SCRIPT_MISSING`. The scanner treats a `private` root with nested `package.json` files as a workspace root, even without a workspace declaration. For vtex (separate `node/` and `react/` builder packages) that is defensible. For glacier (one vendored nested package) it is not, and it downgraded a blocking finding to a warning.
+- `fedstack-org/aoi` was predicted to warn about the monorepo root test script but ended `incomplete`: Git cannot check out a path containing `:` on Windows. On a Linux runner the clone succeeds. The report repeats Git's error but does not explain that the path is invalid on Windows.
+- `tidepool-org/uploader` got an unpredicted `README_SCRIPT_UNKNOWN` (the README runs `npm run test-e2e`, which does not exist). It was judged real.
+- Every other predicted finding was observed, and no other blocking finding appeared.
+
+**Not changed by this run.** No fix has been applied yet. The candidate fixes, in order of measured impact, are:
+
+1. Accept committed non-secret `.env.*` files as environment documentation, and exclude framework- and tool-provided keys.
+2. Fire `BROWSER_TESTS_DETECTED` only when the configuration selected by the test command enables a browser.
+3. Decide whether a repository with no test files should get a distinct non-blocking finding instead of `TEST_SCRIPT_MISSING`.
+4. Classify known public npm mirrors separately from private registries.
+5. Require a workspace declaration or marker before downgrading a missing root test script.
+
+Any fix should be followed by a rerun of the same sample with the same judgments.
 
 ## Known limitations
 

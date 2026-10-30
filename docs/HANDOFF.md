@@ -1,6 +1,6 @@
 # CloneProof handoff
 
-Updated 2026-10-30. `origin/main` is at `32bf359` (the PR #4 merge) and every implementation series is merged: PR #1 `review-fixes`, PR #2 `release-prep-fixes`, and PRs #3–#4 `feature/github-action`. Main CI run `41043387519` passed for `32bf359` on Ubuntu, macOS, Windows, Docker E2E, and GitHub Action E2E. Nothing is waiting to be pushed. This file records the current resumable state; receipts from earlier passes are kept under [History](#history).
+Updated 2026-10-30. `origin/main` is at `32bf359` (the PR #4 merge) and every implementation series is merged: PR #1 `review-fixes`, PR #2 `release-prep-fixes`, and PRs #3–#4 `feature/github-action`. Main CI run `41043387519` passed for `32bf359` on Ubuntu, macOS, Windows, Docker E2E, and GitHub Action E2E. Branch `claude/project-handoff-review-7152e7` adds release pinning, the Release workflow, the changelog, clean-install docs, and field test Run 5. It is not pushed yet, and no tag or release exists. This file records the current resumable state; receipts from earlier passes are kept under [History](#history).
 
 ## Goal
 
@@ -11,13 +11,13 @@ Deliver a reproducible, secure-by-design CLI for Node.js/TypeScript repository s
 | Item | State |
 |---|---|
 | Code | `origin/main` and local `main` = `32bf359`; every branch is merged into it or has patch-equivalent commits on it. |
-| Tests | 323 tests. Windows host: 320 passed, 0 failed, 3 skipped (symlink `EPERM`). CI Ubuntu and macOS: 322 passed, 1 skipped (the Windows-only SIGINT cleanup test). CI Windows: 323 passed. |
+| Tests | 336 tests on this branch. Windows host: 333 passed, 0 failed, 3 skipped (symlink `EPERM`). At `32bf359` (323 tests), CI Ubuntu and macOS had 322 passed and 1 skipped (the Windows-only SIGINT cleanup test), and CI Windows had 323 passed. |
 | Leak guard | `npm run test:leaks` passed on the Windows host at `32bf359` with the same counts. |
 | CI | Main run `41043387519` passed all five jobs that run on `push`; the PR-only security guard is skipped on `push` by design. |
 | Finding codes | 86 codes documented in `docs/FINDINGS.md`; every one appears in `src/`. |
-| Field evidence | Run 3 (`54141a5`): 15 public repositories, 13 correct and 2 environment-limited failures; warning precision 5/6 = 83.3%; planted bugs 13/13 offline and 39/39 in real repositories. Run 4 (`ef8056d`): every recheck matched its pre-recorded expectation, and JSON was byte-identical across repeated runs on 10 repositories. No field run since the release-prep or Action work. |
+| Field evidence | Run 3 (`54141a5`): 15 public repositories, 13 correct and 2 environment-limited failures; warning precision 5/6 = 83.3%; planted bugs 13/13 offline and 39/39 in real repositories. Run 4 (`ef8056d`): every recheck matched its pre-recorded expectation, and JSON was byte-identical across repeated runs on 10 repositories. Run 5 (pre-registered in `df0ee43`, `src/` identical to `32bf359`): 50 randomly sampled repositories. 14 / 14 blocking findings were factually correct, but only 4 were actionable; 10 were `TEST_SCRIPT_MISSING` on repositories with no tests. Warning precision was 8 / 26, with 13 false, mostly `ENV_EXAMPLE_MISSING` (7 / 8 false) and `BROWSER_TESTS_DETECTED` (5 / 8 false). |
 | Buildathon | Every official item in `docs/BUILDATHON_CHECKLIST.md` is unchecked, and its deadline (20 October 2026, 11:59 PM IST) has passed. Whether the submission happened is not recorded in the repository. |
-| Release | Version `0.1.0`; no Git tags or GitHub releases. The Action docs reference `psuvraneel-cyber/Clone-Proof@main`. |
+| Release | Version `0.1.0` is prepared but not tagged. The docs pin `@v0.1.0` and the release tarball. `.github/workflows/release.yml` publishes on a `v*.*.*` tag on `main`; see `docs/RELEASING.md`. The npm name `cloneproof` belongs to a different project with a similar purpose; `clone-proof` and `cloneproof-cli` were free on 2026-10-30. |
 
 ## State
 

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { expectedFindings, mulberry32, testScriptKind, wilson } = require('../scripts/field-test');
+const { expectedFindings, mulberry32, testScriptKind, wilson } = require('../scripts/fieldtest');
 
 function facts(overrides) {
   return {

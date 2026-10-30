@@ -278,15 +278,17 @@ Full commands, target commits and per-finding verdicts are in [docs/FIELD_TEST.m
 
 | Measure | Result |
 |---|---:|
-| Public repositories (Run 3) | **13 correct + 2 environment-limited** out of 15 |
-| Warning precision (Run 3) | 5 real / 6 = **83.3%** |
+| Random sample, pre-registered (Run 5, 50 repos) | 13 failed (exit 1), 36 passed, 1 incomplete |
+| Blocking findings, Run 5 | **14 / 14 factually correct**; 4 / 14 actionable, 10 were "this repo has no tests" |
+| Warnings, Run 5 | 8 / 26 real (**30.8%**); 13 / 26 false, mostly `ENV_EXAMPLE_MISSING` and `BROWSER_TESTS_DETECTED` |
+| Hand-picked repositories (Run 3) | **13 correct + 2 environment-limited** out of 15; warning precision 5 / 6 |
 | Planted-bug mutations (offline) | **13 / 13** detected |
 | Planted bugs in real repositories | **39 / 39** detected across 3 repos |
-| Automated tests | **323** (offline, `npm test`) |
+| Automated tests | **336** (offline, `npm test`) |
 | CI | Ubuntu · macOS · Windows · Docker end-to-end · GitHub Action end-to-end |
 | Output determinism | Byte-identical JSON across repeated runs on 10 public repos |
 
-The two environment-limited cases are expected by design: native modules whose install scripts are skipped, and browser tests that the controlled image can't run. CloneProof explains both in the report.
+Run 5 is the honest noise measurement. Blocking findings were never wrong, but most fired on repositories that have no tests at all. Two warning checks (`ENV_EXAMPLE_MISSING`, `BROWSER_TESTS_DETECTED`) are noisy in the wild and are the next fixes. In Run 3, the two environment-limited cases are expected by design: native modules whose install scripts are skipped, and browser tests that the controlled image can't run.
 
 ---
 
@@ -307,7 +309,7 @@ The two environment-limited cases are expected by design: native modules whose i
 git clone https://github.com/psuvraneel-cyber/Clone-Proof.git
 cd Clone-Proof
 npm ci
-npm test               # 323 offline tests
+npm test               # 336 offline tests
 npm run test:leaks     # same suite with an isolated temp folder; fails on any leftover file
 npm run build          # syntax check
 ```
@@ -321,7 +323,7 @@ docker run --rm --network none cloneproof
 
 No secrets are needed; `.env.example` is a placeholder template only.
 
-**Project docs:** [Architecture](docs/ARCHITECTURE.md) · [Security model](docs/SECURITY.md) · [Design decisions](docs/DECISIONS.md) · [Field tests](docs/FIELD_TEST.md) · [Finding codes](docs/FINDINGS.md) · [GitHub Action](docs/GITHUB_ACTION.md) · [Demo script](docs/DEMO.md)
+**Project docs:** [Architecture](docs/ARCHITECTURE.md) · [Security model](docs/SECURITY.md) · [Design decisions](docs/DECISIONS.md) · [Field tests](docs/FIELD_TEST.md) · [Finding codes](docs/FINDINGS.md) · [GitHub Action](docs/GITHUB_ACTION.md) · [Releasing](docs/RELEASING.md) · [Changelog](CHANGELOG.md) · [Demo script](docs/DEMO.md)
 
 ---
 
@@ -332,7 +334,7 @@ No secrets are needed; `.env.example` is a placeholder template only.
 - Stronger isolation (gVisor or a dedicated VM)
 - A size watchdog during clones
 - Safe symlink recreation inside the container
-- A larger, randomly sampled field test with pre-registered expectations
+- Reduce the noise measured in field test Run 5: committed `.env.*` files and framework built-ins for environment checks, browser detection based on the selected test configuration, and a non-blocking result for repositories with no tests
 
 ---
 
