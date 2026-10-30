@@ -52,8 +52,8 @@ GitHub Action.
 ## Logo
 
 The wordmark is set in Cascadia Code Bold (SIL Open Font License) and
-converted to outlines, so the SVGs need no font. The mark is two stacked
-cards, a clone, with a check on the front one.
+converted to outlines, so the SVGs need no font. The mark is a shield with a
+check on a rounded tile, the same icon as in the launch video.
 
 | File | Use |
 |---|---|
@@ -70,7 +70,8 @@ PNGs are transparent and rendered at 2× (the icon is 1024 × 1024).
 
 | | Dark backgrounds | Light backgrounds |
 |---|---|---|
-| Green ("Proof", check) | `#3fb950` | `#1a7f37` |
+| Shield and check | `#4ae19e` on tile `#0f1d17` | `#1a7f37` on tile `#effaf4` |
+| Green ("Proof") | `#3fb950` | `#1a7f37` |
 | Text ("Clone") | `#e6edf3` | `#1f2328` |
 | Background | `#0d1117` | `#ffffff` |
 | Warning / failure accents | `#d29922` / `#f85149` | |
