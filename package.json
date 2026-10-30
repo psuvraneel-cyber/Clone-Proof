@@ -1,6 +1,6 @@
 {
-  "name": "cloneproof",
-  "version": "0.2.1",
+  "name": "clone-proof",
+  "version": "0.2.2",
   "description": "Evidence-based setup verification for Node.js repositories.",
   "keywords": [
     "nodejs",
@@ -43,5 +43,9 @@
     "test:leaks": "npm run build && node scripts/check-temp-leaks.js",
     "verify": "node src/cli.js verify"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }
