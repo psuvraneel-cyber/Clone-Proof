@@ -11,6 +11,7 @@ const {
   enforceSummaryByteLimit,
   escapeMarkdown,
   escapeTableCell,
+  formatSafeReportPath,
   renderJobSummary,
   writeJobSummary
 } = require('../src/action/summary');
@@ -130,12 +131,46 @@ test('Renders annotation truncation notice when omitted count is positive', () =
   assert.doesNotMatch(mdWithoutOmitted, /## Annotations/);
 });
 
-test('Renders report location section with local runner notice', () => {
+test('Renders report location section with safe logical label and local runner notice', () => {
   const report = { status: 'passed' };
   const md = renderJobSummary(report, { reportPath: '/tmp/runner/report.json' });
   assert.match(md, /## Report Location/);
-  assert.match(md, /Report saved to: `\/tmp\/runner\/report\.json`/);
+  assert.match(md, /Report saved to: `RUNNER_TEMP\/cloneproof\/report\.json`/);
+  assert.doesNotMatch(md, /\/tmp\/runner/);
   assert.match(md, /not automatically uploaded as GitHub workflow artifacts/);
+});
+
+test('Adversarial report paths never expose absolute Windows or Linux runner paths or temp directories', () => {
+  const report = { status: 'passed' };
+
+  // Windows absolute runner path with random temp directory
+  const windowsPath = 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\cloneproof-runner-xyz789\\temp\\cloneproof\\report.json';
+  const mdWin = renderJobSummary(report, { reportPath: windowsPath });
+  assert.doesNotMatch(mdWin, /C:\\Users/);
+  assert.doesNotMatch(mdWin, /AppData/);
+  assert.doesNotMatch(mdWin, /cloneproof-runner-xyz789/);
+  assert.match(mdWin, /`RUNNER_TEMP\/cloneproof\/report\.json`/);
+
+  // Linux absolute runner path with runner work directory
+  const linuxPath = '/home/runner/work/_temp/cloneproof-random-dir-99/report.json';
+  const mdLinux = renderJobSummary(report, { reportPath: linuxPath });
+  assert.doesNotMatch(mdLinux, /\/home\/runner/);
+  assert.doesNotMatch(mdLinux, /cloneproof-random-dir-99/);
+  assert.match(mdLinux, /`RUNNER_TEMP\/cloneproof\/report\.json`/);
+
+  // Workspace-relative path is safely displayed relative to workspace
+  const ws = 'C:\\workspace\\my-project';
+  const wsReportPath = 'C:\\workspace\\my-project\\reports\\custom.json';
+  const mdWs = renderJobSummary(report, { reportPath: wsReportPath, workspaceRoot: ws });
+  assert.match(mdWs, /`reports\/custom\.json`/);
+  assert.doesNotMatch(mdWs, /C:\\workspace/);
+
+  // Direct formatSafeReportPath tests
+  assert.equal(formatSafeReportPath(windowsPath), 'RUNNER_TEMP/cloneproof/report.json');
+  assert.equal(formatSafeReportPath(linuxPath), 'RUNNER_TEMP/cloneproof/report.json');
+  assert.equal(formatSafeReportPath(wsReportPath, ws), 'reports/custom.json');
+  assert.equal(formatSafeReportPath(''), 'report.json');
+  assert.equal(formatSafeReportPath(null), 'report.json');
 });
 
 // ---------------------------------------------------------------------------
@@ -248,3 +283,79 @@ test('writeJobSummary catches filesystem write errors safely without throwing', 
   assert.ok(result.error);
   assert.match(capturedStderr, /failed to write job summary/);
 }));
+
+// ---------------------------------------------------------------------------
+// Docker Verification Section Tests
+// ---------------------------------------------------------------------------
+
+test('Renders Docker Verification section when verification object is present', () => {
+  const report = {
+    schemaVersion: 2,
+    tool: 'cloneproof',
+    status: 'passed',
+    summary: { total: 2, passed: 2, failed: 0, warnings: 0, skipped: 0 },
+    findings: [],
+    verification: {
+      requested: true,
+      outcome: 'passed',
+      image: 'docker.io/library/node:24-bookworm-slim',
+      networkConsent: true,
+      networkMode: 'bridge',
+      omittedPaths: ['.env', 'secrets.json'],
+      ignoredPathCount: 12,
+      commands: {
+        install: { command: 'npm ci', exitCode: 0, durationMs: 4000 },
+        test: { command: 'npm test', exitCode: 0, durationMs: 2500 }
+      },
+      cleanup: { completed: true, cleanupFailed: false }
+    }
+  };
+
+  const md = renderJobSummary(report);
+  assert.match(md, /## Docker Verification/);
+  assert.match(md, /\*\*Verification result:\*\* PASSED/);
+  assert.match(md, /\| Docker image \| `docker\.io\/library\/node:24-bookworm-slim` \|/);
+  assert.match(md, /\| Network access \| Enabled \|/);
+  assert.match(md, /\| Dependency installation \| Passed \|/);
+  assert.match(md, /\| Test execution \| Passed \|/);
+  assert.match(md, /\| Sensitive files omitted \| 2 \|/);
+  assert.match(md, /\| Gitignored paths excluded \| 12 \|/);
+  assert.match(md, /\| Cleanup \| Confirmed \|/);
+});
+
+test('Renders Docker Verification section for blocked verification and setup failure', () => {
+  const report = {
+    schemaVersion: 2,
+    tool: 'cloneproof',
+    status: 'blocked',
+    summary: { total: 1, passed: 0, failed: 0, warnings: 0, skipped: 1 },
+    findings: [
+      { code: 'DOCKER_IMAGE_UNAVAILABLE', status: 'skipped', severity: 'warning', message: 'Setup failed' }
+    ],
+    verification: {
+      requested: true,
+      outcome: 'blocked',
+      setupFailed: true,
+      networkConsent: false
+    }
+  };
+
+  const md = renderJobSummary(report);
+  assert.match(md, /## Docker Verification/);
+  assert.match(md, /\*\*Verification result:\*\* BLOCKED/);
+  assert.match(md, /\| Image setup \| Failed \|/);
+  assert.match(md, /\| Network access \| Disabled \|/);
+});
+
+test('Omits Docker Verification section when verification object is absent', () => {
+  const report = {
+    schemaVersion: 2,
+    tool: 'cloneproof',
+    status: 'passed',
+    summary: { total: 1, passed: 1, failed: 0, warnings: 0, skipped: 0 },
+    findings: []
+  };
+
+  const md = renderJobSummary(report);
+  assert.doesNotMatch(md, /## Docker Verification/);
+});

@@ -4,7 +4,9 @@ const path = require('node:path');
 const { formatWorkflowCommand } = require('./workflow-commands');
 const { isSubPath } = require('./paths');
 
-const MAX_ANNOTATIONS = 50;
+const MAX_ANNOTATIONS_PER_TYPE = 10;
+const MAX_TOTAL_ANNOTATIONS = 30;
+const MAX_ANNOTATIONS = MAX_TOTAL_ANNOTATIONS;
 const MAX_TITLE_LENGTH = 255;
 const MAX_MESSAGE_LENGTH = 2048;
 
@@ -136,17 +138,22 @@ function compareAnnotations(left, right) {
 
 /**
  * Prepares and sorts eligible annotations from a validated CloneProof report.
+ * Applies per-type limits (max 10 error, 10 warning, 10 notice) and overall cap (max 30).
  */
 function buildAnnotations(report, options = {}) {
   const workspaceRoot = options.workspaceRoot || process.cwd();
   const targetRoot = options.targetRoot || workspaceRoot;
-  const maxAnnotations = options.maxAnnotations || MAX_ANNOTATIONS;
+  const maxPerType = typeof options.maxPerType === 'number' && Number.isFinite(options.maxPerType)
+    ? Math.max(0, Math.floor(options.maxPerType))
+    : MAX_ANNOTATIONS_PER_TYPE;
 
   if (!report || !Array.isArray(report.findings)) {
     return { eligibleCount: 0, emitted: [], omittedCount: 0 };
   }
 
-  const eligible = [];
+  const errors = [];
+  const warnings = [];
+  const notices = [];
 
   for (let index = 0; index < report.findings.length; index += 1) {
     const finding = report.findings[index];
@@ -175,18 +182,29 @@ function buildAnnotations(report, options = {}) {
     if (col) properties.col = col;
     if (title) properties.title = title;
 
-    eligible.push({
+    const item = {
       command,
       properties,
       message,
       originalIndex: index
-    });
+    };
+
+    if (command === 'error') errors.push(item);
+    else if (command === 'warning') warnings.push(item);
+    else if (command === 'notice') notices.push(item);
   }
 
-  eligible.sort(compareAnnotations);
+  errors.sort(compareAnnotations);
+  warnings.sort(compareAnnotations);
+  notices.sort(compareAnnotations);
 
-  const eligibleCount = eligible.length;
-  const emitted = eligible.slice(0, maxAnnotations);
+  const eligibleCount = errors.length + warnings.length + notices.length;
+
+  const emittedErrors = errors.slice(0, maxPerType);
+  const emittedWarnings = warnings.slice(0, maxPerType);
+  const emittedNotices = notices.slice(0, maxPerType);
+
+  const emitted = [...emittedErrors, ...emittedWarnings, ...emittedNotices];
   const omittedCount = Math.max(0, eligibleCount - emitted.length);
 
   return {
@@ -198,6 +216,8 @@ function buildAnnotations(report, options = {}) {
 
 /**
  * Formats and emits workflow annotations to standard output or a designated destination.
+ * Note: Does not emit an additional ::notice solely to announce truncation, preserving
+ * the step notice annotation quota.
  */
 function emitAnnotations(report, options = {}) {
   const destination = options.destination || process.stdout;
@@ -213,18 +233,6 @@ function emitAnnotations(report, options = {}) {
     }
   }
 
-  if (result.omittedCount > 0) {
-    const diagnostic = formatWorkflowCommand(
-      'notice',
-      { title: 'Annotation limit reached' },
-      `${result.omittedCount} additional findings were not emitted as workflow annotations. All findings remain available in the CloneProof JSON report and Job Summary.`
-    );
-    lines.push(diagnostic);
-    if (destination && typeof destination.write === 'function') {
-      destination.write(`${diagnostic}\n`);
-    }
-  }
-
   return {
     eligibleCount: result.eligibleCount,
     emittedCount: result.emitted.length,
@@ -235,6 +243,8 @@ function emitAnnotations(report, options = {}) {
 
 module.exports = {
   MAX_ANNOTATIONS,
+  MAX_ANNOTATIONS_PER_TYPE,
+  MAX_TOTAL_ANNOTATIONS,
   MAX_MESSAGE_LENGTH,
   MAX_TITLE_LENGTH,
   STATUS_COMMAND_MAP,

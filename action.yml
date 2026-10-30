@@ -2,6 +2,10 @@ name: 'CloneProof'
 description: 'Evidence-based setup verification for Node.js and TypeScript repositories.'
 author: 'CloneProof Contributors'
 inputs:
+  mode:
+    description: 'Execution mode: check or verify.'
+    required: false
+    default: 'check'
   target-path:
     description: 'Path to the repository directory to inspect.'
     required: false
@@ -9,11 +13,21 @@ inputs:
   report-path:
     description: 'Destination path for the generated JSON report.'
     required: false
+  allow-network:
+    description: 'Allow network access from the Docker verification container.'
+    required: false
+    default: 'false'
+  timeout-ms:
+    description: 'Maximum Docker verification execution time in milliseconds.'
+    required: false
+    default: '300000'
 outputs:
   status:
     description: 'The overall verification status (passed, passed_with_warnings, failed, blocked, or incomplete).'
   report-path:
     description: 'The path to the generated JSON report file.'
+  verification-status:
+    description: 'Docker verification outcome (not_run, passed, failed, blocked, or error).'
 runs:
   using: 'node24'
   main: 'src/action/index.js'

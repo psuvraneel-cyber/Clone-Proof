@@ -12,19 +12,29 @@ const actionScriptPath = path.join(projectRoot, 'src', 'action', 'index.js');
 const actionYmlPath = path.join(projectRoot, 'action.yml');
 
 const {
+  ALLOWED_VERIFY_EVENTS,
+  DEFAULT_VERIFY_TIMEOUT_MS,
+  MAX_VERIFY_TIMEOUT_MS,
   exportOutput,
   filterChildEnvironment,
   getActionInput,
+  isAllowedVerifyEvent,
+  isLinuxRunner,
   isSubPath,
   normalizePathForComparison,
   pipeSanitizedOutput,
+  readAndValidateReport,
   resolveCliEntrypoint,
   runAction,
   sanitizeWorkflowCommandText,
+  spawnAndCapture,
+  validateAllowNetwork,
+  validateMode,
   validateReportPath,
   validateReportStructure,
   validateRequiredEnvironment,
-  validateTargetPath
+  validateTargetPath,
+  validateTimeoutMs
 } = require('../src/action/index');
 
 function withTempDir(prefix, fn) {
@@ -56,9 +66,13 @@ test('Correct action metadata in action.yml', () => {
   assert.match(content, /inputs:\s*\n[\s\S]*target-path:/);
   assert.match(content, /default:\s*['"]?\.['"]?/);
   assert.match(content, /inputs:\s*\n[\s\S]*report-path:/);
+  assert.match(content, /inputs:\s*\n[\s\S]*mode:/);
+  assert.match(content, /inputs:\s*\n[\s\S]*allow-network:/);
+  assert.match(content, /inputs:\s*\n[\s\S]*timeout-ms:/);
 
   assert.match(content, /outputs:\s*\n[\s\S]*status:/);
   assert.match(content, /outputs:\s*\n[\s\S]*report-path:/);
+  assert.match(content, /outputs:\s*\n[\s\S]*verification-status:/);
 });
 
 test('Valid workspace detection', () => withTempDir('cloneproof-action-ws-', (dir) => {
@@ -212,6 +226,7 @@ test('Successful CLI execution on healthy fixture', async () => withTempDirAsync
   const outputContent = fs.readFileSync(githubOutput, 'utf8');
   assert.match(outputContent, /^status=passed$/m);
   assert.match(outputContent, /^report-path=.+report\.json$/m);
+  assert.match(outputContent, /^verification-status=not_run$/m);
 
   const match = outputContent.match(/^report-path=(.+)$/m);
   assert.ok(match, 'report-path output must be present');
@@ -518,6 +533,7 @@ test('Subprocess CLI execution of src/action/index.js end-to-end', () => withTem
   const outputContent = fs.readFileSync(githubOutput, 'utf8');
   assert.match(outputContent, /^status=passed$/m);
   assert.match(outputContent, /^report-path=.+report\.json$/m);
+  assert.match(outputContent, /^verification-status=not_run$/m);
 }));
 
 test('Subprocess CLI execution of src/action/index.js on broken fixture returns code 1', () => withTempDir('cloneproof-action-e2e-broken-', (dir) => {
@@ -653,4 +669,331 @@ test('Step summary write error does not crash Action or change exit code', () =>
   assert.match(outputContent, /^status=failed$/m);
   // Stderr should contain a safe diagnostic
   assert.match(result.stderr, /failed to write job summary/);
+}));
+
+test('validateMode accepts valid modes and rejects invalid modes', () => {
+  assert.equal(validateMode(undefined), 'check');
+  assert.equal(validateMode(''), 'check');
+  assert.equal(validateMode('  '), 'check');
+  assert.equal(validateMode('check'), 'check');
+  assert.equal(validateMode('verify'), 'verify');
+
+  assert.throws(() => validateMode('CHECK'), /Invalid mode/);
+  assert.throws(() => validateMode('VERIFY'), /Invalid mode/);
+  assert.throws(() => validateMode('docker'), /Invalid mode/);
+  assert.throws(() => validateMode('test'), /Invalid mode/);
+  assert.throws(() => validateMode('true'), /Invalid mode/);
+});
+
+test('validateAllowNetwork validates boolean strings and checks mode restriction', () => {
+  assert.equal(validateAllowNetwork(undefined, 'check'), false);
+  assert.equal(validateAllowNetwork('', 'check'), false);
+  assert.equal(validateAllowNetwork('false', 'check'), false);
+  assert.equal(validateAllowNetwork('false', 'verify'), false);
+  assert.equal(validateAllowNetwork('true', 'verify'), true);
+
+  // allow-network: true is forbidden in check mode
+  assert.throws(
+    () => validateAllowNetwork('true', 'check'),
+    /allow-network: true is not supported in "check" mode/
+  );
+
+  // invalid boolean values
+  assert.throws(() => validateAllowNetwork('yes', 'verify'), /Invalid allow-network value/);
+  assert.throws(() => validateAllowNetwork('no', 'verify'), /Invalid allow-network value/);
+  assert.throws(() => validateAllowNetwork('TRUE', 'verify'), /Invalid allow-network value/);
+  assert.throws(() => validateAllowNetwork('False', 'verify'), /Invalid allow-network value/);
+  assert.throws(() => validateAllowNetwork('1', 'verify'), /Invalid allow-network value/);
+});
+
+test('validateTimeoutMs validates integer bounds and defaults', () => {
+  assert.equal(validateTimeoutMs(undefined), 300000);
+  assert.equal(validateTimeoutMs(''), 300000);
+  assert.equal(validateTimeoutMs('   '), 300000);
+  assert.equal(validateTimeoutMs('1000'), 1000);
+  assert.equal(validateTimeoutMs('300000'), 300000);
+  assert.equal(validateTimeoutMs('600000'), 600000);
+
+  // <= 0
+  assert.throws(() => validateTimeoutMs('0'), /Invalid timeout-ms/);
+  assert.throws(() => validateTimeoutMs('-1000'), /Invalid timeout-ms/);
+
+  // > 600000
+  assert.throws(() => validateTimeoutMs('600001'), /Invalid timeout-ms/);
+  assert.throws(() => validateTimeoutMs('1000000'), /Invalid timeout-ms/);
+
+  // non-integer
+  assert.throws(() => validateTimeoutMs('abc'), /Invalid timeout-ms/);
+  assert.throws(() => validateTimeoutMs('300s'), /Invalid timeout-ms/);
+  assert.throws(() => validateTimeoutMs('300.5'), /Invalid timeout-ms/);
+});
+
+test('isLinuxRunner detects Linux platform and runner OS accurately', () => {
+  assert.equal(isLinuxRunner('linux', 'Linux'), true);
+  assert.equal(isLinuxRunner('linux', 'linux'), true);
+  assert.equal(isLinuxRunner('linux', undefined), true);
+
+  // non-linux platform
+  assert.equal(isLinuxRunner('win32', 'Windows'), false);
+  assert.equal(isLinuxRunner('win32', 'Linux'), false);
+  assert.equal(isLinuxRunner('darwin', 'macOS'), false);
+
+  // non-linux runner OS on linux host
+  assert.equal(isLinuxRunner('linux', 'Windows'), false);
+  assert.equal(isLinuxRunner('linux', 'macOS'), false);
+});
+
+test('isAllowedVerifyEvent permits push and workflow_dispatch and rejects untrusted events', () => {
+  assert.equal(isAllowedVerifyEvent('push'), true);
+  assert.equal(isAllowedVerifyEvent('workflow_dispatch'), true);
+  assert.equal(isAllowedVerifyEvent(' push '), true);
+
+  assert.equal(isAllowedVerifyEvent('pull_request'), false);
+  assert.equal(isAllowedVerifyEvent('pull_request_target'), false);
+  assert.equal(isAllowedVerifyEvent('schedule'), false);
+  assert.equal(isAllowedVerifyEvent('release'), false);
+  assert.equal(isAllowedVerifyEvent(''), false);
+  assert.equal(isAllowedVerifyEvent(undefined), false);
+  assert.equal(isAllowedVerifyEvent(null), false);
+});
+
+test('Verify mode on non-Linux runner blocks verification, runs static check, and returns code 2', async () => withTempDirAsync('cloneproof-action-verify-nonlinux-', async (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  const stepSummary = path.join(dir, 'summary.md');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const healthyFixture = path.join(projectRoot, 'examples', 'healthy-node');
+
+  const env = {
+    GITHUB_WORKSPACE: projectRoot,
+    'INPUT_TARGET-PATH': healthyFixture,
+    'INPUT_MODE': 'verify',
+    RUNNER_OS: 'Windows',
+    GITHUB_EVENT_NAME: 'push',
+    GITHUB_OUTPUT: githubOutput,
+    GITHUB_STEP_SUMMARY: stepSummary,
+    RUNNER_TEMP: runnerTemp,
+    NO_COLOR: '1'
+  };
+
+  const exitCode = await runAction({ env, platform: 'win32' });
+  assert.equal(exitCode, 2, 'Action must return exit code 2 when verification is blocked');
+
+  const outputContent = fs.readFileSync(githubOutput, 'utf8');
+  assert.match(outputContent, /^status=blocked$/m);
+  assert.match(outputContent, /^verification-status=blocked$/m);
+
+  const match = outputContent.match(/^report-path=(.+)$/m);
+  assert.ok(match);
+  const reportPath = match[1].trim();
+  const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+  assert.equal(report.status, 'blocked');
+  assert.ok(report.findings.some((f) => f.code === 'DOCKER_UNAVAILABLE'));
+
+  const summaryContent = fs.readFileSync(stepSummary, 'utf8');
+  assert.match(summaryContent, /## Docker Verification/);
+  assert.match(summaryContent, /`DOCKER_UNAVAILABLE`/);
+}));
+
+test('Verify mode on pull_request event blocks verification, runs static check, and returns code 2', async () => withTempDirAsync('cloneproof-action-verify-pr-', async (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  const stepSummary = path.join(dir, 'summary.md');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const healthyFixture = path.join(projectRoot, 'examples', 'healthy-node');
+
+  const env = {
+    GITHUB_WORKSPACE: projectRoot,
+    'INPUT_TARGET-PATH': healthyFixture,
+    'INPUT_MODE': 'verify',
+    RUNNER_OS: 'Linux',
+    GITHUB_EVENT_NAME: 'pull_request',
+    GITHUB_OUTPUT: githubOutput,
+    GITHUB_STEP_SUMMARY: stepSummary,
+    RUNNER_TEMP: runnerTemp,
+    NO_COLOR: '1'
+  };
+
+  const exitCode = await runAction({ env, platform: 'linux' });
+  assert.equal(exitCode, 2, 'Action must return exit code 2 when event is restricted');
+
+  const outputContent = fs.readFileSync(githubOutput, 'utf8');
+  assert.match(outputContent, /^status=blocked$/m);
+  assert.match(outputContent, /^verification-status=blocked$/m);
+
+  const match = outputContent.match(/^report-path=(.+)$/m);
+  assert.ok(match);
+  const reportPath = match[1].trim();
+  const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+  assert.equal(report.status, 'blocked');
+  assert.ok(report.findings.some((f) => f.code === 'DOCKER_EXECUTION_CONSENT_REQUIRED'));
+
+  const summaryContent = fs.readFileSync(stepSummary, 'utf8');
+  assert.match(summaryContent, /## Docker Verification/);
+  assert.match(summaryContent, /`DOCKER_EXECUTION_CONSENT_REQUIRED`/);
+}));
+
+test('Verify mode blocks and returns code 2 when Docker setup fails', async () => withTempDirAsync('cloneproof-action-verify-setup-fail-', async (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  const stepSummary = path.join(dir, 'summary.md');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const targetDir = path.join(dir, 'workspace');
+  fs.mkdirSync(targetDir, { recursive: true });
+  fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify({ name: 'test', scripts: { test: 'node -e "process.exit(0)"' } }));
+
+  const customReportPath = path.join(runnerTemp, 'report.json');
+
+  const mockSpawn = (command, args, options) => {
+    if (args.includes('setup')) {
+      return {
+        stdout: { on: () => {} },
+        stderr: { on: (event, handler) => { if (event === 'data') handler(Buffer.from('Docker daemon not responding\n')); } },
+        on: (event, handler) => {
+          if (event === 'close') setTimeout(() => handler(1, null), 10);
+        }
+      };
+    }
+    if (args.includes('check')) {
+      fs.writeFileSync(customReportPath, JSON.stringify({
+        schemaVersion: 2,
+        tool: 'cloneproof',
+        status: 'passed',
+        summary: { total: 0, passed: 0, failed: 0, skipped: 0 },
+        findings: []
+      }), 'utf8');
+      return {
+        stdout: { on: () => {} },
+        stderr: { on: () => {} },
+        on: (event, handler) => {
+          if (event === 'close') setTimeout(() => handler(0, null), 10);
+        }
+      };
+    }
+    return {
+      stdout: { on: () => {} },
+      stderr: { on: () => {} },
+      on: (event, handler) => {
+        if (event === 'close') setTimeout(() => handler(0, null), 10);
+      }
+    };
+  };
+
+  const env = {
+    GITHUB_WORKSPACE: dir,
+    'INPUT_TARGET-PATH': targetDir,
+    'INPUT_REPORT-PATH': customReportPath,
+    'INPUT_MODE': 'verify',
+    RUNNER_OS: 'Linux',
+    GITHUB_EVENT_NAME: 'push',
+    GITHUB_OUTPUT: githubOutput,
+    GITHUB_STEP_SUMMARY: stepSummary,
+    RUNNER_TEMP: runnerTemp
+  };
+
+  const exitCode = await runAction({ env, spawn: mockSpawn, platform: 'linux' });
+  assert.equal(exitCode, 2);
+
+  const outputContent = fs.readFileSync(githubOutput, 'utf8');
+  assert.match(outputContent, /^status=blocked$/m);
+  assert.match(outputContent, /^verification-status=blocked$/m);
+
+  const report = JSON.parse(fs.readFileSync(customReportPath, 'utf8'));
+  assert.equal(report.status, 'blocked');
+  assert.ok(report.findings.some((f) => f.code === 'DOCKER_IMAGE_UNAVAILABLE'));
+}));
+
+test('Verify mode runs setup and verify CLI commands with correct flags and timeout', async () => withTempDirAsync('cloneproof-action-verify-success-', async (dir) => {
+  const runnerTemp = path.join(dir, 'temp');
+  const githubOutput = path.join(dir, 'output.txt');
+  const stepSummary = path.join(dir, 'summary.md');
+  fs.mkdirSync(runnerTemp, { recursive: true });
+
+  const targetDir = path.join(dir, 'workspace');
+  fs.mkdirSync(targetDir, { recursive: true });
+  fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify({ name: 'test', scripts: { test: 'node -e "process.exit(0)"' } }));
+
+  const customReportPath = path.join(runnerTemp, 'report.json');
+
+  const spawnedCalls = [];
+  const mockSpawn = (command, args, options) => {
+    spawnedCalls.push({ command, args, options });
+    if (args.includes('verify')) {
+      fs.writeFileSync(customReportPath, JSON.stringify({
+        schemaVersion: 2,
+        tool: 'cloneproof',
+        status: 'passed',
+        summary: { total: 1, passed: 1, failed: 0, skipped: 0 },
+        findings: [],
+        verification: {
+          requested: true,
+          outcome: 'passed',
+          image: 'docker.io/library/node:24-bookworm-slim',
+          networkConsent: true,
+          networkMode: 'bridge',
+          durationMs: 4200,
+          commands: {
+            install: { command: 'npm ci', exitCode: 0, durationMs: 2100 },
+            test: { command: 'npm test', exitCode: 0, durationMs: 2100 }
+          },
+          security: {
+            nonRootUser: true,
+            networkIsolated: false,
+            readOnlyRootFs: true,
+            droppedCapabilities: true
+          }
+        }
+      }), 'utf8');
+    }
+    return {
+      stdout: { on: () => {} },
+      stderr: { on: () => {} },
+      on: (event, handler) => {
+        if (event === 'close') setTimeout(() => handler(0, null), 10);
+      }
+    };
+  };
+
+  const env = {
+    GITHUB_WORKSPACE: dir,
+    'INPUT_TARGET-PATH': targetDir,
+    'INPUT_REPORT-PATH': customReportPath,
+    'INPUT_MODE': 'verify',
+    'INPUT_ALLOW-NETWORK': 'true',
+    'INPUT_TIMEOUT-MS': '120000',
+    RUNNER_OS: 'Linux',
+    GITHUB_EVENT_NAME: 'push',
+    GITHUB_OUTPUT: githubOutput,
+    GITHUB_STEP_SUMMARY: stepSummary,
+    RUNNER_TEMP: runnerTemp
+  };
+
+  const exitCode = await runAction({ env, spawn: mockSpawn, platform: 'linux' });
+  assert.equal(exitCode, 0);
+
+  // Check spawned commands: first setup, then verify
+  assert.equal(spawnedCalls.length, 2);
+  assert.ok(spawnedCalls[0].args.includes('setup'));
+  assert.ok(spawnedCalls[1].args.includes('verify'));
+  assert.ok(spawnedCalls[1].args.includes('--docker'));
+  assert.ok(spawnedCalls[1].args.includes('--execute'));
+  assert.ok(spawnedCalls[1].args.includes('--allow-network'));
+  assert.ok(spawnedCalls[1].args.includes('--timeout-ms'));
+  const timeoutIndex = spawnedCalls[1].args.indexOf('--timeout-ms');
+  assert.equal(spawnedCalls[1].args[timeoutIndex + 1], '120000');
+
+  // Verify outputs
+  const outputContent = fs.readFileSync(githubOutput, 'utf8');
+  assert.match(outputContent, /^status=passed$/m);
+  assert.match(outputContent, /^verification-status=passed$/m);
+
+  // Verify step summary contains Docker Verification table
+  const summaryContent = fs.readFileSync(stepSummary, 'utf8');
+  assert.match(summaryContent, /## Docker Verification/);
+  assert.match(summaryContent, /\*\*Verification result:\*\* PASSED/);
+  assert.match(summaryContent, /\| Docker image \| `docker\.io\/library\/node:24-bookworm-slim` \|/);
+  assert.match(summaryContent, /\| Network access \| Enabled \|/);
 }));

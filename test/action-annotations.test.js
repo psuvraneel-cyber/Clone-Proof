@@ -8,6 +8,8 @@ const test = require('node:test');
 
 const {
   MAX_ANNOTATIONS,
+  MAX_ANNOTATIONS_PER_TYPE,
+  MAX_TOTAL_ANNOTATIONS,
   buildAnnotations,
   compareAnnotations,
   emitAnnotations,
@@ -265,43 +267,86 @@ test('Unsafe and escaping paths are rejected and omitted from annotations', () =
 // 10.4 Annotation Limits and Deterministic Ordering Tests
 // ---------------------------------------------------------------------------
 
-test('Enforces 50 annotation maximum with priority: failed > warning > skipped', () => {
-  const findings = [];
+test('Enforces 10 errors, 10 warnings, 10 notices limit (max 30 total) with priority order', () => {
+  assert.equal(MAX_ANNOTATIONS_PER_TYPE, 10);
+  assert.equal(MAX_TOTAL_ANNOTATIONS, 30);
 
-  // Generate 30 skipped findings
-  for (let i = 0; i < 30; i += 1) {
+  const findings = [];
+  // 15 skipped findings
+  for (let i = 0; i < 15; i += 1) {
     findings.push({ code: `SKIP_${String(i).padStart(2, '0')}`, status: 'skipped', message: `Skipped ${i}` });
   }
-  // Generate 30 warning findings
-  for (let i = 0; i < 30; i += 1) {
+  // 15 warning findings
+  for (let i = 0; i < 15; i += 1) {
     findings.push({ code: `WARN_${String(i).padStart(2, '0')}`, status: 'warning', message: `Warning ${i}` });
   }
-  // Generate 30 failed findings
-  for (let i = 0; i < 30; i += 1) {
+  // 15 failed findings
+  for (let i = 0; i < 15; i += 1) {
     findings.push({ code: `FAIL_${String(i).padStart(2, '0')}`, status: 'failed', message: `Failed ${i}` });
   }
 
   const report = { findings };
   const { emitted, eligibleCount, omittedCount } = buildAnnotations(report);
 
-  assert.equal(eligibleCount, 90);
-  assert.equal(emitted.length, 50);
-  assert.equal(omittedCount, 40);
+  assert.equal(eligibleCount, 45);
+  assert.equal(emitted.length, 30);
+  assert.equal(omittedCount, 15);
 
-  // All 30 failures must be in the emitted list (highest priority)
+  // Exactly 10 failures (errors)
   const failedEmitted = emitted.filter((item) => item.command === 'error');
-  assert.equal(failedEmitted.length, 30);
+  assert.equal(failedEmitted.length, 10);
 
-  // 20 warnings must be emitted
+  // Exactly 10 warnings
   const warningEmitted = emitted.filter((item) => item.command === 'warning');
-  assert.equal(warningEmitted.length, 20);
+  assert.equal(warningEmitted.length, 10);
 
-  // 0 skipped must be emitted (since 30 failed + 20 warnings fill the 50 cap)
+  // Exactly 10 skipped (notices)
   const skippedEmitted = emitted.filter((item) => item.command === 'notice');
-  assert.equal(skippedEmitted.length, 0);
+  assert.equal(skippedEmitted.length, 10);
+
+  // Severity order preserved: all errors first, then warnings, then notices
+  for (let i = 0; i < 10; i += 1) assert.equal(emitted[i].command, 'error');
+  for (let i = 10; i < 20; i += 1) assert.equal(emitted[i].command, 'warning');
+  for (let i = 20; i < 30; i += 1) assert.equal(emitted[i].command, 'notice');
 
   // Underlying report array must be completely untouched
-  assert.equal(report.findings.length, 90);
+  assert.equal(report.findings.length, 45);
+});
+
+test('Enforces per-type cap on 11 error findings', () => {
+  const findings = [];
+  for (let i = 0; i < 11; i += 1) {
+    findings.push({ code: `FAIL_${i}`, status: 'failed', message: `Failure ${i}` });
+  }
+  const { emitted, eligibleCount, omittedCount } = buildAnnotations({ findings });
+  assert.equal(eligibleCount, 11);
+  assert.equal(emitted.length, 10);
+  assert.equal(omittedCount, 1);
+  assert.equal(emitted.every((item) => item.command === 'error'), true);
+});
+
+test('Enforces per-type cap on 11 warning findings', () => {
+  const findings = [];
+  for (let i = 0; i < 11; i += 1) {
+    findings.push({ code: `WARN_${i}`, status: 'warning', message: `Warning ${i}` });
+  }
+  const { emitted, eligibleCount, omittedCount } = buildAnnotations({ findings });
+  assert.equal(eligibleCount, 11);
+  assert.equal(emitted.length, 10);
+  assert.equal(omittedCount, 1);
+  assert.equal(emitted.every((item) => item.command === 'warning'), true);
+});
+
+test('Enforces per-type cap on 11 skipped findings', () => {
+  const findings = [];
+  for (let i = 0; i < 11; i += 1) {
+    findings.push({ code: `SKIP_${i}`, status: 'skipped', message: `Skipped ${i}` });
+  }
+  const { emitted, eligibleCount, omittedCount } = buildAnnotations({ findings });
+  assert.equal(eligibleCount, 11);
+  assert.equal(emitted.length, 10);
+  assert.equal(omittedCount, 1);
+  assert.equal(emitted.every((item) => item.command === 'notice'), true);
 });
 
 test('Deterministic ordering between repeated runs and tie-breaking', () => {
@@ -331,9 +376,9 @@ test('Deterministic ordering between repeated runs and tie-breaking', () => {
   assert.equal(run1.emitted[4].properties.title, 'B_WARN');
 });
 
-test('emitAnnotations writes workflow lines and diagnostic when capped', () => {
+test('emitAnnotations writes workflow lines and does NOT emit truncation notice command', () => {
   const findings = [];
-  for (let i = 0; i < 55; i += 1) {
+  for (let i = 0; i < 25; i += 1) {
     findings.push({ code: `ERR_${i}`, status: 'failed', message: `Failure ${i}` });
   }
 
@@ -344,12 +389,13 @@ test('emitAnnotations writes workflow lines and diagnostic when capped', () => {
 
   const result = emitAnnotations({ findings }, { destination: mockDest });
 
-  assert.equal(result.eligibleCount, 55);
-  assert.equal(result.emittedCount, 50);
-  assert.equal(result.omittedCount, 5);
+  assert.equal(result.eligibleCount, 25);
+  assert.equal(result.emittedCount, 10);
+  assert.equal(result.omittedCount, 15);
 
   const lines = output.trim().split('\n');
-  // 50 error annotations + 1 diagnostic notice = 51 lines
-  assert.equal(lines.length, 51);
-  assert.match(lines[lines.length - 1], /::notice title=Annotation limit reached::5 additional findings/);
+  // Exactly 10 error lines, NO extra notice command consuming quota
+  assert.equal(lines.length, 10);
+  assert.equal(lines.every((l) => l.startsWith('::error ')), true);
+  assert.equal(output.includes('::notice'), false, 'Must not emit ::notice solely to announce truncation');
 });

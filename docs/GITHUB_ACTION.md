@@ -1,27 +1,66 @@
 # CloneProof GitHub Action
 
-CloneProof provides a native JavaScript GitHub Action (`node24`) to run read-only static repository checks directly within your GitHub Actions workflows without manual npm installations or custom scripts.
+CloneProof provides a native JavaScript GitHub Action (`node24`) to run read-only static repository checks and controlled Docker container verifications directly within your GitHub Actions workflows without manual npm installations or custom scripts.
 
 ## Usage
 
-Add CloneProof to any workflow job:
+### 1. Static check workflow (Recommended for Pull Requests)
+
+Static inspection is deterministic, read-only, and executes no repository code. It is safe for all pull requests from internal and external contributors.
 
 ```yaml
-name: Setup Check
-on: [push, pull_request]
+name: CloneProof Check
+on:
+  pull_request:
+  push:
+    branches: [main]
 
 jobs:
-  cloneproof:
+  check:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Run CloneProof
+      - name: Run CloneProof Static Check
         uses: psuvraneel-cyber/Clone-Proof@main
         with:
           target-path: '.'
+          mode: 'check'
 ```
+
+### 2. Docker verification workflow (Trusted Branches and Dispatches)
+
+Docker verification builds upon the static check by executing repository setup and tests inside a hardened, isolated Docker container using the pinned Node.js verification image.
+
+> ⚠️ **Security Warning:** Docker verification executes repository code inside a container. It must **never** be enabled on untrusted triggers like `pull_request`. The Action enforces this by failing closed with `verification-status: blocked` on untrusted events.
+
+```yaml
+name: CloneProof Verification
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run CloneProof Docker Verification
+        uses: psuvraneel-cyber/Clone-Proof@main
+        with:
+          target-path: '.'
+          mode: 'verify'
+          allow-network: 'false' # Set to 'true' only if npm ci requires external packages
+          timeout-ms: '300000'   # 5-minute timeout (max 600000)
+```
+
+---
+
+## Action Reference
 
 ### Action inputs
 
@@ -29,20 +68,24 @@ jobs:
 |---|---|---|---|
 | `target-path` | No | `.` | Repository directory to inspect. Must resolve inside `GITHUB_WORKSPACE`. |
 | `report-path` | No | Auto-generated in `RUNNER_TEMP` | Destination for the JSON report. Must resolve inside `GITHUB_WORKSPACE` or `RUNNER_TEMP`. |
+| `mode` | No | `check` | Execution mode: `check` (read-only static scan) or `verify` (static scan + controlled Docker verification). |
+| `allow-network` | No | `false` | Enables network access in Docker verification for `npm ci` package downloads. Must be `false` when `mode` is `check`. |
+| `timeout-ms` | No | `300000` | Execution timeout in milliseconds for Docker verification (1,000 ms to 600,000 ms). |
 
 ### Action outputs
 
 | Output | Description |
 |---|---|
-| `status` | The final scan result: `passed`, `passed_with_warnings`, `failed`, `blocked`, or `incomplete`. |
+| `status` | The final report status: `passed`, `passed_with_warnings`, `failed`, `blocked`, or `incomplete`. |
 | `report-path` | The validated absolute path to the generated JSON report on the runner filesystem. |
+| `verification-status` | The Docker verification outcome: `not_run` (in `check` mode), `passed`, `failed`, `blocked`, or `error`. |
 
 ### Exit codes
 
-The Action preserves the CLI exit code semantics:
-- `0`: Scan passed (`passed` or `passed_with_warnings`).
-- `1`: Scan failed with actionable setup problems (`failed`).
-- `2`: Scan was blocked or incomplete (`blocked`, `incomplete`, or runner environment error).
+The Action strictly preserves CloneProof CLI exit code semantics:
+- `0`: Scan passed (and verification passed when requested in `verify` mode).
+- `1`: Scan failed with actionable issues, or Docker installation/tests failed (`failed`).
+- `2`: Execution was blocked or incomplete (`blocked`, `incomplete`, missing prerequisites, unsupported runner OS, or restricted event).
 
 ---
 
@@ -72,11 +115,11 @@ If a finding has no file location, a file-less annotation is emitted. If a path 
 
 ### Annotation cap & prioritization
 
-GitHub Actions limits workflow command annotations. CloneProof enforces a strict cap of **50 annotations** per run:
-1. Findings are sorted by priority: `failed` (errors) > `warning` (warnings) > `skipped` (notices).
-2. Ties are broken deterministically by file path, line number, column number, finding code, and message.
-3. If more than 50 findings exist, only the top 50 are emitted, and a notice is emitted indicating how many findings were omitted.
-4. **All findings remain completely preserved in the JSON report and Job Summary.**
+GitHub Actions limits workflow command annotations to avoid overwhelming the interface. CloneProof enforces strict per-type and total caps:
+1. **Per-type cap:** At most **10 errors**, **10 warnings**, and **10 notices** per step (maximum **30 total**).
+2. **Deterministic sorting:** Within each severity level, findings are sorted deterministically by file path, line number, column number, finding code, and message.
+3. **No extra command:** Truncation is indicated in the Job Summary; no additional workflow notice command is emitted so truncation does not consume annotation quota.
+4. **Complete preservation:** **All findings remain completely preserved in the JSON report and Job Summary.**
 
 ---
 
@@ -89,12 +132,20 @@ Whenever the `GITHUB_STEP_SUMMARY` environment variable is available, CloneProof
 The Job Summary contains:
 1. **Header:** Scan result badge (`PASSED`, `PASSED WITH WARNINGS`, `FAILED`, `BLOCKED`, `INCOMPLETE`).
 2. **Summary metrics:** Authoritative counts for total checks, passed, failed, warnings, and skipped checks.
-3. **Findings table:** Breakdown of non-passed findings including status badge, finding code, sanitized message, workspace-relative location, and actionable recommendation. (Displays a clean notice if no issues are detected).
-4. **Coverage & verification scope:**
+3. **Findings table:** Breakdown of non-passed findings including status badge, finding code, sanitized message, workspace-relative location, and actionable recommendation.
+4. **Docker Verification (in `verify` mode):**
+   - Verification outcome badge (`PASSED`, `FAILED`, `BLOCKED`).
+   - Controlled Docker image reference.
+   - Network access status (`Enabled` or `Disabled`).
+   - Phase outcome for dependency installation and test execution.
+   - Execution timeout duration.
+   - Count of omitted sensitive files and excluded gitignored paths.
+   - Container and staging cleanup confirmation.
+5. **Coverage & verification scope:**
    - **Checks performed:** Explicit list of static check groups evaluated during the scan.
-   - **Scopes not checked:** Transparent list of checks out of static scope (e.g., build steps, starting services, OS-specific scripts, credentials).
-5. **Annotation truncation notice:** Rendered whenever the 50-annotation cap was reached, reporting the number of omitted workflow annotations.
-6. **Report location:** The path where the JSON report was written on the runner.
+   - **Scopes not checked:** Transparent list of checks out of static scope.
+6. **Annotation truncation notice:** Rendered whenever annotations were capped, reporting the number of omitted workflow annotations.
+7. **Report location:** The safe logical path where the JSON report was written (e.g., `RUNNER_TEMP/cloneproof/report.json` or workspace-relative path), accompanied by a note explaining that runner temporary files are local to the runner.
 
 ### Size limit & multi-byte safety
 
@@ -103,24 +154,47 @@ GitHub limits step summary files to 1 MiB. CloneProof enforces a conservative **
 - If content exceeds 512 KiB, output is safely truncated without splitting multi-byte Unicode sequences.
 - Truncation snaps backwards to the nearest newline boundary and appends a visible truncation disclaimer.
 
-### Environment handling & failure isolation
+### Presentation error isolation
 
-- If `GITHUB_STEP_SUMMARY` is not set (e.g., when testing the Action script locally), summary generation is gracefully skipped.
-- Failures in the presentation layer (e.g., summary filesystem write errors) are caught safely and logged to `stderr`. They **never** crash the Action, alter the scan status, or change the CLI exit code.
+Failures in the presentation layer (e.g., summary filesystem write errors) are caught safely and logged to `stderr`. They **never** crash the Action, alter the scan status, or change the CLI exit code.
 
 ---
 
-## JSON report vs. Job Summary
+## Docker Verification Details
 
-- **JSON report (`report-path`):** The canonical, complete, machine-readable source of truth containing every check, finding, evidence item, and raw metadata.
-- **Job Summary (`GITHUB_STEP_SUMMARY`):** A human-readable presentation intended for developer triage in the GitHub Actions UI.
+When `mode: verify` is requested:
 
-> **Note on Artifact Uploads:** The JSON report is written to the runner's local filesystem (by default in a subfolder of `RUNNER_TEMP`). Files in runner temporary directories are **not** automatically uploaded as GitHub workflow artifacts. If your workflow needs to retain the JSON report as a downloadable artifact, use the official `actions/upload-artifact` step:
+### 1. Pinned image & setup
+CloneProof reuses its pinned verification base image:
+`node:22.19.0-bookworm-slim@sha256:4a4884e8a44826194dff92ba316264f392056cbe243dcc9fd3551e71cea02b90`
+The Action automatically executes `cloneproof setup` to inspect or pull the image before verification begins.
+
+### 2. Runtime restrictions & fail-closed guards
+To protect GitHub Actions runners and infrastructure:
+- **Linux runners only:** Docker verification is currently supported on Linux runners (`runs-on: ubuntu-latest`). Non-Linux runners fail closed with `verification-status: blocked`, fall back to a safe static check, and return exit code `2` with `DOCKER_UNAVAILABLE`.
+- **Restricted events:** Only `push` and `workflow_dispatch` events are permitted. Untrusted events (such as `pull_request` and `pull_request_target`) fail closed with `verification-status: blocked`, fall back to a safe static check, and return exit code `2` with `DOCKER_EXECUTION_CONSENT_REQUIRED`.
+
+### 3. Container security hardening
+The container executes under a controlled, hardened profile:
+- **Non-root execution:** Runs as user `node` (UID/GID 1000).
+- **Read-only root filesystem:** Protects container OS files.
+- **Capabilities dropped:** All Linux capabilities dropped (`--cap-drop=ALL`).
+- **Network isolation:** Network disabled (`--network=none`) by default.
+- **Staging security:** Local staging omits `.env`, credentials, private keys, and gitignored files.
+- **Cleanup supervisor:** An independent supervisor process guarantees removal of temporary staging directories and containers even if the runner aborts or receives SIGINT.
+
+---
+
+## Retaining the JSON Report
+
+To save the complete JSON report as a downloadable workflow artifact, add the official `actions/upload-artifact` step:
 
 ```yaml
       - name: Run CloneProof
         id: cloneproof
         uses: psuvraneel-cyber/Clone-Proof@main
+        with:
+          target-path: '.'
 
       - name: Upload CloneProof Report
         if: always()
@@ -129,13 +203,3 @@ GitHub limits step summary files to 1 MiB. CloneProof enforces a conservative **
           name: cloneproof-report
           path: ${{ steps.cloneproof.outputs.report-path }}
 ```
-
----
-
-## Security & isolation
-
-- **Static inspection only:** The Action only invokes `cloneproof check`. It **never** executes repository code, lifecycle scripts (`npm install`, `preinstall`), README commands, or Docker containers.
-- **Child process isolation:** The CLI is invoked via `child_process.spawn` using `process.execPath`, argument arrays, and `shell: false`. No host shell interpolation is used.
-- **Environment filtering:** Only a minimal allowlist of necessary operating system environment variables (`PATH`, `TEMP`, `SYSTEMROOT`, etc.) is passed to the CLI child process. Runner tokens (`GITHUB_TOKEN`, `ACTIONS_RUNTIME_TOKEN`) and workflow secrets are strictly scrubbed.
-- **Command injection defense:** Untrusted output from the child process is sanitized so it cannot emit raw `::` workflow commands. Workflow annotations are generated solely through a dedicated, percent-encoded formatter.
-- **Markdown sanitization:** Untrusted finding messages, titles, codes, and paths are escaped to prevent Markdown and HTML injection in the Job Summary.

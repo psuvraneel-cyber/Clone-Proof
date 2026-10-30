@@ -1,8 +1,10 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 const { CHECK_GROUP_LABELS, NOT_CHECKED_LABELS } = require('../report/coverage');
 const { extractFindingLocation } = require('./annotations');
+const { isSubPath } = require('./paths');
 
 const MAX_SUMMARY_BYTES = 512 * 1024; // 524,288 bytes
 
@@ -112,11 +114,39 @@ function enforceSummaryByteLimit(markdown, maxBytes = MAX_SUMMARY_BYTES) {
 }
 
 /**
+ * Transforms an internal or host runner report file path into a safe,
+ * logical display path that never reveals runner-internal directory names,
+ * user folders, or absolute Windows/Linux drive/root paths.
+ */
+function formatSafeReportPath(reportPath, workspaceRoot, runnerTemp) {
+  if (!reportPath || typeof reportPath !== 'string') return 'report.json';
+  const trimmed = reportPath.trim();
+  if (trimmed === '') return 'report.json';
+
+  // If path is inside workspaceRoot, display the workspace-relative path
+  if (workspaceRoot) {
+    const resolvedWs = path.resolve(workspaceRoot);
+    const resolvedReport = path.resolve(trimmed);
+    if (isSubPath(resolvedWs, resolvedReport)) {
+      const rel = path.relative(resolvedWs, resolvedReport).replace(/\\/g, '/');
+      if (rel && !rel.startsWith('../') && rel !== '.') {
+        return rel;
+      }
+    }
+  }
+
+  // Otherwise, display a safe logical runner path
+  const base = path.basename(trimmed) || 'report.json';
+  return `RUNNER_TEMP/cloneproof/${base}`;
+}
+
+/**
  * Renders a validated CloneProof report into GitHub-flavoured Markdown.
  */
 function renderJobSummary(report, options = {}) {
   const workspaceRoot = options.workspaceRoot || process.cwd();
   const targetRoot = options.targetRoot || workspaceRoot;
+  const runnerTemp = options.runnerTemp || process.env.RUNNER_TEMP || '';
   const reportPath = options.reportPath || '';
   const omittedAnnotationCount = options.omittedAnnotationCount || 0;
 
@@ -173,6 +203,68 @@ function renderJobSummary(report, options = {}) {
     lines.push('');
   }
 
+  // Docker Verification (only if verification was performed or attempted)
+  if (report && report.verification && typeof report.verification === 'object') {
+    const v = report.verification;
+    const outcome = typeof v.outcome === 'string' ? v.outcome.toUpperCase() : 'UNKNOWN';
+
+    lines.push('## Docker Verification\n');
+    lines.push(`**Verification result:** ${outcome}\n`);
+
+    lines.push('| Property | Result |');
+    lines.push('|---|---|');
+    lines.push('| Verification mode | Docker (controlled profile) |');
+
+    if (v.image) {
+      lines.push(`| Docker image | \`${escapeInlineCode(v.image)}\` |`);
+    }
+
+    const networkLabel = v.networkConsent === true || v.networkMode === 'bridge' ? 'Enabled' : 'Disabled';
+    lines.push(`| Network access | ${networkLabel} |`);
+
+    if (v.setupFailed) {
+      lines.push('| Image setup | Failed |');
+    }
+
+    if (v.outcome === 'passed') {
+      lines.push('| Dependency installation | Passed |');
+      lines.push('| Test execution | Passed |');
+    } else if (v.failedPhase === 'install') {
+      lines.push('| Dependency installation | Failed |');
+      lines.push('| Test execution | Skipped |');
+    } else if (v.failedPhase === 'test') {
+      lines.push('| Dependency installation | Passed |');
+      lines.push('| Test execution | Failed |');
+    } else if (v.noTestsRan) {
+      lines.push('| Dependency installation | Passed |');
+      lines.push('| Test execution | Failed (Zero tests detected) |');
+    } else if (v.outcome === 'blocked') {
+      lines.push('| Dependency installation | Blocked |');
+      lines.push('| Test execution | Blocked |');
+    }
+
+    if (v.timedOut) {
+      lines.push('| Execution timeout | Yes |');
+    }
+
+    if (Array.isArray(v.omittedPaths) && v.omittedPaths.length > 0) {
+      lines.push(`| Sensitive files omitted | ${v.omittedPaths.length} |`);
+    }
+
+    if (Number.isInteger(v.ignoredPathCount) && v.ignoredPathCount > 0) {
+      lines.push(`| Gitignored paths excluded | ${v.ignoredPathCount} |`);
+    }
+
+    if (v.cleanup && typeof v.cleanup === 'object') {
+      const cleanupStatus = v.cleanup.cleanupFailed
+        ? 'Failed'
+        : (v.cleanup.completed ? 'Confirmed' : 'Incomplete');
+      lines.push(`| Cleanup | ${cleanupStatus} |`);
+    }
+
+    lines.push('');
+  }
+
   // D. Coverage and Verification Scope
   if (report && report.coverage && typeof report.coverage === 'object') {
     lines.push('## Coverage & Verification Scope\n');
@@ -204,8 +296,9 @@ function renderJobSummary(report, options = {}) {
 
   // F. Report Location
   if (reportPath) {
+    const safeDisplayPath = formatSafeReportPath(reportPath, workspaceRoot, runnerTemp);
     lines.push('## Report Location\n');
-    lines.push(`Report saved to: \`${escapeMarkdown(reportPath)}\`\n`);
+    lines.push(`Report saved to: \`${escapeInlineCode(safeDisplayPath)}\`\n`);
     lines.push('*(Note: this is a local path on the runner host; files stored under runner temporary directories are not automatically uploaded as GitHub workflow artifacts.)*\n');
   }
 
@@ -242,6 +335,7 @@ module.exports = {
   escapeInlineCode,
   escapeMarkdown,
   escapeTableCell,
+  formatSafeReportPath,
   renderJobSummary,
   writeJobSummary
 };
