@@ -7,6 +7,16 @@ const { emitAnnotations } = require('./annotations');
 const { isSubPath, normalizePathForComparison } = require('./paths');
 const { renderJobSummary, writeJobSummary } = require('./summary');
 const { DEFAULT_VERIFY_IMAGE } = require('../verify/docker');
+const {
+  MAX_RECEIPT_BYTES,
+  createReceipt,
+  readLocalGitMetadata,
+  serializeReceipt,
+  verifyReceiptContent,
+  writeFileAtomic
+} = require('../receipt');
+
+const RECEIPT_STATUSES = Object.freeze(['created', 'failed']);
 
 const MINIMAL_PROCESS_ENV_KEYS = [
   'PATH',
@@ -321,6 +331,160 @@ function validateReportPath(rawReportPath, workspacePath, runnerTemp, targetPath
   return resolved;
 }
 
+function realPathIfExists(target) {
+  return target && fs.existsSync(target) ? fs.realpathSync(target) : null;
+}
+
+/**
+ * Resolve the receipt destination. Errors use fixed messages and never echo
+ * the input, environment values, or absolute paths.
+ *
+ * Returns { path } for a usable destination, or { path: null, reason } when
+ * the default location is unavailable (RUNNER_TEMP missing). Throws for an
+ * explicitly supplied receipt-path that is unsafe.
+ */
+function validateReceiptPath(rawReceiptPath, workspacePath, runnerTemp, reportPath) {
+  const receiptString = typeof rawReceiptPath === 'string' ? rawReceiptPath.trim() : '';
+  let resolved;
+
+  if (!receiptString) {
+    if (!runnerTemp || typeof runnerTemp !== 'string' || runnerTemp.trim() === '') {
+      return { path: null, reason: 'RUNNER_TEMP is unavailable, so the default receipt location could not be used.' };
+    }
+    const dedicatedDir = path.join(path.resolve(runnerTemp), 'cloneproof');
+    fs.mkdirSync(dedicatedDir, { recursive: true });
+    resolved = path.join(dedicatedDir, 'receipt.json');
+  } else {
+    if (receiptString.includes('\0')) {
+      throw new Error('receipt-path is malformed.');
+    }
+    resolved = path.isAbsolute(receiptString) || /^[a-zA-Z]:[/\\]/.test(receiptString)
+      ? path.resolve(receiptString)
+      : path.resolve(workspacePath, receiptString.replace(/\\/g, '/'));
+
+    const inWorkspace = isSubPath(workspacePath, resolved);
+    const inRunnerTemp = runnerTemp ? isSubPath(path.resolve(runnerTemp), resolved) : false;
+    if (!inWorkspace && !inRunnerTemp) {
+      throw new Error('receipt-path must resolve inside GITHUB_WORKSPACE or RUNNER_TEMP.');
+    }
+    if (normalizePathForComparison(resolved) === normalizePathForComparison(workspacePath)
+      || (runnerTemp && normalizePathForComparison(resolved) === normalizePathForComparison(runnerTemp))) {
+      throw new Error('receipt-path must name a file, not an allowed root directory.');
+    }
+  }
+
+  if (reportPath && normalizePathForComparison(resolved) === normalizePathForComparison(reportPath)) {
+    throw new Error('receipt-path must differ from report-path.');
+  }
+
+  let stat = null;
+  try {
+    stat = fs.lstatSync(resolved);
+  } catch (error) {
+    if (error && error.code !== 'ENOENT') throw new Error('receipt-path could not be inspected.');
+  }
+  if (stat) {
+    if (stat.isDirectory()) throw new Error('receipt-path is a directory; expected a file path.');
+    if (stat.isSymbolicLink()) throw new Error('receipt-path must not be a symbolic link.');
+    if (!stat.isFile()) throw new Error('receipt-path is not a regular file.');
+  }
+
+  const realWorkspace = realPathIfExists(workspacePath);
+  const realTemp = realPathIfExists(runnerTemp);
+  let current = path.dirname(resolved);
+  while (current && current !== path.dirname(current)) {
+    if (fs.existsSync(current)) {
+      const realDir = fs.realpathSync(current);
+      const allowed = (realWorkspace && isSubPath(realWorkspace, realDir)) || (realTemp && isSubPath(realTemp, realDir));
+      if (!allowed) {
+        throw new Error('receipt-path parent directory resolves outside GITHUB_WORKSPACE and RUNNER_TEMP.');
+      }
+      break;
+    }
+    current = path.dirname(current);
+  }
+
+  const realReport = realPathIfExists(reportPath);
+  const realReceipt = realPathIfExists(resolved);
+  if (realReport && realReceipt && normalizePathForComparison(realReport) === normalizePathForComparison(realReceipt)) {
+    throw new Error('receipt-path must differ from report-path.');
+  }
+
+  return { path: resolved };
+}
+
+/**
+ * Repository identity for the receipt is recorded only when the target lives
+ * in the workflow's own checkout at GITHUB_WORKSPACE on github.com.
+ */
+function workspaceRepository(env, gitMetadata, workspace) {
+  if (!gitMetadata || !gitMetadata.commit || !gitMetadata.checkoutRoot) return null;
+  if (env.GITHUB_SERVER_URL !== 'https://github.com') return null;
+  const realRoot = realPathIfExists(gitMetadata.checkoutRoot);
+  const realWorkspace = realPathIfExists(workspace);
+  if (!realRoot || !realWorkspace || normalizePathForComparison(realRoot) !== normalizePathForComparison(realWorkspace)) {
+    return null;
+  }
+  return typeof env.GITHUB_REPOSITORY === 'string' ? env.GITHUB_REPOSITORY : null;
+}
+
+/**
+ * Create, write, and re-verify the receipt for a finalized report. Never
+ * throws and never modifies the report; failures are reported as
+ * { status: 'failed' } with a safe diagnostic.
+ */
+function produceReceipt(report, context) {
+  const { env, workspace, targetPath, receiptDestination, stderr } = context;
+  const fail = (message) => {
+    if (stderr && typeof stderr.write === 'function') {
+      stderr.write(`CloneProof Action: reproducibility receipt was not created: ${message} The report and exit code are unaffected.\n`);
+    }
+    return { status: 'failed', path: null, digest: null, receipt: null };
+  };
+
+  if (!receiptDestination || !receiptDestination.path) {
+    return fail(receiptDestination && receiptDestination.reason ? receiptDestination.reason : 'No receipt destination is available.');
+  }
+  const destination = receiptDestination.path;
+
+  try {
+    const git = readLocalGitMetadata(targetPath, { ceilingDirectory: workspace });
+    const receipt = (context.createReceipt || createReceipt)({
+      report,
+      invocation: 'github-action',
+      git,
+      repository: workspaceRepository(env, git, workspace),
+      env,
+      now: context.now
+    });
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    writeFileAtomic(destination, serializeReceipt(receipt));
+
+    const stat = fs.lstatSync(destination);
+    if (!stat.isFile() || stat.size > MAX_RECEIPT_BYTES) {
+      throw new Error('The written receipt is not a bounded regular file.');
+    }
+    const check = verifyReceiptContent(fs.readFileSync(destination));
+    if (check.status !== 'ok' || check.digest !== receipt.integrity.digest) {
+      try { fs.rmSync(destination, { force: true }); } catch { /* ignore cleanup failure */ }
+      throw new Error('The written receipt did not pass validation.');
+    }
+    return { status: 'created', path: destination, digest: receipt.integrity.digest, receipt };
+  } catch (error) {
+    return fail(error && error.code && String(error.code).startsWith('RECEIPT_') && error.message
+      ? error.message
+      : 'Receipt generation failed.');
+  }
+}
+
+function exportReceiptOutputs(outputFilePath, receiptResult) {
+  if (!RECEIPT_STATUSES.includes(receiptResult.status)) {
+    throw new Error('Invalid receipt status.');
+  }
+  exportOutput(outputFilePath, 'receipt-path', receiptResult.status === 'created' ? receiptResult.path : '');
+  exportOutput(outputFilePath, 'receipt-status', receiptResult.status);
+}
+
 function resolveCliEntrypoint(actionPath) {
   const basePath = actionPath ? path.resolve(actionPath) : path.resolve(__dirname, '..', '..');
   const cliCandidate = path.resolve(basePath, 'src', 'cli.js');
@@ -429,12 +593,26 @@ async function runAction(options = {}) {
     ? options.reportPath
     : getActionInput('report-path', env);
 
+  const rawReceipt = options.receiptPath !== undefined
+    ? options.receiptPath
+    : getActionInput('receipt-path', env);
+
   validateRequiredEnvironment(env, rawReport);
 
   const workspace = path.resolve(env.GITHUB_WORKSPACE);
   const resolvedTarget = validateTargetPath(rawTarget, workspace);
   const resolvedReport = validateReportPath(rawReport, workspace, env.RUNNER_TEMP, resolvedTarget);
+  const receiptDestination = validateReceiptPath(rawReceipt, workspace, env.RUNNER_TEMP, resolvedReport);
   const cliPath = resolveCliEntrypoint(env.GITHUB_ACTION_PATH);
+  const receiptContext = {
+    env,
+    workspace,
+    targetPath: resolvedTarget,
+    receiptDestination,
+    stderr,
+    now: options.now,
+    createReceipt: options.createReceipt
+  };
 
   const childEnv = filterChildEnvironment(env);
   const spawnOpts = {
@@ -456,10 +634,12 @@ async function runAction(options = {}) {
     );
 
     const report = readAndValidateReport(resolvedReport);
+    const receiptResult = produceReceipt(report, receiptContext);
 
     exportOutput(env.GITHUB_OUTPUT, 'status', report.status);
     exportOutput(env.GITHUB_OUTPUT, 'report-path', resolvedReport);
     exportOutput(env.GITHUB_OUTPUT, 'verification-status', 'not_run');
+    exportReceiptOutputs(env.GITHUB_OUTPUT, receiptResult);
 
     let annotationResult = null;
     try {
@@ -480,6 +660,7 @@ async function runAction(options = {}) {
         targetRoot: resolvedTarget,
         runnerTemp: env.RUNNER_TEMP,
         reportPath: resolvedReport,
+        receipt: receiptResult,
         omittedAnnotationCount: annotationResult ? annotationResult.omittedCount : 0
       });
       writeJobSummary(summaryMarkdown, env.GITHUB_STEP_SUMMARY, stderr);
@@ -556,10 +737,12 @@ async function runAction(options = {}) {
     });
 
     fs.writeFileSync(resolvedReport, JSON.stringify(report, null, 2), 'utf8');
+    const receiptResult = produceReceipt(report, receiptContext);
 
     exportOutput(env.GITHUB_OUTPUT, 'status', 'blocked');
     exportOutput(env.GITHUB_OUTPUT, 'report-path', resolvedReport);
     exportOutput(env.GITHUB_OUTPUT, 'verification-status', 'blocked');
+    exportReceiptOutputs(env.GITHUB_OUTPUT, receiptResult);
 
     let annotationResult = null;
     try {
@@ -580,6 +763,7 @@ async function runAction(options = {}) {
         targetRoot: resolvedTarget,
         runnerTemp: env.RUNNER_TEMP,
         reportPath: resolvedReport,
+        receipt: receiptResult,
         omittedAnnotationCount: annotationResult ? annotationResult.omittedCount : 0
       });
       writeJobSummary(summaryMarkdown, env.GITHUB_STEP_SUMMARY, stderr);
@@ -637,10 +821,12 @@ async function runAction(options = {}) {
     });
 
     fs.writeFileSync(resolvedReport, JSON.stringify(report, null, 2), 'utf8');
+    const receiptResult = produceReceipt(report, receiptContext);
 
     exportOutput(env.GITHUB_OUTPUT, 'status', 'blocked');
     exportOutput(env.GITHUB_OUTPUT, 'report-path', resolvedReport);
     exportOutput(env.GITHUB_OUTPUT, 'verification-status', 'blocked');
+    exportReceiptOutputs(env.GITHUB_OUTPUT, receiptResult);
 
     let annotationResult = null;
     try {
@@ -661,6 +847,7 @@ async function runAction(options = {}) {
         targetRoot: resolvedTarget,
         runnerTemp: env.RUNNER_TEMP,
         reportPath: resolvedReport,
+        receipt: receiptResult,
         omittedAnnotationCount: annotationResult ? annotationResult.omittedCount : 0
       });
       writeJobSummary(summaryMarkdown, env.GITHUB_STEP_SUMMARY, stderr);
@@ -706,9 +893,12 @@ async function runAction(options = {}) {
     ? report.verification.outcome
     : 'error';
 
+  const receiptResult = produceReceipt(report, receiptContext);
+
   exportOutput(env.GITHUB_OUTPUT, 'status', report.status);
   exportOutput(env.GITHUB_OUTPUT, 'report-path', resolvedReport);
   exportOutput(env.GITHUB_OUTPUT, 'verification-status', verificationOutcome);
+  exportReceiptOutputs(env.GITHUB_OUTPUT, receiptResult);
 
   let annotationResult = null;
   try {
@@ -729,6 +919,7 @@ async function runAction(options = {}) {
       targetRoot: resolvedTarget,
       runnerTemp: env.RUNNER_TEMP,
       reportPath: resolvedReport,
+      receipt: receiptResult,
       omittedAnnotationCount: annotationResult ? annotationResult.omittedCount : 0
     });
     writeJobSummary(summaryMarkdown, env.GITHUB_STEP_SUMMARY, stderr);
@@ -776,6 +967,8 @@ module.exports = {
   makeBlockedVerificationObject,
   normalizePathForComparison,
   pipeSanitizedOutput,
+  produceReceipt,
+  RECEIPT_STATUSES,
   readAndValidateReport,
   recomputeReportSummary,
   renderJobSummary,
@@ -784,6 +977,7 @@ module.exports = {
   sanitizeWorkflowCommandText,
   validateAllowNetwork,
   validateMode,
+  validateReceiptPath,
   validateReportPath,
   validateReportStructure,
   validateRequiredEnvironment,

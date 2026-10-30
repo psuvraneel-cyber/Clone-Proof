@@ -14,8 +14,16 @@ const { exitCodeForReport, renderHtml, renderJson, renderText } = require('./rep
 const { createCoverage } = require('./report/coverage');
 const { setupDockerImage, verifyRepository } = require('./verify/docker');
 const { sanitizeValue } = require('./util/sanitize-paths');
+const {
+  MAX_RECEIPT_BYTES,
+  createReceipt,
+  readLocalGitMetadata,
+  serializeReceipt,
+  verifyReceiptContent,
+  writeFileAtomic
+} = require('./receipt');
 
-const COMMANDS = new Set(['check', 'verify', 'setup']);
+const COMMANDS = new Set(['check', 'verify', 'setup', 'receipt']);
 const FORMATS = new Set(['text', 'json', 'html']);
 
 function printHelp() {
@@ -24,10 +32,13 @@ function printHelp() {
     '',
     'Usage:',
     '  cloneproof --version',
-    '  cloneproof check <repository-or-github-url> [--format text|json|html] [--output FILE] [--color|--no-color]',
-    '  cloneproof verify <repository-or-github-url> --docker --execute [--allow-network] [--timeout-ms N] [--format text|json|html] [--output FILE] [--color|--no-color]',
+    '  cloneproof check <repository-or-github-url> [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]',
+    '  cloneproof verify <repository-or-github-url> --docker --execute [--allow-network] [--timeout-ms N] [--format text|json|html] [--output FILE] [--receipt FILE] [--color|--no-color]',
     '  cloneproof setup',
+    '  cloneproof receipt verify <receipt-file>',
     '',
+    '--receipt FILE also writes a reproducibility receipt (a JSON evidence record with a SHA-256 integrity digest).',
+    'A receipt digest is not a signature: it detects changes only when the expected digest is trusted independently.',
     'Static check never executes repository code. Docker verification requires explicit --docker --execute consent.',
     'Docker verification network access is disabled unless --allow-network is also provided.',
     'Text output uses color only on a TTY; use --color or --no-color. NO_COLOR always disables ANSI color.',
@@ -50,6 +61,10 @@ function parseArguments(argv) {
     throw new Error(`Unknown command: ${command}`);
   }
 
+  if (command === 'receipt') {
+    return parseReceiptArguments(values);
+  }
+
   let target = null;
   let format = 'text';
   let color;
@@ -58,6 +73,7 @@ function parseArguments(argv) {
   let allowNetwork = false;
   let timeoutMs;
   let outputPath = null;
+  let receiptPath = null;
 
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
@@ -92,6 +108,21 @@ function parseArguments(argv) {
       outputPath = value.slice('--output='.length);
       if (!outputPath) {
         throw new Error('Missing output file path');
+      }
+      continue;
+    }
+    if (value === '--receipt') {
+      receiptPath = values[index + 1];
+      index += 1;
+      if (!receiptPath || receiptPath.startsWith('-')) {
+        throw new Error('Missing receipt file path');
+      }
+      continue;
+    }
+    if (value.startsWith('--receipt=')) {
+      receiptPath = value.slice('--receipt='.length);
+      if (!receiptPath) {
+        throw new Error('Missing receipt file path');
       }
       continue;
     }
@@ -151,11 +182,50 @@ function parseArguments(argv) {
     throw new Error('setup does not accept Docker, output, or verification options');
   }
 
+  if (command === 'setup' && receiptPath) {
+    throw new Error('setup does not accept --receipt');
+  }
+
+  if (receiptPath && outputPath && sameDestination(receiptPath, outputPath)) {
+    throw new Error('--receipt and --output must name different files');
+  }
+
   if (command === 'check' && (allowNetwork || timeoutMs !== undefined || docker || execute)) {
     throw new Error('--docker, --execute, --allow-network, and --timeout-ms are only valid for verify');
   }
 
-  return { command, target, format, color, docker, execute, allowNetwork, timeoutMs, outputPath };
+  return {
+    command,
+    target,
+    format,
+    color,
+    docker,
+    execute,
+    allowNetwork,
+    timeoutMs,
+    outputPath,
+    ...(receiptPath ? { receiptPath } : {})
+  };
+}
+
+function parseReceiptArguments(values) {
+  const [subcommand, receiptFile, ...extra] = values;
+  if (subcommand !== 'verify') {
+    throw new Error(`Unknown receipt subcommand: ${subcommand || '(missing)'}`);
+  }
+  if (!receiptFile || receiptFile.startsWith('-')) {
+    throw new Error('receipt verify requires a receipt file path');
+  }
+  if (extra.length > 0) {
+    throw new Error(`Unexpected extra argument: ${extra[0]}`);
+  }
+  return { command: 'receipt', subcommand, receiptFile };
+}
+
+function sameDestination(left, right) {
+  const a = path.resolve(left);
+  const b = path.resolve(right);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 function renderReport(report, format, color) {
@@ -172,6 +242,47 @@ function writeReport(report, options) {
     process.stderr.write(`CloneProof: wrote report to ${options.outputPath}\n`);
   } else {
     process.stdout.write(rendered);
+  }
+}
+
+function prepareReceiptDestination(receiptPath) {
+  const resolved = path.resolve(receiptPath);
+  let stat = null;
+  try {
+    stat = fs.lstatSync(resolved);
+  } catch (error) {
+    if (!error || error.code !== 'ENOENT') throw new Error('The receipt destination could not be inspected.');
+  }
+  if (stat && stat.isDirectory()) throw new Error('The receipt destination is a directory; expected a file path.');
+  if (stat && stat.isSymbolicLink()) throw new Error('The receipt destination must not be a symbolic link.');
+  if (stat && !stat.isFile()) throw new Error('The receipt destination is not a regular file.');
+  try {
+    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+  } catch {
+    throw new Error('The receipt destination folder could not be created.');
+  }
+  return resolved;
+}
+
+/**
+ * Write a receipt for a finalized report. Receipt failures are reported
+ * separately and never change the report or the command's exit code.
+ */
+function writeReceiptForReport(report, options, resolved) {
+  if (!options.receiptPath) return null;
+  try {
+    const destination = prepareReceiptDestination(options.receiptPath);
+    const git = resolved && !resolved.source
+      ? readLocalGitMetadata(path.resolve(resolved.path))
+      : null;
+    const receipt = createReceipt({ report, invocation: 'cli', git, env: process.env });
+    writeFileAtomic(destination, serializeReceipt(receipt));
+    process.stderr.write(`CloneProof: wrote receipt to ${options.receiptPath} (sha256 ${receipt.integrity.digest})\n`);
+    return receipt;
+  } catch (error) {
+    const reason = error && error.message ? error.message : 'Unknown error.';
+    process.stderr.write(`CloneProof: receipt was not created: ${reason} The report and exit code are unaffected.\n`);
+    return null;
   }
 }
 
@@ -348,6 +459,7 @@ async function runCheck(options) {
     const report = cloneFailureReport(options.target, error, 'check');
     reportCleanupFailure(report, error.cleanupError || error);
     writeReport(report, options);
+    writeReceiptForReport(report, options, null);
     return exitCodeForReport(report);
   }
 
@@ -373,12 +485,14 @@ async function runCheck(options) {
     }
   }
   writeReport(report, options);
+  writeReceiptForReport(report, options, resolved);
   return exitCodeForReport(report);
 }
 
 async function runVerify(options) {
   if (!options.docker || !options.execute) {
     process.stderr.write('CloneProof: verify requires both --docker and --execute; no repository code was run.\n');
+    if (options.receiptPath) process.stderr.write('CloneProof: receipt was not created because no report was produced.\n');
     return 2;
   }
 
@@ -390,6 +504,7 @@ async function runVerify(options) {
     const report = cloneFailureReport(options.target, error, 'verify');
     reportCleanupFailure(report, error.cleanupError || error);
     writeReport(report, options);
+    writeReceiptForReport(report, options, null);
     return exitCodeForReport(report);
   }
 
@@ -419,6 +534,7 @@ async function runVerify(options) {
     }
   }
   writeReport(report, options);
+  writeReceiptForReport(report, options, resolved);
   return exitCodeForReport(report);
 }
 
@@ -431,6 +547,48 @@ async function runSetup() {
     process.stderr.write(output);
   }
   return result.exitCode;
+}
+
+function runReceiptVerify(options) {
+  let content;
+  try {
+    const stat = fs.lstatSync(options.receiptFile);
+    if (!stat.isFile()) throw new Error('not a regular file');
+    if (stat.size > MAX_RECEIPT_BYTES) {
+      process.stderr.write(`CloneProof: receipt exceeds the ${MAX_RECEIPT_BYTES}-byte limit.\n`);
+      return 2;
+    }
+    content = fs.readFileSync(options.receiptFile);
+  } catch {
+    process.stderr.write('CloneProof: the receipt file could not be read as a regular file.\n');
+    return 2;
+  }
+
+  const result = verifyReceiptContent(content);
+  if (result.status === 'ok') {
+    process.stdout.write([
+      'Receipt verified: schema v1 is valid and the SHA-256 integrity digest matches.',
+      `Digest: ${result.digest}`,
+      'A matching digest shows only that the content equals what was digested. It is not a signature,',
+      'does not authenticate who produced the receipt, and does not certify the recorded source.',
+      ''
+    ].join('\n'));
+    return 0;
+  }
+  if (result.status === 'invalid') {
+    const errors = result.errors || [];
+    const label = result.kind === 'digest' ? 'Receipt integrity check FAILED' : `Receipt ${result.kind} validation FAILED`;
+    const lines = [`${label}: ${result.message}`];
+    for (const item of errors.slice(0, 10)) lines.push(`  ${item.path || '/'}: ${item.message}`);
+    if (errors.length > 10) lines.push(`  ... ${errors.length - 10} more`);
+    if (result.kind === 'digest' && result.expected && result.actual) {
+      lines.push(`  recorded: ${result.expected}`, `  computed: ${result.actual}`);
+    }
+    process.stderr.write(`${lines.join('\n')}\n`);
+    return 1;
+  }
+  process.stderr.write(`CloneProof: ${result.message}\n`);
+  return 2;
 }
 
 async function run() {
@@ -455,6 +613,10 @@ async function run() {
 
   if (options.command === 'setup') {
     return runSetup();
+  }
+
+  if (options.command === 'receipt') {
+    return runReceiptVerify(options);
   }
 
   if (options.command === 'verify') {

@@ -71,6 +71,7 @@ jobs:
 | `mode` | No | `check` | Execution mode: `check` (read-only static scan) or `verify` (static scan + controlled Docker verification). |
 | `allow-network` | No | `false` | Enables network access in Docker verification for `npm ci` package downloads. Must be `false` when `mode` is `check`. |
 | `timeout-ms` | No | `300000` | Execution timeout in milliseconds for Docker verification (1,000 ms to 600,000 ms). |
+| `receipt-path` | No | `RUNNER_TEMP/cloneproof/receipt.json` | Destination for the reproducibility receipt. Must resolve inside `GITHUB_WORKSPACE` or `RUNNER_TEMP`, must not be a directory or symbolic link, and must differ from `report-path`. An unsafe value fails the step before CloneProof runs. |
 
 ### Action outputs
 
@@ -79,6 +80,8 @@ jobs:
 | `status` | The final report status: `passed`, `passed_with_warnings`, `failed`, `blocked`, or `incomplete`. |
 | `report-path` | The validated absolute path to the generated JSON report on the runner filesystem. |
 | `verification-status` | The Docker verification outcome: `not_run` (in `check` mode), `passed`, `failed`, `blocked`, or `error`. |
+| `receipt-path` | Absolute path to the reproducibility receipt when `receipt-status` is `created`; an empty string otherwise. |
+| `receipt-status` | `created` (written, re-read, and verified) or `failed` (no receipt; see the step log). |
 
 ### Exit codes
 
@@ -146,6 +149,7 @@ The Job Summary contains:
    - **Scopes not checked:** Transparent list of checks out of static scope.
 6. **Annotation truncation notice:** Rendered whenever annotations were capped, reporting the number of omitted workflow annotations.
 7. **Report location:** The safe logical path where the JSON report was written (e.g., `RUNNER_TEMP/cloneproof/report.json` or workspace-relative path), accompanied by a note explaining that runner temporary files are local to the runner.
+8. **Reproducibility Receipt:** `CREATED` with the schema version, integrity algorithm and digest, source revision (or `Unavailable`), execution mode, verification outcome, and safe logical receipt location — shown only after the receipt was written and re-verified. Otherwise `FAILED` with no digest. Byte budget is reserved for this section, so summary truncation never removes it.
 
 ### Size limit & multi-byte safety
 
@@ -182,6 +186,30 @@ The container executes under a controlled, hardened profile:
 - **Network isolation:** Network disabled (`--network=none`) by default.
 - **Staging security:** Local staging omits `.env`, credentials, private keys, and gitignored files.
 - **Cleanup supervisor:** An independent supervisor process guarantees removal of temporary staging directories and containers even if the runner aborts or receives SIGINT.
+
+---
+
+## Reproducibility receipt
+
+Every Action run attempts a reproducibility receipt after the final report has been read and validated, and before outputs, annotations, and the Job Summary are produced. The receipt is built from that report and safe workflow metadata; the CLI is not run again and Docker verification is not repeated. The flow is: validate inputs → run the CLI once → read and validate the report → create the receipt → write it atomically → re-read and verify it → export outputs → annotations and Job Summary.
+
+- **Default location:** `RUNNER_TEMP/cloneproof/receipt.json`, separate from the report. Override it with `receipt-path`.
+- **Source identity:** the commit is read from the target's own Git checkout (`actions/checkout` keeps `.git`), searching no higher than `GITHUB_WORKSPACE` and without running Git. `source.repository` is set to `GITHUB_REPOSITORY` only when that checkout is the workspace root on `github.com`. `GITHUB_SHA` is recorded separately as `environment.github.workflowCommit`.
+- **Run metadata:** `GITHUB_REPOSITORY`, `GITHUB_WORKFLOW`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_EVENT_NAME`, `GITHUB_REF`, `GITHUB_SHA`, `RUNNER_OS`, `RUNNER_ENVIRONMENT`, `GITHUB_ACTION_REPOSITORY`, and `GITHUB_ACTION_REF`, each validated against a strict pattern (null when malformed). No other environment variable is read.
+- **Error semantics:** a receipt failure emits `CloneProof Action: reproducibility receipt was not created: …`, sets `receipt-status=failed` and an empty `receipt-path`, and leaves the report, the other outputs, annotations, and the exit code unchanged. A receipt never turns a failed scan into success or a passed scan into failure.
+
+Verify it later with `cloneproof receipt verify <file>`. To keep it, upload it alongside the report:
+
+```yaml
+      - name: Upload CloneProof receipt
+        if: always() && steps.cloneproof.outputs.receipt-status == 'created'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloneproof-receipt
+          path: ${{ steps.cloneproof.outputs.receipt-path }}
+```
+
+The receipt's SHA-256 digest detects changes only when the expected digest is trusted independently; it is not a signature or an attestation. See [RECEIPTS.md](RECEIPTS.md) for the schema and limitations.
 
 ---
 
