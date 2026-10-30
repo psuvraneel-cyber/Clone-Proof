@@ -527,6 +527,22 @@ A first rerun exposed a regression before this result was recorded: `pixijs/pixi
 - The warning *count* went up from 26 to 31. `tidepool-org/uploader` commits a `.env`, so it now gets one `ENV_KEY_MISSING` per undocumented key (13 findings) instead of one `ENV_EXAMPLE_MISSING`; `learn-japanese` gets 2. Grouping per-key environment findings into one finding per repository would remove this fan-out. It is a reporting change and is left for a separate decision.
 - Blocking findings are unchanged: fix 3 (repositories with no tests) is still a product decision.
 
+### Run 5 rerun with the no-tests policy (2026-10-30)
+
+The test-script policy (fix 3) was implemented on the `claude/no-tests-policy` branch: a missing or placeholder test script fails only when the repository has tests that `npm test` cannot run, and a repository with no tests gets the `NO_TESTS_FOUND` warning (see [FINDINGS.md](FINDINGS.md#test-script-policy)). The same 50 repositories were rerun on the same day. All 49 reported commits matched the sampled head commits. Results are in [`field-test/run5-policy-results.json`](field-test/run5-policy-results.json) and judgments in [`field-test/run5-policy-judgments.json`](field-test/run5-policy-judgments.json); every finding keeps its earlier judgment.
+
+| | Run 5 | Env and browser rerun | No-tests policy rerun |
+|---|---:|---:|---:|
+| Repositories failing (exit 1) | 13 | 13 | **3** |
+| Exit-1 repositories justified by a real blocking finding | 3 / 13 | 3 / 13 | **3 / 3** |
+| Blocking findings: real / policy / false | 4 / 10 / 0 | 4 / 10 / 0 | **4 / 0 / 0** |
+| Warnings: real / policy / false | 8 / 5 / 13 | 8 / 22 / 1 | 8 / 32 / 1 |
+| Report status `passed` / `passed_with_warnings` / `failed` / `incomplete` | 17 / 19 / 13 / 1 | 23 / 13 / 13 / 1 | 23 / 23 / 3 / 1 |
+
+Exactly the 10 `TEST_SCRIPT_MISSING` findings judged *policy* (repositories with no tests) became `NO_TESTS_FOUND` warnings; no other finding changed. The three repositories that still fail are wardellbagby/lyricistant and FluffyBubu/cypress-sandbox (test suites that `npm test` cannot run) and tidepool-org/uploader (its README runs a script that does not exist). Two details of the policy mattered for this result: Cypress `*.cy.js` files count as tests, so cypress-sandbox still fails; and files under `test/` count only when they use a test API, so vuejs/repl's dev playground and peer-dial's example programs no longer make those repositories fail.
+
+The warning count rose from 31 to 41 because the 10 downgraded findings are now warnings. They are all true but are policy, which is why warning precision fell to 8 / 41 while warning correctness rose to 40 / 41 (97.6%).
+
 ## Known limitations
 
 1. **Sensitive-file omission applies to local folders only.** Local staging still omits `.env*`, npm configuration, credentials, and certificate/key files and reports `DOCKER_SENSITIVE_FILES_OMITTED`. Fresh public GitHub clones copy committed versions because they are already public; command-line flags still force `npm ci --ignore-scripts`.

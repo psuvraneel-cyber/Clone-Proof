@@ -320,15 +320,16 @@ CloneProof is measured on real repositories, with the method written down before
 | Random sample, pre-registered (Run 5, 50 repositories) | 13 failed (exit 1), 36 passed, 1 incomplete |
 | Blocking findings, Run 5 | **14 / 14 factually correct**; 4 / 14 actionable, 10 were "this repo has no tests" |
 | Warnings, Run 5 | 8 / 26 real (30.8%); 13 / 26 false, mostly `ENV_EXAMPLE_MISSING` and `BROWSER_TESTS_DETECTED` |
+| Failing repositories, Run 5 rerun with the no-tests policy | **3 of 50, all 3 genuinely broken** (was 13, of which 3 were) |
 | Warnings, Run 5 rerun after the env and browser fixes | **1 / 31 false** (was 13 / 26); the rest are real or optional settings |
 | Hand-picked repositories (Run 3) | **13 correct + 2 environment-limited** out of 15; warning precision 5 / 6 |
 | Planted-bug mutations (offline) | **13 / 13** detected |
 | Planted bugs in real repositories | **39 / 39** detected across 3 repositories |
-| Automated tests | **434** (offline, `npm test`) |
+| Automated tests | **445** (offline, `npm test`) |
 | CI | Ubuntu · macOS · Windows · Docker end-to-end · GitHub Action end-to-end |
 | Output determinism | Byte-identical JSON across repeated runs on 10 public repositories |
 
-Run 5 is the honest noise measurement. Blocking findings were never wrong, but most fired on repositories that have no tests at all. Two warning checks were noisy in the wild; after fixing them, a rerun of the same 50 repositories went from 13 false warnings to 1, and most remaining environment warnings are true but name optional settings.
+Run 5 is the honest noise measurement. Blocking findings were never wrong, but most fired on repositories that have no tests at all; with the no-tests policy, only 3 of the 50 repositories fail, and all 3 are genuinely broken. Two warning checks were noisy in the wild; after fixing them, a rerun of the same 50 repositories went from 13 false warnings to 1, and most remaining environment warnings are true but name optional settings.
 
 ---
 
@@ -360,7 +361,7 @@ Contributions are welcome. The most useful thing right now is a report when Clon
 git clone https://github.com/psuvraneel-cyber/Clone-Proof.git
 cd Clone-Proof
 npm ci
-npm test               # 434 offline tests
+npm test               # 445 offline tests
 npm run test:leaks     # same suite with an isolated temp folder; fails on any leftover file
 npm run build          # syntax check
 ```
