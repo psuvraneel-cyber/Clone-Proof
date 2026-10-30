@@ -849,7 +849,8 @@ async function verifyRepository(rootPath, options = {}) {
   const staticReport = scanRepository(rootPath, {
     freshClone: options.freshClone === true,
     symlinkPaths: options.symlinkPaths || [],
-    repositoryName: options.repositoryName
+    repositoryName: options.repositoryName,
+    requireTests: options.requireTests === true
   });
   const report = cloneReport(staticReport);
   report.mode = 'verify';

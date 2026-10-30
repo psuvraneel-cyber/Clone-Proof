@@ -17,6 +17,10 @@ inputs:
     description: 'Allow network access from the Docker verification container.'
     required: false
     default: 'false'
+  require-tests:
+    description: 'Treat a repository without tests as failed instead of reporting a NO_TESTS_FOUND warning.'
+    required: false
+    default: 'false'
   timeout-ms:
     description: 'Maximum Docker verification execution time in milliseconds.'
     required: false
