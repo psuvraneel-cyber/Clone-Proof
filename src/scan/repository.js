@@ -1789,11 +1789,48 @@ function readmePackageName(value) {
   return normalized || null;
 }
 
+// A quoted object property whose value is a string, such as `"cover": "npm run x"`
+// in an example package.json or tool configuration: a definition, not a command.
+const README_CONFIG_PROPERTY = /^\s*(["'])[^"']+\1\s*:\s*["'`]/;
+
+// Script names defined by fenced `"scripts": { ... }` examples in the README.
+// Library READMEs use these to show readers what to add to their own project.
+function readmeExampleScriptNames(lines) {
+  const names = new Set();
+  let fence = null;
+  let depth = 0;
+  for (const line of lines) {
+    if (fence) {
+      if (isReadmeFenceClose(line, fence)) {
+        fence = null;
+        depth = 0;
+        continue;
+      }
+      if (depth === 0) {
+        if (/(["'])scripts\1\s*:\s*\{/.test(line)) depth = 1;
+        continue;
+      }
+      const property = /^\s*(["'])([^"']+)\1\s*:/.exec(line);
+      if (depth === 1 && property) names.add(property[2]);
+      for (const character of line.replace(/(["'])(?:\\.|(?!\1).)*\1/g, '')) {
+        if (character === '{') depth += 1;
+        if (character === '}') depth -= 1;
+      }
+      if (depth < 0) depth = 0;
+    } else {
+      fence = readmeFenceMarker(line);
+    }
+  }
+  return names;
+}
+
 function parseReadmeCommands(text, options = {}) {
   const references = new Map();
   const setupCommands = [];
   const otherProjectLines = [];
   const lines = text.split(/\r?\n/);
+  const exampleScripts = readmeExampleScriptNames(lines);
+  const definedScripts = new Set(options.scriptNames || []);
   const ownProjectNames = new Set([
     readmePackageName(options.repositoryName),
     readmePackageName(options.rootName),
@@ -1825,6 +1862,7 @@ function parseReadmeCommands(text, options = {}) {
         fence = null;
         continue;
       }
+      if (README_CONFIG_PROPERTY.test(line)) continue;
       commandLine = readmeCommandLine(line, true);
     } else {
       const marker = readmeFenceMarker(line);
@@ -1886,7 +1924,9 @@ function parseReadmeCommands(text, options = {}) {
       const manager = runMatch[1].toLowerCase();
       const verb = runMatch[2].toLowerCase();
       const scriptName = runMatch[3].replace(/[),.;:!?]+$/g, '');
-      if (scriptName && !scriptName.startsWith('<')) {
+      if (exampleScripts.has(scriptName) && !definedScripts.has(scriptName)) {
+        addOtherProjectLine(lineNumber, line);
+      } else if (scriptName && !scriptName.startsWith('<')) {
         addReference(`run:${scriptName}`, 'run', lineNumber, `README references ${manager} ${verb} ${scriptName}.`);
         references.get(`run:${scriptName}`).scriptName = scriptName;
       }
@@ -3050,7 +3090,8 @@ function scanRepository(rootPath, options) {
     const parsedReadme = parseReadmeCommands(readmeText, {
       repositoryName: scanOptions.repositoryName,
       rootName: rootName(absoluteRoot),
-      packageName: packageData && packageData.name
+      packageName: packageData && packageData.name,
+      scriptNames: Object.keys(scripts)
     });
     readmeReferences = parsedReadme.references;
     readmeSetupCommands = parsedReadme.setupCommands;

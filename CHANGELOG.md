@@ -12,6 +12,17 @@ and `2` (blocked or incomplete).
 
 ## [Unreleased]
 
+### Fixed
+
+- `README_SCRIPT_UNKNOWN` no longer fails library READMEs that show readers
+  how to use the package in their own project. A script defined in a fenced
+  `"scripts": { ... }` example in the README, and missing from the root
+  `package.json`, is reported under the informational
+  `README_OTHER_PROJECT_COMMANDS` instead. `npm run` commands that appear as
+  quoted values in README configuration examples (for example
+  `"cover": "npm run cover:unit"`) are no longer treated as commands. In field
+  test Run 6, all 9 `README_SCRIPT_UNKNOWN` findings were of these kinds.
+
 ## [0.2.0] - 2026-10-30
 
 ### Changed

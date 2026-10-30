@@ -203,6 +203,71 @@ test('reports an unknown npm script referenced by README', () => withRepository(
   assert.equal(unknown.evidence[0].path, 'README.md');
 }));
 
+test('ignores README scripts that the README defines for the reader\'s own project', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    '# Usage',
+    'Add a script to "scripts" in your `package.json`:',
+    '```json',
+    '"scripts": {',
+    '  "test": "nodeunit test",',
+    '  "deploy": "gh-pages -d dist"',
+    '}',
+    '```',
+    'Then run:',
+    '```console',
+    'npm run deploy',
+    '```'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const otherProject = finding(report, 'README_OTHER_PROJECT_COMMANDS');
+
+  assert.equal(finding(report, 'README_SCRIPT_UNKNOWN'), undefined);
+  assert.equal(otherProject.status, 'skipped');
+  assert.match(otherProject.message, /line 11 npm run deploy/);
+}));
+
+test('ignores npm run commands inside quoted README configuration values', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    '```json',
+    '{',
+    '  "scripts": {',
+    '    "cover": "npm run cover:unit && npm run cover:report"',
+    '  },',
+    '  "*.js": "npm run my-custom-script --"',
+    '}',
+    '```'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+
+  assert.equal(finding(report, 'README_SCRIPT_UNKNOWN'), undefined);
+  assert.equal(report.status, 'passed');
+}));
+
+test('still reports README scripts missing from package.json when no example defines them', () => withRepository((root) => {
+  writeHealthyRepository(root);
+  writeFile(root, 'README.md', [
+    '```json',
+    '"scripts": {',
+    '  "deploy": "gh-pages -d dist"',
+    '}',
+    '```',
+    '```bash',
+    'npm run deploy',
+    'npm run release',
+    '```'
+  ].join('\n'));
+
+  const report = scanRepository(root);
+  const unknown = report.findings.filter((entry) => entry.code === 'README_SCRIPT_UNKNOWN');
+
+  assert.deepEqual(unknown.map((entry) => entry.message), ['README references npm run release, but package.json does not define that script.']);
+  assert.equal(report.status, 'failed');
+}));
+
 test('recognizes bare npm i as a README install command', () => withRepository((root) => {
   writeHealthyRepository(root);
   writeFile(root, 'README.md', 'npm i\n');
