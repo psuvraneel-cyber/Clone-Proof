@@ -290,7 +290,7 @@ cloneproof --version
 |---|---|
 | `--format text\|json\|html` | Text for people, canonical JSON for CI, self-contained HTML to share |
 | `--output FILE` | Write the report to a file (creates missing folders) |
-| `--color` / `--no-color` | Terminal color preference; `NO_COLOR` always disables it |
+| `--color` / `--no-color` | Force color on (even when piped) or off; without either, color follows the TTY and `NO_COLOR` disables it |
 | `--docker --execute` | Both required to run anything in `verify` |
 | `--allow-network` | Allow network in the container; trusted repositories only |
 | `--require-tests` | Treat a repository without tests as failed instead of a `NO_TESTS_FOUND` warning |

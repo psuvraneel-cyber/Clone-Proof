@@ -12,6 +12,6 @@ test('CLI exposes the safe-by-default help message', () => {
   assert.match(result.stdout, /Static check never executes repository code/);
   assert.match(result.stdout, /Docker verification network access is disabled/);
   assert.match(result.stdout, /--color\|--no-color/);
-  assert.match(result.stdout, /NO_COLOR always disables ANSI color/);
+  assert.match(result.stdout, /NO_COLOR disables it unless --color is passed/);
   assert.equal(result.stderr, '');
 });
